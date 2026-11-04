@@ -1,6 +1,10 @@
 # Mini VTT
 
-A lightweight two-screen map display for in-person tabletop RPGs.
+First of all I have used AI to build this project. I am an senior engineer but i program VHDL mostly. So while I am quite experienced in designing robust firmware I lack the skills to make something like this within any reasonable time without AI.
+Also this is based upon Lazy DM Companion I found on github with an license stating it was free to use. https://github.com/felipeabviana/lazy_dm_companion
+If author is not ok with this i will remove if from public view.
+
+So this is VTT I wanted to make because my group play local only with a weak laptop and a OLED TV laying flat connected by HDMI. No token. No online. Just maps and fog of war basically. Focus of the software is low system resource usage.
 
 You run Mini VTT on your laptop. The **DM window** stays on your screen, where you pick maps, paint fog of war and decide what the players see. The **player screen** goes on a TV, a monitor laid flat on the table, or a projector, and shows only the part of the map you've framed, with unrevealed areas in solid black.
 
