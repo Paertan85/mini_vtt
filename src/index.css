@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    @apply bg-ground font-sans text-ink antialiased;
+    user-select: none;
+  }
+
+  ::selection {
+    @apply bg-gold text-ground;
+  }
+
+  /* Keyboard focus is always visible; mouse focus isn't */
+  :focus-visible {
+    @apply outline outline-2 outline-offset-1 outline-gold;
+  }
+
+  input[type='range'] {
+    height: 4px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0s !important;
+    }
+  }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #3b3430;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #4d4540;
+}

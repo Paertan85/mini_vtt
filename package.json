@@ -1,0 +1,112 @@
+{
+  "name": "mini-vtt",
+  "version": "1.0.0",
+  "description": "Lightweight two-screen map display for tabletop RPGs: a DM control window with fog of war and a separate player screen.",
+  "main": "dist-electron/main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "npm run test:build && electron scripts/test-library.mjs",
+    "test:build": "esbuild electron/library.ts --bundle --platform=node --format=esm --external:electron --outfile=dist-electron/library.test.mjs --log-level=warning",
+    "test:app": "vite build && electron scripts/test-app.mjs",
+    "dist:dir": "npm run build && electron-builder --win --dir",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:mac": "npm run build && electron-builder --mac"
+  },
+  "keywords": [
+    "vtt",
+    "tabletop",
+    "rpg",
+    "dnd",
+    "fog-of-war",
+    "battle-map",
+    "electron",
+    "react"
+  ],
+  "author": "Paertan85",
+  "license": "MIT",
+  "dependencies": {
+    "@fontsource/cinzel": "^5.3.0",
+    "@fontsource/ibm-plex-sans": "^5.3.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.475.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^2.6.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^22.10.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "electron": "^34.2.0",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.25.12",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^15.15.0",
+    "postcss": "^8.4.49",
+    "prettier": "^3.9.10",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.72.1",
+    "vite": "^6.0.7",
+    "vite-plugin-electron": "^0.29.0",
+    "vite-plugin-electron-renderer": "^0.14.6"
+  },
+  "build": {
+    "appId": "com.minivtt.app",
+    "productName": "Mini VTT",
+    "afterPack": "scripts/patch-icon.cjs",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "!dist-electron/*.test.mjs"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "sign": null,
+      "signAndEditExecutable": false
+    },
+    "mac": {
+      "icon": "build/icon.png",
+      "category": "public.app-category.games",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "identity": null
+    },
+    "forceCodeSigning": false,
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Paertan85/mini_vtt.git"
+  }
+}
