@@ -228,6 +228,137 @@ app.whenReady().then(async () => {
     check('removeHandout succeeds', (await lib.removeHandout(handout.id)) === true);
     check('handout is gone', (await lib.resolveHandoutPath(handout.id)) === null);
 
+    // ── Project files ────────────────────────────────────────────────────────
+    // Library now holds map b (renamed, with fog). Add a second map, a handout,
+    // view state and settings, then export, empty the library and import.
+    const c = await lib.addMap(await fixture('gamma.png', makePng({ width: 80, height: 40 })));
+    await lib.reorderMaps([b.entry.id, c.entry.id]);
+    await lib.saveMapView(b.entry.id, {
+      zoom: 1.75,
+      pan: { x: 10, y: 20 },
+      rotation: 270,
+      mirrorHorizontal: true,
+      mirrorVertical: false,
+    });
+    const letter = await lib.addHandout(await fixture('letter2.png', makePng({ width: 120, height: 60 })));
+    await lib.rotateHandout(letter.id, 90);
+    await lib.saveSettings({ playerScreenDiagonal: 43, gridSize: 2.5 });
+    const projectPath = path.join(fixtures, 'campaign.minivtt');
+    const exported = await lib.exportProject(projectPath);
+    check(
+      'export counts maps and handouts',
+      exported.maps === 2 && exported.handouts === 1,
+      JSON.stringify(exported),
+    );
+    check('export leaves no temp file', !(await fs.readdir(fixtures)).some((f) => f.endsWith('.tmp')));
+
+    await lib.removeMap(b.entry.id);
+    await lib.removeMap(c.entry.id);
+    await lib.removeHandout(letter.id);
+    await lib.saveSettings({ playerScreenDiagonal: null, gridSize: 1 });
+
+    const imported = await lib.importProject(projectPath);
+    check(
+      'import adds every map and handout',
+      imported.maps === 2 && imported.handouts === 1 && imported.skipped === 0,
+      JSON.stringify(imported),
+    );
+    const afterImport = await lib.loadSnapshot();
+    const [first, second] = afterImport.maps;
+    check('map order is kept', first?.name === 'Renamed concurrently' && second?.name === 'gamma');
+    check(
+      'view state is kept',
+      first.zoom === 1.75 &&
+        first.pan.x === 10 &&
+        first.pan.y === 20 &&
+        first.rotation === 270 &&
+        first.mirrorHorizontal,
+    );
+    check('imported maps get fresh ids', first.id !== b.entry.id && second.id !== c.entry.id);
+    const importedFog = await lib.loadMapFog(first.id);
+    check('fog is kept', first.hasFog && importedFog === fogUrl && !second.hasFog);
+    check('map media resolves', !!(await lib.resolveMapMediaPath(second.id)));
+    check('map thumbnail is kept', !!(await lib.loadMapThumb(second.id)));
+    const importedHandout = afterImport.handouts[0];
+    check('handout is kept', importedHandout?.name === 'letter2' && importedHandout.rotation === 90);
+    check('handout media resolves', !!(await lib.resolveHandoutPath(importedHandout.id)));
+    check(
+      'an empty library takes the player screen settings',
+      imported.settingsApplied &&
+        afterImport.settings.playerScreenDiagonal === 43 &&
+        afterImport.settings.gridSize === 2.5,
+      JSON.stringify(afterImport.settings),
+    );
+    check('first imported map becomes current', afterImport.settings.currentMapId === first.id);
+
+    await lib.saveSettings({ playerScreenDiagonal: 32 });
+    const again = await lib.importProject(projectPath);
+    const afterAgain = await lib.loadSnapshot();
+    check('importing again adds copies', afterAgain.maps.length === 4 && afterAgain.handouts.length === 2);
+    check(
+      'a non-empty library keeps its own settings',
+      !again.settingsApplied && afterAgain.settings.playerScreenDiagonal === 32,
+    );
+    check(
+      'new imports go on top, existing order follows',
+      afterAgain.maps[0].id === again.firstMap.id && afterAgain.maps[2].id === first.id,
+    );
+    check('the current map is not changed', afterAgain.settings.currentMapId === first.id);
+
+    // Damaged or hostile files
+    const rejects = async (name, bytes) => {
+      const before = (await fs.readdir(path.join(tmp, 'library'))).length;
+      let message = '';
+      try {
+        await lib.importProject(await fixture(name, bytes));
+      } catch (err) {
+        message = err instanceof lib.ProjectError ? err.message : `unexpected: ${err}`;
+      }
+      const after = (await fs.readdir(path.join(tmp, 'library'))).length;
+      return {
+        rejected: message !== '' && !message.startsWith('unexpected'),
+        cleanedUp: before === after,
+        message,
+      };
+    };
+    const projectBytes = await fs.readFile(projectPath);
+    const notProject = await rejects('notes.minivtt', 'just some text, not a project');
+    check('rejects a file that is not a project', notProject.rejected, notProject.message);
+    const truncated = await rejects('truncated.minivtt', projectBytes.subarray(0, 40));
+    check('rejects a truncated header', truncated.rejected, truncated.message);
+    const hostileManifest = Buffer.from(
+      JSON.stringify({
+        format: 'mini-vtt-project',
+        version: 1,
+        maps: [
+          { name: '../escape', media: { offset: 0, size: 999999 } },
+          { name: 'negative', media: { offset: -5, size: 4 } },
+        ],
+        handouts: [{ name: 'not an image', media: { offset: 0, size: 4 } }],
+      }),
+    );
+    const hostileHeader = Buffer.alloc(12);
+    Buffer.from('MVTTPRJ1').copy(hostileHeader);
+    hostileHeader.writeUInt32LE(hostileManifest.length, 8);
+    const hostile = await rejects(
+      'hostile.minivtt',
+      Buffer.concat([hostileHeader, hostileManifest, Buffer.from('nope')]),
+    );
+    check('rejects out-of-range blobs and non-image data', hostile.rejected, hostile.message);
+    check('a rejected import leaves no folders behind', hostile.cleanedUp && notProject.cleanedUp);
+    const newer = Buffer.from(
+      JSON.stringify({ format: 'mini-vtt-project', version: 99, maps: [], handouts: [] }),
+    );
+    const newerHeader = Buffer.from(hostileHeader);
+    newerHeader.writeUInt32LE(newer.length, 8);
+    const fromNewer = await rejects('newer.minivtt', Buffer.concat([newerHeader, newer]));
+    check(
+      'rejects a project from a newer version',
+      fromNewer.rejected && /newer/.test(fromNewer.message),
+      fromNewer.message,
+    );
+    check('rejected imports do not change the library', (await lib.loadSnapshot()).maps.length === 4);
+
     // ── Settings from libraries written before 1.1 ──────────────────────────
     const indexPath = path.join(tmp, 'library', 'index.json');
     const stored = JSON.parse(await fs.readFile(indexPath, 'utf8'));
@@ -257,6 +388,9 @@ app.whenReady().then(async () => {
 
   const failed = results.filter((r) => !r.pass);
   console.log(`\n${results.length - failed.length}/${results.length} passed`);
-  await fs.rm(tmp, { recursive: true, force: true });
+  // Best effort, so a locked file can never keep the process (and Electron) alive
+  await fs.rm(tmp, { recursive: true, force: true, maxRetries: 3 }).catch((err) => {
+    console.warn(`Couldn’t remove ${tmp}: ${err.code ?? err}`);
+  });
   app.exit(failed.length ? 1 : 0);
 });

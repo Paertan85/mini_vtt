@@ -8,6 +8,7 @@ import type {
   LibrarySnapshot,
   MapEntryMeta,
   MapView,
+  ProjectImportSummary,
 } from '../src/types/map';
 
 // ─── On-disk map library ──────────────────────────────────────────────────────
@@ -212,11 +213,10 @@ const DEFAULT_SETTINGS: LibrarySettings = {
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-export async function loadSnapshot(): Promise<LibrarySnapshot> {
-  const { settings, maps, handouts } = await withIndex((index) => index);
-  const order = settings.mapOrder ?? [];
-  const rank = new Map(order.map((id, index) => [id, index]));
-  maps.sort((a, b) => {
+/** Sort maps in place into display order: unordered maps newest first, then mapOrder. */
+function sortMaps(maps: MapEntryMeta[], settings: LibrarySettings): MapEntryMeta[] {
+  const rank = new Map((settings.mapOrder ?? []).map((id, index) => [id, index]));
+  return maps.sort((a, b) => {
     const rankA = rank.get(a.id);
     const rankB = rank.get(b.id);
     if (rankA === undefined && rankB === undefined) return b.addedAt - a.addedAt;
@@ -224,6 +224,11 @@ export async function loadSnapshot(): Promise<LibrarySnapshot> {
     if (rankB === undefined) return 1;
     return rankA - rankB;
   });
+}
+
+export async function loadSnapshot(): Promise<LibrarySnapshot> {
+  const { settings, maps, handouts } = await withIndex((index) => index);
+  sortMaps(maps, settings);
   handouts.sort((a, b) => b.addedAt - a.addedAt);
   return { maps, handouts, settings };
 }
@@ -536,4 +541,429 @@ export async function saveSettings(patch: Partial<LibrarySettings>): Promise<boo
     index.settings = { ...index.settings, ...clean };
   });
   return true;
+}
+
+// ─── Project files ────────────────────────────────────────────────────────────
+//
+// A project file (.minivtt) carries the whole library to another computer in
+// one file. Layout:
+//
+//   8 bytes   magic "MVTTPRJ1"
+//   4 bytes   manifest length, uint32 little-endian
+//   n bytes   manifest JSON (names, view state, settings, blob locations)
+//   ...       blobs: media, thumbnails and fog masks, back to back
+//
+// Blob offsets are relative to the first byte after the manifest. Media is
+// copied in fixed-size chunks in both directions, so even a large video never
+// sits in memory whole. Importing adds new entries with fresh ids; nothing in
+// the existing library is replaced.
+
+const PROJECT_MAGIC = Buffer.from('MVTTPRJ1', 'ascii');
+const PROJECT_HEADER_BYTES = PROJECT_MAGIC.length + 4;
+const PROJECT_FORMAT = 'mini-vtt-project';
+const PROJECT_VERSION = 1;
+const MAX_MANIFEST_BYTES = 16 * 1024 * 1024;
+const MAX_PROJECT_ENTRIES = 10_000;
+// Thumbnails and fog masks are read into memory whole; fog masks are lossless
+// PNGs of a binary mask, so they stay far below this even for huge maps
+const MAX_SIDECAR_BYTES = 64 * 1024 * 1024;
+const COPY_CHUNK_BYTES = 1024 * 1024;
+
+/** A failure with a message that can be shown to the user as is. */
+export class ProjectError extends Error {}
+
+interface BlobRef {
+  offset: number;
+  size: number;
+}
+
+interface ProjectMapRecord {
+  name: string;
+  mediaType: MapEntryMeta['mediaType'];
+  width: number;
+  height: number;
+  zoom: number;
+  pan: MapEntryMeta['pan'];
+  rotation: number;
+  mirrorHorizontal: boolean;
+  mirrorVertical: boolean;
+  media: BlobRef;
+  thumb?: BlobRef;
+  fog?: BlobRef;
+}
+
+interface ProjectHandoutRecord {
+  name: string;
+  width: number;
+  height: number;
+  rotation: number;
+  media: BlobRef;
+  thumb?: BlobRef;
+}
+
+interface ProjectManifest {
+  format: typeof PROJECT_FORMAT;
+  version: number;
+  exportedAt: number;
+  settings: Pick<LibrarySettings, 'playerScreenDiagonal' | 'gridSize'>;
+  maps: ProjectMapRecord[];
+  handouts: ProjectHandoutRecord[];
+}
+
+type FileHandle = fs.FileHandle;
+
+async function writeAll(handle: FileHandle, bytes: Buffer, position: number): Promise<void> {
+  let written = 0;
+  while (written < bytes.length) {
+    const { bytesWritten } = await handle.write(bytes, written, bytes.length - written, position + written);
+    written += bytesWritten;
+  }
+}
+
+async function readExactly(handle: FileHandle, position: number, size: number): Promise<Buffer> {
+  const bytes = Buffer.alloc(size);
+  let done = 0;
+  while (done < size) {
+    const { bytesRead } = await handle.read(bytes, done, size - done, position + done);
+    if (bytesRead === 0) throw new ProjectError('The project file is incomplete or damaged.');
+    done += bytesRead;
+  }
+  return bytes;
+}
+
+/** Copy `size` bytes between open files through one reused chunk buffer. */
+async function copyBytes(
+  source: FileHandle,
+  sourceStart: number,
+  size: number,
+  target: FileHandle,
+  targetStart: number,
+  chunk: Buffer,
+): Promise<void> {
+  let done = 0;
+  while (done < size) {
+    const { bytesRead } = await source.read(
+      chunk,
+      0,
+      Math.min(chunk.length, size - done),
+      sourceStart + done,
+    );
+    if (bytesRead === 0) throw new Error('File ended before all of it was copied');
+    await writeAll(target, chunk.subarray(0, bytesRead), targetStart + done);
+    done += bytesRead;
+  }
+}
+
+async function readOptional(filePath: string): Promise<Buffer | null> {
+  try {
+    return await fs.readFile(filePath);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Write the whole library to `destPath`. Written to a temp file first, so a
+ * failed export never leaves a half-written project behind.
+ */
+export async function exportProject(destPath: string): Promise<{ maps: number; handouts: number }> {
+  const { maps, handouts, settings } = await loadSnapshot();
+
+  type Source = { path: string; size: number } | { bytes: Buffer };
+  const sources: Source[] = [];
+  let dataSize = 0;
+  const addSource = (source: Source): BlobRef => {
+    const size = 'bytes' in source ? source.bytes.length : source.size;
+    const ref = { offset: dataSize, size };
+    sources.push(source);
+    dataSize += size;
+    return ref;
+  };
+  const addFile = async (filePath: string) =>
+    addSource({ path: filePath, size: (await fs.stat(filePath)).size });
+  const addOptionalPng = async (filePath: string) => {
+    const bytes = await readOptional(filePath);
+    return bytes && detectExt(bytes) === 'png' ? addSource({ bytes }) : undefined;
+  };
+
+  const manifest: ProjectManifest = {
+    format: PROJECT_FORMAT,
+    version: PROJECT_VERSION,
+    exportedAt: Date.now(),
+    settings: { playerScreenDiagonal: settings.playerScreenDiagonal, gridSize: settings.gridSize },
+    maps: [],
+    handouts: [],
+  };
+
+  for (const map of maps) {
+    const mediaPath = await resolveMapMediaPath(map.id);
+    if (!mediaPath) continue; // media missing on disk: nothing to carry over
+    const media = await addFile(mediaPath);
+    const thumb = await addOptionalPng(path.join(mapDir(map.id), 'thumb.png'));
+    const fog = map.hasFog ? await addOptionalPng(path.join(mapDir(map.id), 'fog.png')) : undefined;
+    manifest.maps.push({
+      name: map.name,
+      mediaType: map.mediaType,
+      width: map.width,
+      height: map.height,
+      zoom: map.zoom,
+      pan: map.pan,
+      rotation: map.rotation,
+      mirrorHorizontal: map.mirrorHorizontal,
+      mirrorVertical: map.mirrorVertical,
+      media,
+      ...(thumb ? { thumb } : {}),
+      ...(fog ? { fog } : {}),
+    });
+  }
+
+  for (const handout of handouts) {
+    const mediaPath = await resolveHandoutPath(handout.id);
+    if (!mediaPath) continue;
+    const media = await addFile(mediaPath);
+    const thumb = await addOptionalPng(path.join(handoutDir(handout.id), 'thumb.png'));
+    manifest.handouts.push({
+      name: handout.name,
+      width: handout.width,
+      height: handout.height,
+      rotation: handout.rotation,
+      media,
+      ...(thumb ? { thumb } : {}),
+    });
+  }
+
+  if (manifest.maps.length === 0 && manifest.handouts.length === 0) {
+    throw new ProjectError('The library is empty, so there is nothing to export.');
+  }
+
+  const manifestBytes = Buffer.from(JSON.stringify(manifest), 'utf8');
+  const header = Buffer.alloc(PROJECT_HEADER_BYTES);
+  PROJECT_MAGIC.copy(header);
+  header.writeUInt32LE(manifestBytes.length, PROJECT_MAGIC.length);
+
+  const tmp = `${destPath}.${process.pid}.${++tmpCounter}.tmp`;
+  const out = await fs.open(tmp, 'w');
+  try {
+    await writeAll(out, header, 0);
+    await writeAll(out, manifestBytes, header.length);
+    let position = header.length + manifestBytes.length;
+    const chunk = Buffer.alloc(COPY_CHUNK_BYTES);
+    for (const source of sources) {
+      if ('bytes' in source) {
+        await writeAll(out, source.bytes, position);
+        position += source.bytes.length;
+      } else {
+        const input = await fs.open(source.path, 'r');
+        try {
+          await copyBytes(input, 0, source.size, out, position, chunk);
+        } finally {
+          await input.close();
+        }
+        position += source.size;
+      }
+    }
+    await out.close();
+    await fs.rename(tmp, destPath);
+  } catch (err) {
+    await out.close().catch(() => undefined);
+    await fs.rm(tmp, { force: true });
+    throw err;
+  }
+  return { maps: manifest.maps.length, handouts: manifest.handouts.length };
+}
+
+const asRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+
+const cleanName = (value: unknown, fallback: string) => {
+  const trimmed = typeof value === 'string' ? value.trim().slice(0, 80) : '';
+  return trimmed || fallback;
+};
+
+const nonNegativeInt = (value: unknown) =>
+  typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : 0;
+
+const finiteOr = (value: unknown, fallback: number) =>
+  typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+
+/**
+ * Add everything in a project file to the library. The file is untrusted: every
+ * field is validated, blob ranges must lie inside the file, and media types are
+ * sniffed from the extracted bytes.
+ */
+export async function importProject(sourcePath: string): Promise<ProjectImportSummary> {
+  const file = await fs.open(sourcePath, 'r');
+  // Folders created so far; removed again unless the import is committed
+  const created: string[] = [];
+  try {
+    const fileSize = (await file.stat()).size;
+    if (fileSize < PROJECT_HEADER_BYTES) throw new ProjectError('This isn’t a Mini VTT project file.');
+    const header = await readExactly(file, 0, PROJECT_HEADER_BYTES);
+    if (!header.subarray(0, PROJECT_MAGIC.length).equals(PROJECT_MAGIC)) {
+      throw new ProjectError('This isn’t a Mini VTT project file.');
+    }
+    const manifestLength = header.readUInt32LE(PROJECT_MAGIC.length);
+    if (manifestLength > MAX_MANIFEST_BYTES || PROJECT_HEADER_BYTES + manifestLength > fileSize) {
+      throw new ProjectError('The project file is incomplete or damaged.');
+    }
+    let manifest: Record<string, unknown>;
+    try {
+      manifest = asRecord(
+        JSON.parse((await readExactly(file, PROJECT_HEADER_BYTES, manifestLength)).toString('utf8')),
+      );
+    } catch {
+      throw new ProjectError('The project file is incomplete or damaged.');
+    }
+    if (manifest.format !== PROJECT_FORMAT || typeof manifest.version !== 'number') {
+      throw new ProjectError('This isn’t a Mini VTT project file.');
+    }
+    if (manifest.version > PROJECT_VERSION) {
+      throw new ProjectError(
+        'This project was saved by a newer version of Mini VTT. Update the app to open it.',
+      );
+    }
+
+    const dataStart = PROJECT_HEADER_BYTES + manifestLength;
+    const dataSize = fileSize - dataStart;
+    const blob = (value: unknown): BlobRef | null => {
+      const { offset, size } = asRecord(value);
+      if (typeof offset !== 'number' || typeof size !== 'number') return null;
+      if (!Number.isSafeInteger(offset) || !Number.isSafeInteger(size)) return null;
+      if (offset < 0 || size <= 0 || offset + size > dataSize) return null;
+      return { offset, size };
+    };
+    const entries = (value: unknown) => (Array.isArray(value) ? value.slice(0, MAX_PROJECT_ENTRIES) : []);
+    const chunk = Buffer.alloc(COPY_CHUNK_BYTES);
+
+    /** Extract a media blob into `dir` and return its sniffed extension, or null. */
+    const extractMedia = async (ref: BlobRef, dir: string) => {
+      const tmp = path.join(dir, 'media.tmp');
+      const out = await fs.open(tmp, 'w');
+      try {
+        await copyBytes(file, dataStart + ref.offset, ref.size, out, 0, chunk);
+      } finally {
+        await out.close();
+      }
+      const ext = detectExt(await readHeader(tmp));
+      if (ext) await fs.rename(tmp, path.join(dir, `image.${ext}`));
+      return ext;
+    };
+    /** A small PNG blob (thumbnail or fog), or null if missing or not a PNG. */
+    const readPng = async (value: unknown) => {
+      const ref = blob(value);
+      if (!ref || ref.size > MAX_SIDECAR_BYTES) return null;
+      const bytes = await readExactly(file, dataStart + ref.offset, ref.size);
+      return detectExt(bytes) === 'png' ? bytes : null;
+    };
+    const writeThumb = async (dir: string, ext: string, stored: unknown) => {
+      let thumb = await readPng(stored);
+      if (!thumb && ext !== 'webm')
+        thumb = makeThumb(nativeImage.createFromPath(path.join(dir, `image.${ext}`)));
+      if (thumb) await fs.writeFile(path.join(dir, 'thumb.png'), thumb);
+    };
+    /** Make a folder for a new entry and extract its media; null if unusable. */
+    const extractEntry = async (dir: string, media: BlobRef | null, allowVideo: boolean) => {
+      if (!media) return null;
+      await fs.mkdir(dir, { recursive: true });
+      created.push(dir);
+      const ext = await extractMedia(media, dir);
+      if (ext && (allowVideo || ext !== 'webm')) return ext;
+      await fs.rm(dir, { recursive: true, force: true });
+      created.pop();
+      return null;
+    };
+
+    const now = Date.now();
+    let skipped = 0;
+
+    const newMaps: MapEntryMeta[] = [];
+    for (const raw of entries(manifest.maps)) {
+      const record = asRecord(raw);
+      const id = newId(MAP_ID_PREFIX);
+      const dir = mapDir(id);
+      const ext = await extractEntry(dir, blob(record.media), true);
+      if (!ext) {
+        skipped += 1;
+        continue;
+      }
+      await writeThumb(dir, ext, record.thumb);
+      const fog = await readPng(record.fog);
+      if (fog) await fs.writeFile(path.join(dir, 'fog.png'), fog);
+      const pan = asRecord(record.pan);
+      const zoom = finiteOr(record.zoom, 1);
+      newMaps.push({
+        id,
+        name: cleanName(record.name, 'Imported map'),
+        mediaType: ext === 'webm' ? 'video' : 'image',
+        width: nonNegativeInt(record.width),
+        height: nonNegativeInt(record.height),
+        zoom: zoom > 0 ? zoom : 1,
+        pan: { x: finiteOr(pan.x, 0), y: finiteOr(pan.y, 0) },
+        rotation: normalizeRotation(finiteOr(record.rotation, 0)),
+        mirrorHorizontal: record.mirrorHorizontal === true,
+        mirrorVertical: record.mirrorVertical === true,
+        hasFog: !!fog,
+        addedAt: now,
+      });
+    }
+
+    const newHandouts: HandoutMeta[] = [];
+    for (const raw of entries(manifest.handouts)) {
+      const record = asRecord(raw);
+      const id = newId(HANDOUT_ID_PREFIX);
+      const dir = handoutDir(id);
+      const ext = await extractEntry(dir, blob(record.media), false);
+      if (!ext) {
+        skipped += 1;
+        continue;
+      }
+      await writeThumb(dir, ext, record.thumb);
+      newHandouts.push({
+        id,
+        name: cleanName(record.name, 'Imported handout'),
+        width: nonNegativeInt(record.width),
+        height: nonNegativeInt(record.height),
+        rotation: normalizeRotation(finiteOr(record.rotation, 0)),
+        // Handouts are listed newest first: this keeps the file's order
+        addedAt: now - newHandouts.length,
+      });
+    }
+
+    if (newMaps.length === 0 && newHandouts.length === 0) {
+      throw new ProjectError('Nothing in this project file could be imported.');
+    }
+
+    // Returns an object: a bare `false` would tell mutateIndex to skip the write
+    const { settingsApplied } = await mutateIndex((index) => {
+      const wasEmpty = index.maps.length === 0 && index.handouts.length === 0;
+      // Imported maps go on top, in the order they had on the other computer
+      const existingOrder = sortMaps([...index.maps], index.settings).map((map) => map.id);
+      index.maps.push(...newMaps);
+      index.handouts.push(...newHandouts);
+      index.settings.mapOrder = [...newMaps.map((map) => map.id), ...existingOrder];
+      const current = index.settings.currentMapId;
+      if (!current || !index.maps.some((map) => map.id === current)) {
+        index.settings.currentMapId = newMaps[0]?.id ?? null;
+      }
+      // Player screen settings belong to the screen, so only a fresh library takes them
+      if (wasEmpty) {
+        const imported = normalizeSettings(manifest.settings);
+        index.settings.playerScreenDiagonal = imported.playerScreenDiagonal;
+        index.settings.gridSize = imported.gridSize;
+      }
+      return { settingsApplied: wasEmpty };
+    });
+    created.length = 0;
+
+    return {
+      maps: newMaps.length,
+      handouts: newHandouts.length,
+      skipped,
+      settingsApplied,
+      firstMap: newMaps[0] ?? null,
+    };
+  } finally {
+    await file.close();
+    for (const dir of created) await fs.rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
 }

@@ -109,6 +109,21 @@ export interface ImportResult {
   firstMap: MapEntryMeta | null;
 }
 
+/** What a project import added to the library. */
+export interface ProjectImportSummary {
+  maps: number;
+  handouts: number;
+  /** Entries in the file that were damaged or not a supported format */
+  skipped: number;
+  /** Whether the file's player screen settings were adopted (only into an empty library) */
+  settingsApplied: boolean;
+  /** The first imported map, so the DM window can open it if nothing is loaded */
+  firstMap: MapEntryMeta | null;
+}
+
+/** Outcome of exporting or importing a project file; null from the API means cancelled. */
+export type ProjectResult<T> = ({ ok: true; fileName: string } & T) | { ok: false; error: string };
+
 /** One painted fog segment, in map natural pixels. */
 export interface FogStroke {
   mode: FogMode;

@@ -38,6 +38,8 @@ interface ToolbarProps {
   onToggleBlackout: () => void;
   onOpenPlayerSetup: () => void;
   onOpenShortcuts: () => void;
+  onExportProject: () => void;
+  onImportProject: () => void;
   onRevealLibraryFolder: () => void;
 }
 
@@ -160,7 +162,9 @@ export function Toolbar(props: ToolbarProps) {
         items={[
           { label: 'Player screen setup…', onSelect: props.onOpenPlayerSetup },
           { label: 'Keyboard shortcuts…', onSelect: props.onOpenShortcuts },
-          { label: 'Open library folder', onSelect: props.onRevealLibraryFolder, separated: true },
+          { label: 'Export project…', onSelect: props.onExportProject, separated: true },
+          { label: 'Import project…', onSelect: props.onImportProject },
+          { label: 'Open library folder', onSelect: props.onRevealLibraryFolder },
         ]}
         trigger={(trigger) => (
           <Button {...trigger} square tone="quiet" aria-label="Settings" title="Settings">

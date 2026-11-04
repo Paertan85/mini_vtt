@@ -344,6 +344,46 @@ export function App() {
     }
   };
 
+  // ─── Project files ──────────────────────────────────────────────────────────
+
+  const handleExportProject = async () => {
+    // Save the current framing first, so the file has the latest view
+    flushViewSave();
+    const result = await api?.exportProject();
+    if (!result) return;
+    if (!result.ok) {
+      notify(result.error, 'error');
+      return;
+    }
+    notify(
+      `Exported ${plural(result.maps, 'map')} and ${plural(result.handouts, 'handout')} to “${result.fileName}”`,
+    );
+  };
+
+  const handleImportProject = async () => {
+    const result = await api?.importProject();
+    if (!result) return;
+    if (!result.ok) {
+      notify(result.error, 'error');
+      return;
+    }
+    notify(
+      `Imported ${plural(result.maps, 'map')} and ${plural(result.handouts, 'handout')} from “${result.fileName}”`,
+    );
+    if (result.skipped > 0) {
+      notify(
+        `Skipped ${plural(result.skipped, 'item')} that were damaged or in an unsupported format.`,
+        'error',
+      );
+    }
+    const snapshot = await reloadLibrary();
+    if (snapshot && result.settingsApplied) {
+      setScreenDiagonal(snapshot.settings.playerScreenDiagonal);
+      setGridSize(snapshot.settings.gridSize);
+    }
+    if (!currentMapId && result.firstMap) await loadMap(result.firstMap);
+  };
+
   // ─── Handouts ───────────────────────────────────────────────────────────────
 
   const handleAddHandouts = async () => {
@@ -574,6 +614,8 @@ export function App() {
           onToggleBlackout={() => setBlackout((value) => !value)}
           onOpenPlayerSetup={() => setDialog('setup')}
           onOpenShortcuts={() => setDialog('shortcuts')}
+          onExportProject={() => void handleExportProject()}
+          onImportProject={() => void handleImportProject()}
           onRevealLibraryFolder={() => void api?.revealLibraryFolder()}
         />
 

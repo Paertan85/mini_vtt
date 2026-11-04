@@ -11,6 +11,8 @@ import type {
   LibrarySettings,
   MapState,
   MapView,
+  ProjectImportSummary,
+  ProjectResult,
 } from '../src/types/map';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -301,6 +303,57 @@ ipcMain.handle('library:revealFolder', async () => {
   } catch (err) {
     console.error('Failed to open the library folder:', err);
     return false;
+  }
+});
+
+// ─── Project files (the whole library in one file) ────────────────────────────
+
+const PROJECT_FILTERS = [{ name: 'Mini VTT project', extensions: ['minivtt'] }];
+
+const projectErrorMessage = (err: unknown, fallback: string) => {
+  if (err instanceof library.ProjectError) return err.message;
+  console.error(fallback, err);
+  return fallback;
+};
+
+ipcMain.handle(
+  'library:exportProject',
+  async (): Promise<ProjectResult<{ maps: number; handouts: number }> | null> => {
+    if (!isOpen(dmWindow)) return null;
+    const date = new Date().toISOString().slice(0, 10);
+    const chosen = await dialog.showSaveDialog(dmWindow, {
+      title: 'Export project',
+      buttonLabel: 'Export',
+      defaultPath: path.join(app.getPath('documents'), `Mini VTT project ${date}.minivtt`),
+      filters: PROJECT_FILTERS,
+    });
+    if (chosen.canceled || !chosen.filePath) return null;
+    // Include fog painted in the last moment before exporting
+    await flushFogSave();
+    try {
+      const counts = await library.exportProject(chosen.filePath);
+      return { ok: true, fileName: path.basename(chosen.filePath), ...counts };
+    } catch (err) {
+      return { ok: false, error: projectErrorMessage(err, 'Couldn’t save the project file.') };
+    }
+  },
+);
+
+ipcMain.handle('library:importProject', async (): Promise<ProjectResult<ProjectImportSummary> | null> => {
+  if (!isOpen(dmWindow)) return null;
+  const chosen = await dialog.showOpenDialog(dmWindow, {
+    title: 'Import project',
+    buttonLabel: 'Import',
+    properties: ['openFile'],
+    filters: PROJECT_FILTERS,
+  });
+  const sourcePath = chosen.filePaths[0];
+  if (chosen.canceled || !sourcePath) return null;
+  try {
+    const summary = await library.importProject(sourcePath);
+    return { ok: true, fileName: path.basename(sourcePath), ...summary };
+  } catch (err) {
+    return { ok: false, error: projectErrorMessage(err, 'Couldn’t import the project file.') };
   }
 });
 

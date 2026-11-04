@@ -14,6 +14,8 @@ import type {
   LibrarySnapshot,
   MapState,
   MapView,
+  ProjectImportSummary,
+  ProjectResult,
 } from '../src/types/map';
 
 /** Subscribe to a channel; returns an unsubscribe function. */
@@ -47,6 +49,12 @@ const api = {
   saveSettings: (patch: Partial<LibrarySettings>): Promise<boolean> =>
     ipcRenderer.invoke('library:saveSettings', patch),
   revealLibraryFolder: (): Promise<boolean> => ipcRenderer.invoke('library:revealFolder'),
+  /** Saves the whole library to one .minivtt file chosen in a dialog; null if cancelled. */
+  exportProject: (): Promise<ProjectResult<{ maps: number; handouts: number }> | null> =>
+    ipcRenderer.invoke('library:exportProject'),
+  /** Adds everything in a .minivtt file chosen in a dialog to the library; null if cancelled. */
+  importProject: (): Promise<ProjectResult<ProjectImportSummary> | null> =>
+    ipcRenderer.invoke('library:importProject'),
 
   // ─── Library: handouts ──────────────────────────────────────────────────────
 

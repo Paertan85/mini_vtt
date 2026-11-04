@@ -83,6 +83,10 @@ All shortcuts are also listed under **Settings → Keyboard shortcuts…**.
 
 Maps, fog masks and settings live in a `library` folder inside the app's user-data directory (typically `%APPDATA%\mini-vtt\library` on Windows and `~/Library/Application Support/mini-vtt/library` on macOS). **Settings → Open library folder** opens it. Imported files are copied there, so moving or deleting the originals doesn't affect the library.
 
+### Moving your library to another computer
+
+**Settings → Export project…** saves the whole library (every map and handout with its fog, zoom, framing, rotation, mirroring and order, plus the player screen setup) as a single `.minivtt` file. Copy that file to the other computer and choose **Settings → Import project…** there. Importing adds the project's maps and handouts to whatever is already in the library and never replaces anything; the player screen setup is taken over only when the library is still empty.
+
 ## Development
 
 ```bash

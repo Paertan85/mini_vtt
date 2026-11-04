@@ -8,6 +8,10 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- Export and import the whole library as one `.minivtt` project file
+  (Settings → Export project… / Import project…), to move a prepared session
+  to another computer. Fog, framing, orientation, order and the player screen
+  setup travel with it; importing only ever adds to the library.
 - A single Fog tool: the left mouse button reveals, the right button covers.
   V and F switch between the Frame and Fog tools; hold Space to move the
   frame while painting.
