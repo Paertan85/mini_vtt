@@ -243,6 +243,30 @@ app.whenReady().then(async () => {
     const letter = await lib.addHandout(await fixture('letter2.png', makePng({ width: 120, height: 60 })));
     await lib.rotateHandout(letter.id, 90);
     await lib.saveSettings({ playerScreenDiagonal: 43, gridSize: 2.5 });
+    // Effects: optional per-map layer, saved as PNG, removed again with null
+    const effectsUrl = `data:image/png;base64,${makePng({ width: 32, height: 32, rgb: [255, 100, 20] }).toString('base64')}`;
+    check('a map starts without effects', (await lib.loadMapEffects(c.entry.id)) === null);
+    check('saveMapEffects stores a PNG', (await lib.saveMapEffects(c.entry.id, effectsUrl)) === true);
+    check('effects reload losslessly', (await lib.loadMapEffects(c.entry.id)) === effectsUrl);
+    check(
+      'saveMapEffects rejects data that is not a PNG',
+      (await lib.saveMapEffects(c.entry.id, 'data:image/png;base64,aGVsbG8=')) === false,
+    );
+    check(
+      'saveMapEffects rejects a traversal id',
+      (await lib.saveMapEffects('../evil', effectsUrl)) === false,
+    );
+    check(
+      'saveMapEffects ignores a deleted map',
+      (await lib.saveMapEffects(a.entry.id, effectsUrl)) === false && !(await exists(aDir)),
+    );
+    await lib.saveMapEffects(b.entry.id, effectsUrl);
+    await lib.saveMapEffects(b.entry.id, null);
+    check(
+      'saving null removes the effects file',
+      !(await exists(path.join(tmp, 'library', b.entry.id, 'effects.png'))),
+    );
+
     const projectPath = path.join(fixtures, 'campaign.minivtt');
     const exported = await lib.exportProject(projectPath);
     check(
@@ -277,6 +301,10 @@ app.whenReady().then(async () => {
     check('imported maps get fresh ids', first.id !== b.entry.id && second.id !== c.entry.id);
     const importedFog = await lib.loadMapFog(first.id);
     check('fog is kept', first.hasFog && importedFog === fogUrl && !second.hasFog);
+    check(
+      'effects travel with the project',
+      (await lib.loadMapEffects(second.id)) === effectsUrl && (await lib.loadMapEffects(first.id)) === null,
+    );
     check('map media resolves', !!(await lib.resolveMapMediaPath(second.id)));
     check('map thumbnail is kept', !!(await lib.loadMapThumb(second.id)));
     const importedHandout = afterImport.handouts[0];

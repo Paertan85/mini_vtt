@@ -5,6 +5,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import * as library from './library.js';
 import type {
+  EffectSnapshot,
   FogSnapshot,
   FogStroke,
   ImportResult,
@@ -51,6 +52,7 @@ let playerWindow: BrowserWindow | null = null;
 // The latest state and fog mask, so a player window opened later starts in sync
 let latestMapState: MapState | null = null;
 let latestFogDataUrl: string | null = null;
+let latestEffects: EffectSnapshot | null = null;
 
 const webPreferences = (): Electron.WebPreferences => ({
   preload: path.join(__dirname, 'preload.cjs'),
@@ -137,39 +139,55 @@ function openPlayerWindow() {
   loadPage(created, 'view');
 }
 
-// ─── Fog persistence ──────────────────────────────────────────────────────────
+// ─── Fog and effect persistence ───────────────────────────────────────────────
 //
-// The DM window encodes the fog mask once per stroke and sends it here. The
-// snapshot is relayed to the player window immediately and saved to disk after
-// a short pause, so a burst of strokes costs one write. A pending save is
-// flushed (never dropped) when a different map's fog arrives or the app quits.
+// The DM window encodes the fog mask (or effect layer) once per change and
+// sends it here. The snapshot is relayed to the player window immediately and
+// saved to disk after a short pause, so a burst of strokes costs one write. A
+// pending save is flushed (never dropped) when a different map's snapshot
+// arrives, before that map's layer is read back, and when the app quits.
 
-const FOG_SAVE_DELAY_MS = 500;
-let pendingFogSave: { mapId: string; dataUrl: string; timer: NodeJS.Timeout } | null = null;
+const SNAPSHOT_SAVE_DELAY_MS = 500;
 
-async function flushFogSave(): Promise<void> {
-  const pending = pendingFogSave;
-  if (!pending) return;
-  clearTimeout(pending.timer);
-  pendingFogSave = null;
-  try {
-    await library.saveMapFog(pending.mapId, pending.dataUrl);
-  } catch (err) {
-    console.error(`Failed to save fog for ${pending.mapId}:`, err);
-  }
+function delayedMapSave<T>(label: string, save: (mapId: string, value: T) => Promise<boolean>) {
+  let pending: { mapId: string; value: T; timer: NodeJS.Timeout } | null = null;
+
+  const flush = async (): Promise<void> => {
+    const current = pending;
+    if (!current) return;
+    clearTimeout(current.timer);
+    pending = null;
+    try {
+      await save(current.mapId, current.value);
+    } catch (err) {
+      console.error(`Failed to save ${label} for ${current.mapId}:`, err);
+    }
+  };
+
+  return {
+    flush,
+    isPending: () => pending !== null,
+    /** Flush first if a save for this map is waiting, so a read sees it. */
+    flushFor: async (mapId: string) => {
+      if (pending?.mapId === mapId) await flush();
+    },
+    schedule: (mapId: string, value: T) => {
+      if (pending && pending.mapId !== mapId) void flush();
+      if (pending) clearTimeout(pending.timer);
+      pending = { mapId, value, timer: setTimeout(() => void flush(), SNAPSHOT_SAVE_DELAY_MS) };
+    },
+    /** Drop a waiting save, e.g. because the map is being deleted. */
+    cancel: (mapId: string) => {
+      if (pending?.mapId !== mapId) return;
+      clearTimeout(pending.timer);
+      pending = null;
+    },
+  };
 }
 
-function scheduleFogSave(mapId: string, dataUrl: string) {
-  if (pendingFogSave && pendingFogSave.mapId !== mapId) void flushFogSave();
-  if (pendingFogSave) clearTimeout(pendingFogSave.timer);
-  pendingFogSave = { mapId, dataUrl, timer: setTimeout(() => void flushFogSave(), FOG_SAVE_DELAY_MS) };
-}
-
-function cancelFogSave(mapId: string) {
-  if (pendingFogSave?.mapId !== mapId) return;
-  clearTimeout(pendingFogSave.timer);
-  pendingFogSave = null;
-}
+const fogSaves = delayedMapSave<string>('fog', library.saveMapFog);
+const effectSaves = delayedMapSave<string | null>('effects', library.saveMapEffects);
+const flushAllSaves = () => Promise.all([fogSaves.flush(), effectSaves.flush()]);
 
 // ─── Player window and relayed messages ───────────────────────────────────────
 
@@ -195,6 +213,7 @@ ipcMain.on('player:state', (_event, state: MapState) => {
 });
 ipcMain.handle('player:requestState', async () => latestMapState);
 ipcMain.handle('player:requestFog', async () => latestFogDataUrl);
+ipcMain.handle('player:requestEffects', async () => latestEffects?.dataUrl ?? null);
 
 ipcMain.on('handout:close', () => sendToDm('handout:close'));
 
@@ -209,7 +228,15 @@ ipcMain.on('fog:snapshot', (_event, snapshot: FogSnapshot) => {
   if (!snapshot || typeof snapshot.dataUrl !== 'string' || typeof snapshot.mapId !== 'string') return;
   latestFogDataUrl = snapshot.dataUrl;
   sendToPlayer('fog:snapshot', snapshot);
-  if (snapshot.persist) scheduleFogSave(snapshot.mapId, snapshot.dataUrl);
+  if (snapshot.persist) fogSaves.schedule(snapshot.mapId, snapshot.dataUrl);
+});
+
+ipcMain.on('effects:snapshot', (_event, snapshot: EffectSnapshot) => {
+  if (!snapshot || typeof snapshot.mapId !== 'string') return;
+  if (snapshot.dataUrl !== null && typeof snapshot.dataUrl !== 'string') return;
+  latestEffects = snapshot;
+  sendToPlayer('effects:snapshot', snapshot);
+  if (snapshot.persist) effectSaves.schedule(snapshot.mapId, snapshot.dataUrl);
 });
 
 ipcMain.on('viewport:size', (_event, width: number, height: number) =>
@@ -280,14 +307,19 @@ ipcMain.handle('library:loadMapMedia', async (_e, id: string) => library.loadMap
 ipcMain.handle('library:loadMapThumb', async (_e, id: string) => library.loadMapThumb(id));
 ipcMain.handle('library:loadMapFog', async (_e, id: string) => {
   // A save may still be pending for this map: write it first so the read is current
-  if (pendingFogSave?.mapId === id) await flushFogSave();
+  await fogSaves.flushFor(id);
   return library.loadMapFog(id);
+});
+ipcMain.handle('library:loadMapEffects', async (_e, id: string) => {
+  await effectSaves.flushFor(id);
+  return library.loadMapEffects(id);
 });
 ipcMain.handle('library:saveMapView', async (_e, id: string, view: MapView) => library.saveMapView(id, view));
 ipcMain.handle('library:renameMap', async (_e, id: string, name: string) => library.renameMap(id, name));
 ipcMain.handle('library:removeMap', async (_e, id: string) => {
   // Don't let a late fog save recreate the deleted map's folder
-  cancelFogSave(id);
+  fogSaves.cancel(id);
+  effectSaves.cancel(id);
   return library.removeMap(id);
 });
 ipcMain.handle('library:reorderMaps', async (_e, ids: string[]) => library.reorderMaps(ids));
@@ -328,8 +360,8 @@ ipcMain.handle(
       filters: PROJECT_FILTERS,
     });
     if (chosen.canceled || !chosen.filePath) return null;
-    // Include fog painted in the last moment before exporting
-    await flushFogSave();
+    // Include fog and effects painted in the last moment before exporting
+    await flushAllSaves();
     try {
       const counts = await library.exportProject(chosen.filePath);
       return { ok: true, fileName: path.basename(chosen.filePath), ...counts };
@@ -381,10 +413,10 @@ app.on('activate', () => {
 // Write any pending fog save before the process exits
 let quitAfterFlush = false;
 app.on('before-quit', (event) => {
-  if (quitAfterFlush || !pendingFogSave) return;
+  if (quitAfterFlush || (!fogSaves.isPending() && !effectSaves.isPending())) return;
   event.preventDefault();
   quitAfterFlush = true;
-  void flushFogSave().finally(() => app.quit());
+  void flushAllSaves().finally(() => app.quit());
 });
 
 app.whenReady().then(() => {

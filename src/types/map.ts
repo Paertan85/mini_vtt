@@ -132,6 +132,17 @@ export interface FogStroke {
   radius: number;
 }
 
+/** The painted effect colours. */
+export type EffectKind = 'fire' | 'poison' | 'magic';
+
+/** A full copy of a map's effect layer; `dataUrl` is null when the layer is empty. */
+export interface EffectSnapshot {
+  mapId: string;
+  dataUrl: string | null;
+  /** Whether the main process should save it (false when just restored from disk) */
+  persist: boolean;
+}
+
 /** A full copy of a map's fog mask, as a PNG data URL. */
 export interface FogSnapshot {
   mapId: string;

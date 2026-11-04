@@ -1,5 +1,6 @@
 // The DM window's toolbar, in three groups:
-//   left    tools (frame / fog), brush size, undo and redo, the fog menu
+//   left    tools (frame / fog / effects), brush size, undo and redo, and
+//           the fog menu or, with the Effects tool, its colours and Clear
 //   centre  player view zoom and 16:9 fit
 //   right   player screen status, blackout, and the settings menu
 
@@ -9,6 +10,8 @@ import { Button, ButtonGroup, Divider, inputClass } from '../ui/controls';
 import { Menu } from '../ui/Menu';
 import { clampZoom, MAX_ZOOM, MIN_ZOOM, stepZoom } from '../lib/geometry';
 import type { Tool } from './MapStage';
+import type { EffectKind } from '../types/map';
+import { EFFECT_KINDS, EFFECT_STYLES } from '../lib/effects';
 
 export const MIN_BRUSH = 10;
 export const MAX_BRUSH = 300;
@@ -24,6 +27,10 @@ interface ToolbarProps {
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
+  effectKind: EffectKind;
+  onEffectKindChange: (kind: EffectKind) => void;
+  canClearEffects: boolean;
+  onClearEffects: () => void;
   onRevealAll: () => void;
   onCoverAll: () => void;
 
@@ -45,6 +52,7 @@ interface ToolbarProps {
 
 export function Toolbar(props: ToolbarProps) {
   const { hasMap, tool, zoom } = props;
+  const layerName = tool === 'effect' ? 'effects' : 'fog';
 
   return (
     <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-2 border-b border-line bg-panel px-3 py-2">
@@ -67,11 +75,20 @@ export function Toolbar(props: ToolbarProps) {
         >
           Fog
         </Button>
+        <Button
+          tone={tool === 'effect' ? 'active' : 'default'}
+          aria-pressed={tool === 'effect'}
+          onClick={() => props.onToolChange('effect')}
+          disabled={!hasMap}
+          title="Paint effects such as fire or poison (E): Left Mouse button paints, Right mouse button erases"
+        >
+          Effects
+        </Button>
       </ButtonGroup>
 
       <label
         className="flex items-center gap-2 pl-1 text-[13px] text-muted"
-        title="Brush size: Ctrl + mouse wheel in Fog tool"
+        title="Brush size: Ctrl + mouse wheel in the Fog and Effects tools"
       >
         Brush
         <input
@@ -92,7 +109,7 @@ export function Toolbar(props: ToolbarProps) {
           square
           onClick={props.onUndo}
           disabled={!props.canUndo}
-          title="Undo fog change (Ctrl+Z)"
+          title={`Undo ${layerName} change (Ctrl+Z)`}
           aria-label="Undo"
         >
           <Undo2 className="h-4 w-4" />
@@ -101,25 +118,51 @@ export function Toolbar(props: ToolbarProps) {
           square
           onClick={props.onRedo}
           disabled={!props.canRedo}
-          title="Redo fog change (Ctrl+Y)"
+          title={`Redo ${layerName} change (Ctrl+Y or Ctrl+Shift+Z)`}
           aria-label="Redo"
         >
           <Redo2 className="h-4 w-4" />
         </Button>
       </ButtonGroup>
 
-      <Menu
-        items={[
-          { label: 'Reveal entire map', onSelect: props.onRevealAll },
-          { label: 'Cover entire map', onSelect: props.onCoverAll },
-        ]}
-        trigger={(trigger) => (
-          <Button {...trigger} disabled={!hasMap} title="Reveal or cover the whole map">
-            Fill
-            <ChevronDown className="h-3.5 w-3.5 text-muted" />
+      {tool === 'effect' ? (
+        <>
+          <ButtonGroup label="Effect">
+            {EFFECT_KINDS.map((kind) => (
+              <Button
+                key={kind}
+                tone={props.effectKind === kind ? 'active' : 'default'}
+                aria-pressed={props.effectKind === kind}
+                onClick={() => props.onEffectKindChange(kind)}
+                title={`Paint ${EFFECT_STYLES[kind].label.toLowerCase()}`}
+              >
+                <EffectSwatch kind={kind} />
+                {EFFECT_STYLES[kind].label}
+              </Button>
+            ))}
+          </ButtonGroup>
+          <Button
+            onClick={props.onClearEffects}
+            disabled={!props.canClearEffects}
+            title="Remove all effects from this map (undo with Ctrl+Z)"
+          >
+            Clear
           </Button>
-        )}
-      />
+        </>
+      ) : (
+        <Menu
+          items={[
+            { label: 'Reveal entire map', onSelect: props.onRevealAll },
+            { label: 'Cover entire map', onSelect: props.onCoverAll },
+          ]}
+          trigger={(trigger) => (
+            <Button {...trigger} disabled={!hasMap} title="Reveal or cover the whole map">
+              Fill
+              <ChevronDown className="h-3.5 w-3.5 text-muted" />
+            </Button>
+          )}
+        />
+      )}
 
       <Divider />
 
@@ -237,5 +280,22 @@ function ZoomControl({
         </Button>
       </ButtonGroup>
     </div>
+  );
+}
+
+/** A small colour chip, hatched like the paint for effects that use a hatch. */
+function EffectSwatch({ kind }: { kind: EffectKind }) {
+  const { color, hatch } = EFFECT_STYLES[kind];
+  return (
+    <span
+      aria-hidden="true"
+      className="h-3 w-3 rounded-sm border border-black/40"
+      style={{
+        backgroundColor: color,
+        backgroundImage: hatch
+          ? `repeating-linear-gradient(-45deg, ${hatch} 0 2px, transparent 2px 5px)`
+          : undefined,
+      }}
+    />
   );
 }

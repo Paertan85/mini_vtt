@@ -3,12 +3,21 @@
 // MapStage, and the controls in Toolbar and MapLibraryPanel.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { HandoutMeta, ImportResult, MapEntryMeta, MapPan, MapView, MediaType } from './types/map';
+import type {
+  EffectKind,
+  HandoutMeta,
+  ImportResult,
+  MapEntryMeta,
+  MapPan,
+  MapView,
+  MediaType,
+} from './types/map';
 import { MapLibraryPanel, type OrientationChange } from './components/MapLibraryPanel';
 import { MapStage, type Tool } from './components/MapStage';
 import { BRUSH_STEP, MAX_BRUSH, MIN_BRUSH, Toolbar } from './components/Toolbar';
 import { PlayerSetupDialog, ShortcutsDialog, screenDimensions } from './components/Dialogs';
 import { useFog } from './hooks/useFog';
+import { useEffectLayer } from './hooks/useEffectLayer';
 import { clamp, clampZoom, orientedSize, type Size } from './lib/geometry';
 import { Button } from './ui/controls';
 import { NotificationHost, confirmAction, notify } from './ui/notify';
@@ -21,6 +30,7 @@ interface PendingRestore {
   /** null: never framed, so centre the player frame */
   pan: MapPan | null;
   fog: string | null;
+  effects: string | null;
 }
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
@@ -57,6 +67,8 @@ export function App() {
   const [shiftHeld, setShiftHeld] = useState(false);
   const [brushSize, setBrushSize] = useState(80);
   const fog = useFog();
+  const effects = useEffectLayer();
+  const [effectKind, setEffectKind] = useState<EffectKind>('fire');
 
   // ─── Player screen ──────────────────────────────────────────────────────────
   const [playerOpen, setPlayerOpen] = useState(false);
@@ -192,9 +204,10 @@ export function App() {
   const loadMap = useCallback(
     async (meta: MapEntryMeta, options: { centerFrame?: boolean } = {}) => {
       flushViewSave();
-      const [url, savedFog] = await Promise.all([
+      const [url, savedFog, savedEffects] = await Promise.all([
         api?.loadMapMedia(meta.id),
         options.centerFrame ? null : api?.loadMapFog(meta.id),
+        options.centerFrame ? null : api?.loadMapEffects(meta.id),
       ]);
       if (!url) {
         notify(`Couldn’t find the file for “${meta.name}” in the library folder.`, 'error');
@@ -205,6 +218,7 @@ export function App() {
         mapId: meta.id,
         pan: options.centerFrame ? null : meta.pan,
         fog: savedFog ?? null,
+        effects: savedEffects ?? null,
       };
       setCurrentMapId(meta.id);
       setSelectedMapId(meta.id);
@@ -231,9 +245,10 @@ export function App() {
       if (restore.pan) api?.sendViewportPan(restore.pan.x, restore.pan.y);
       setMediaSize(size);
       await fog.initialize(restore.mapId, size, restore.fog);
+      await effects.initialize(restore.mapId, size, restore.effects);
       restoringRef.current = false;
     },
-    [api, fog],
+    [api, fog, effects],
   );
 
   const handleMediaError = useCallback(() => {
@@ -341,6 +356,7 @@ export function App() {
       setMediaSize(null);
       applyPan(null, null);
       api?.sendFogReset();
+      effects.release();
     }
   };
 
@@ -515,18 +531,20 @@ export function App() {
     [],
   );
 
-  const shortcutState = useRef({ hasMap: false, fog });
-  shortcutState.current = { hasMap: !!mediaUrl, fog };
+  // Undo and redo apply to the layer of the active tool
+  const history = tool === 'effect' ? effects : fog;
+  const shortcutState = useRef({ hasMap: false, history });
+  shortcutState.current = { hasMap: !!mediaUrl, history };
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Shift') setShiftHeld(true);
       if (isTypingTarget(event.target) || document.querySelector('[role="dialog"]')) return;
-      const { hasMap, fog: currentFog } = shortcutState.current;
+      const { hasMap, history: currentHistory } = shortcutState.current;
       const key = event.key.toLowerCase();
       if (event.ctrlKey || event.metaKey) {
-        if (key === 'z' && !event.shiftKey) currentFog.undo();
-        else if (key === 'y') currentFog.redo();
+        if (key === 'z' && !event.shiftKey) currentHistory.undo();
+        else if (key === 'y' || (key === 'z' && event.shiftKey)) currentHistory.redo();
         else return;
         event.preventDefault();
         return;
@@ -537,6 +555,7 @@ export function App() {
         setSpaceHeld(true);
       } else if (key === 'v') setTool('frame');
       else if (key === 'f' && hasMap) setTool('fog');
+      else if (key === 'e' && hasMap) setTool('effect');
       else if (key === 'b') setBlackout((value) => !value);
     };
     const onKeyUp = (event: KeyboardEvent) => {
@@ -598,10 +617,14 @@ export function App() {
           onToolChange={setTool}
           brushSize={brushSize}
           onBrushSizeChange={setBrushSize}
-          canUndo={fog.canUndo}
-          canRedo={fog.canRedo}
-          onUndo={fog.undo}
-          onRedo={fog.redo}
+          canUndo={history.canUndo}
+          canRedo={history.canRedo}
+          onUndo={history.undo}
+          onRedo={history.redo}
+          effectKind={effectKind}
+          onEffectKindChange={setEffectKind}
+          canClearEffects={!effects.isEmpty}
+          onClearEffects={effects.clear}
           onRevealAll={handleRevealAll}
           onCoverAll={fog.coverAll}
           zoom={zoom}
@@ -647,6 +670,8 @@ export function App() {
           onMediaLoad={handleMediaLoad}
           onMediaError={handleMediaError}
           fog={fog}
+          effects={effects}
+          effectKind={effectKind}
           tool={spaceHeld ? 'frame' : tool}
           shiftHeld={shiftHeld}
           brushSize={brushSize}

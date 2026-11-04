@@ -197,6 +197,30 @@ app.whenReady().then(async () => {
     await press('z', { ctrlKey: true, shiftKey: true });
     await sleep(900);
     check('redo re-applies the stroke', fogHash() === fogAfter);
+
+    // Effects tool: nothing is allocated until the first stroke; painting saves
+    // a layer and shows it on the player screen, undo frees it again
+    const effectsFile = path.join(libraryDir, 'm_alpha', 'effects.png');
+    const dmEffectsWidth = () => js(`document.querySelectorAll('canvas')[0].width`);
+    const playerEffectsWidth = () => js(`document.querySelectorAll('canvas')[0].width`, player);
+    check(
+      'the effect layer starts unallocated',
+      (await dmEffectsWidth()) === 0 && !fs.existsSync(effectsFile),
+    );
+    await press('e');
+    await sleep(100);
+    await drag({ x: canvas.x - 40, y: canvas.y + 20 }, 80, 0);
+    await sleep(900);
+    check('painting an effect saves the layer', fs.existsSync(effectsFile));
+    check('the player screen shows the effect', (await playerEffectsWidth()) > 0);
+    check('effects leave the fog alone', fogHash() === fogAfter);
+    await press('z', { ctrlKey: true });
+    await sleep(900);
+    check(
+      'undo in the Effects tool removes the effect',
+      !fs.existsSync(effectsFile) && (await dmEffectsWidth()) === 0 && (await playerEffectsWidth()) === 0,
+    );
+    check('undo in the Effects tool leaves the fog alone', fogHash() === fogAfter);
     await press('v');
 
     // Blackout reaches the player screen

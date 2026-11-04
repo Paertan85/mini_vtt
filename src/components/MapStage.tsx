@@ -1,17 +1,20 @@
 // The DM window's map area: the map, its fog, the player frame and the brush.
 //
 // Mouse:  fog tool      left button reveals, right button covers
+//         effects tool  left button paints the chosen effect, right button erases
 //         frame tool    drag the frame to move the player view
-//         either tool   Shift + left/right paints fog, Ctrl + wheel zooms the
-//                       player view, wheel (fog tool) or Shift + wheel resizes
-//                       the brush
+//         any tool      Shift + left/right paints fog, Ctrl + wheel zooms the
+//                       player view (Frame tool) or resizes the brush (Fog and
+//                       Effects tools)
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import type { MapPan, MediaType, Point } from '../types/map';
+import type { EffectKind, MapPan, MediaType, Point } from '../types/map';
 import type { Fog } from '../hooks/useFog';
+import type { EffectLayer } from '../hooks/useEffectLayer';
+import { EFFECT_OPACITY, EFFECT_STYLES } from '../lib/effects';
 import { orientedSize, type Size } from '../lib/geometry';
 
-export type Tool = 'frame' | 'fog';
+export type Tool = 'frame' | 'fog' | 'effect';
 
 interface MapStageProps {
   mediaUrl: string | null;
@@ -25,6 +28,8 @@ interface MapStageProps {
   onMediaError: () => void;
 
   fog: Fog;
+  effects: EffectLayer;
+  effectKind: EffectKind;
   tool: Tool;
   shiftHeld: boolean;
   brushSize: number;
@@ -57,6 +62,8 @@ export function MapStage(props: MapStageProps) {
     mirrorHorizontal,
     mirrorVertical,
     fog,
+    effects,
+    effectKind,
     tool,
     shiftHeld,
     brushSize,
@@ -103,7 +110,9 @@ export function MapStage(props: MapStageProps) {
     ? { w: mediaSize.w * displayScale, h: mediaSize.h * displayScale }
     : { w: 0, h: 0 };
 
-  const canPaint = tool === 'fog' || shiftHeld;
+  // Shift always paints fog, whatever the tool
+  const paintsEffects = tool === 'effect' && !shiftHeld;
+  const canPaint = tool === 'fog' || tool === 'effect' || shiftHeld;
 
   /** Client coordinates → map natural pixels, undoing rotation and mirroring. */
   const toMapPoint = useCallback(
@@ -155,14 +164,17 @@ export function MapStage(props: MapStageProps) {
     if (!point) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
-    fog.beginStroke(event.button === 0 ? 'reveal' : 'cover', point, brushSize);
+    if (paintsEffects) effects.beginStroke(event.button === 0 ? effectKind : null, point, brushSize);
+    else fog.beginStroke(event.button === 0 ? 'reveal' : 'cover', point, brushSize);
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
     if (canPaint) moveCursor(event.clientX, event.clientY);
     if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
     const point = toMapPoint(event.clientX, event.clientY);
-    if (point) fog.continueStroke(point);
+    if (!point) return;
+    fog.continueStroke(point);
+    effects.continueStroke(point);
   };
 
   const handlePointerUp = (event: React.PointerEvent<HTMLCanvasElement>) => {
@@ -170,6 +182,7 @@ export function MapStage(props: MapStageProps) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
     fog.endStroke();
+    effects.endStroke();
   };
 
   // ─── Wheel: zoom and brush size (native, so preventDefault works) ─────────
@@ -180,7 +193,7 @@ export function MapStage(props: MapStageProps) {
     const onWheel = (event: WheelEvent) => {
       const current = latest.current;
       if (!current.mediaUrl) return;
-      if (event.ctrlKey && current.tool === 'fog') {
+      if (event.ctrlKey && (current.tool === 'fog' || current.tool === 'effect')) {
         event.preventDefault();
         current.onBrushResize(Math.sign(event.deltaY || event.deltaX) > 0 ? -1 : 1);
       } else if (event.ctrlKey) {
@@ -272,6 +285,23 @@ export function MapStage(props: MapStageProps) {
                 className="block h-full w-full"
               />
             )}
+            {/* Draw order: map, effects, fog. Both effect canvases are 0×0 until used. */}
+            <canvas
+              ref={effects.canvasRef}
+              width={0}
+              height={0}
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 h-full w-full"
+              style={{ opacity: EFFECT_OPACITY }}
+            />
+            <canvas
+              ref={effects.scratchRef}
+              width={0}
+              height={0}
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 h-full w-full"
+              style={{ opacity: EFFECT_OPACITY }}
+            />
             <canvas
               ref={fog.canvasRef}
               aria-label="Fog of war"
@@ -313,6 +343,7 @@ export function MapStage(props: MapStageProps) {
             aria-hidden="true"
             className="pointer-events-none absolute left-0 top-0 z-20 rounded-full border-2 border-gold"
             style={{
+              borderColor: paintsEffects ? EFFECT_STYLES[effectKind].color : undefined,
               visibility: 'hidden',
               width: cursorDiameter,
               height: cursorDiameter,

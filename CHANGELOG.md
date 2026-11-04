@@ -8,6 +8,12 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- Effects tool (E): paint fire, poison or magic onto a map with soft
+  edges; the right button erases, Clear removes them all, and Ctrl+Z undoes
+  them separately from fog. Effects are drawn under the fog, saved per map,
+  included in project files, and use no memory on maps without them.
+  Poison is hatched so it stays distinct from fire for colour-blind players.
+- Ctrl+Shift+Z redoes, as well as Ctrl+Y.
 - Export and import the whole library as one `.minivtt` project file
   (Settings → Export project… / Import project…), to move a prepared session
   to another computer. Fog, framing, orientation, order and the player screen

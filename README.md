@@ -1,6 +1,6 @@
 # Mini VTT
 
-First of all I have used AI to build this project. But no AI art, music or other artistic assets are AI. 
+First of all I have used AI to build this project. But no AI art, music or other artistic assets are AI.
 I am an senior engineer but i program VHDL mostly. So while I am quite experienced in designing robust firmware I lack the skills to make something like this within any reasonable time without AI.
 Also this is based upon Lazy DM Companion I found on github with an license stating it was free to use. https://github.com/felipeabviana/lazy_dm_companion
 If author is not ok with this i will remove if from public view.
@@ -18,10 +18,11 @@ It's built to stay out of the way on modest hardware: no accounts, no server, no
 ## Features
 
 - **Fog of war.** Select the Fog tool and paint: the left mouse button reveals, the right button covers. Undo and redo any change, or reveal or cover the whole map at once. The DM sees fog as an indigo tint; players see solid black.
+- **Painted effects.** The Effects tool paints fire, poison or magic onto the map with soft edges, for burning terrain, poison clouds or spell areas. Right-click erases, **Clear** removes them all. Effects sit under the fog, so they never give away unexplored areas, and poison is hatched so it stays distinct from fire for colour-blind players. A map that never uses effects costs nothing extra.
 - **Player view framing.** A teal frame on the DM window shows exactly what the player screen shows. Drag it to pan and Ctrl+scroll to zoom.
 - **True-scale grid.** Enter the player screen's diagonal and your grid size, and the frame shows a grid that matches the physical screen, so 1-inch minis line up with the map.
 - **Blackout.** One key hides everything on the player screen while you set up the next scene.
-- **Map library.** Maps, along with each map's fog, zoom, framing, rotation and mirroring, are saved automatically and restored when you switch maps or restart.
+- **Map library.** Maps, along with each map's fog, effects, zoom, framing, rotation and mirroring, are saved automatically and restored when you switch maps or restart.
 - **Animated maps.** WebM videos work as maps alongside PNG, JPEG, GIF, WebP and BMP images.
 - **Handouts.** Show a letter, portrait or clue fullscreen on the player screen, then hide it to return to the map.
 - **Clean player screen.** Its few buttons and the mouse cursor fade out when the mouse is idle, so players only see the map.
@@ -62,20 +63,21 @@ Everything is saved as you go. Double-click another map in the library to switch
 
 ### Controls
 
-| Action                              | How                                                                                   |
-| ----------------------------------- | ------------------------------------------------------------------------------------- |
-| Frame tool / Fog tool               | V / F                                                                                 |
-| Reveal / cover fog                  | Fog tool, then drag with the Left Mouse button / Right mouse button                   |
-| Paint fog with either tool          | Hold Shift and use either mouse button                                                |
-| Move the player view while painting | Hold Space and drag the frame                                                         |
-| Brush size                          | Ctrl + mouse wheel with the Fog tool                                                  |
-| Undo / redo a fog change            | Ctrl+Z / Ctrl+Y                                                                       |
-| Zoom the player view                | Ctrl + mouse wheel with the Frame tool, or the − and + buttons                        |
-| Blackout the player screen          | B                                                                                     |
-| Load a map / show a handout         | Double-click it in the library                                                        |
-| Rename, rotate, mirror or remove    | The ⋯ menu on the map or handout                                                      |
-| Handout zoom and pan                | Ctrl + wheel and arrow keys on the player screen (Shift for bigger steps); Esc closes |
-| Player screen fullscreen            | F11 or the corner button                                                              |
+| Action                              | How                                                                                    |
+| ----------------------------------- | -------------------------------------------------------------------------------------- |
+| Frame / Fog / Effects tool          | V / F / E                                                                              |
+| Reveal / cover fog                  | Fog tool, then drag with the Left Mouse button / Right mouse button                    |
+| Paint / erase effects               | Effects tool, pick a colour, then drag with the Left Mouse button / Right mouse button |
+| Paint fog with any tool             | Hold Shift and use either mouse button                                                 |
+| Move the player view while painting | Hold Space and drag the frame                                                          |
+| Brush size                          | Ctrl + mouse wheel with the Fog or Effects tool                                        |
+| Undo / redo                         | Ctrl+Z / Ctrl+Y or Ctrl+Shift+Z (effects in the Effects tool, otherwise fog)           |
+| Zoom the player view                | Ctrl + mouse wheel with the Frame tool, or the − and + buttons                         |
+| Blackout the player screen          | B                                                                                      |
+| Load a map / show a handout         | Double-click it in the library                                                         |
+| Rename, rotate, mirror or remove    | The ⋯ menu on the map or handout                                                       |
+| Handout zoom and pan                | Ctrl + wheel and arrow keys on the player screen (Shift for bigger steps); Esc closes  |
+| Player screen fullscreen            | F11 or the corner button                                                               |
 
 All shortcuts are also listed under **Settings → Keyboard shortcuts…**.
 
@@ -85,7 +87,7 @@ Maps, fog masks and settings live in a `library` folder inside the app's user-da
 
 ### Moving your library to another computer
 
-**Settings → Export project…** saves the whole library (every map and handout with its fog, zoom, framing, rotation, mirroring and order, plus the player screen setup) as a single `.minivtt` file. Copy that file to the other computer and choose **Settings → Import project…** there. Importing adds the project's maps and handouts to whatever is already in the library and never replaces anything; the player screen setup is taken over only when the library is still empty.
+**Settings → Export project…** saves the whole library (every map and handout with its fog, effects, zoom, framing, rotation, mirroring and order, plus the player screen setup) as a single `.minivtt` file. Copy that file to the other computer and choose **Settings → Import project…** there. Importing adds the project's maps and handouts to whatever is already in the library and never replaces anything; the player screen setup is taken over only when the library is still empty.
 
 ## Development
 

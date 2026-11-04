@@ -21,6 +21,7 @@ import type {
 //                                            kept so existing libraries still load)
 //   <userData>/library/<id>/thumb.png        small panel preview
 //   <userData>/library/<id>/fog.png          saved fog mask (optional)
+//   <userData>/library/<id>/effects.png      painted effect layer (only once used)
 //   <userData>/library/handouts/<id>/...     handouts, same layout
 //
 // Only the small JSON crosses the IPC boundary. Media is served to the windows
@@ -472,6 +473,38 @@ export async function saveMapFog(id: string, dataUrl: string): Promise<boolean> 
   }
 }
 
+/** A map's painted effect layer as a PNG data URL, or null when it has none. */
+export async function loadMapEffects(id: string): Promise<string | null> {
+  if (!SAFE_ID.test(id)) return null;
+  const bytes = await readOptional(path.join(mapDir(id), 'effects.png'));
+  return bytes && detectExt(bytes) === 'png' ? toDataUrl(bytes, 'png') : null;
+}
+
+/** Save a map's effect layer; null removes it, so unused maps keep no file. */
+export async function saveMapEffects(id: string, dataUrl: string | null): Promise<boolean> {
+  if (!SAFE_ID.test(id) || isHandoutId(id)) return false;
+  if (dataUrl !== null && typeof dataUrl !== 'string') return false;
+  // A late save for a map that was just deleted must not recreate its folder
+  const exists = await withIndex((index) => index.maps.some((m) => m.id === id));
+  if (!exists) return false;
+  const file = path.join(mapDir(id), 'effects.png');
+  try {
+    if (dataUrl === null) {
+      await fs.rm(file, { force: true });
+      return true;
+    }
+    const comma = dataUrl.indexOf(',');
+    if (comma === -1) return false;
+    const bytes = Buffer.from(dataUrl.slice(comma + 1), 'base64');
+    if (detectExt(bytes) !== 'png') return false;
+    await fs.writeFile(file, bytes);
+    return true;
+  } catch (err) {
+    console.error('Failed to save effects:', err);
+    return false;
+  }
+}
+
 export async function saveMapView(id: string, view: MapView): Promise<boolean> {
   if (!SAFE_ID.test(id) || !view || typeof view !== 'object') return false;
   const { zoom, pan, rotation, mirrorHorizontal, mirrorVertical } = view;
@@ -590,6 +623,7 @@ interface ProjectMapRecord {
   media: BlobRef;
   thumb?: BlobRef;
   fog?: BlobRef;
+  effects?: BlobRef;
 }
 
 interface ProjectHandoutRecord {
@@ -701,6 +735,7 @@ export async function exportProject(destPath: string): Promise<{ maps: number; h
     const media = await addFile(mediaPath);
     const thumb = await addOptionalPng(path.join(mapDir(map.id), 'thumb.png'));
     const fog = map.hasFog ? await addOptionalPng(path.join(mapDir(map.id), 'fog.png')) : undefined;
+    const effects = await addOptionalPng(path.join(mapDir(map.id), 'effects.png'));
     manifest.maps.push({
       name: map.name,
       mediaType: map.mediaType,
@@ -714,6 +749,7 @@ export async function exportProject(destPath: string): Promise<{ maps: number; h
       media,
       ...(thumb ? { thumb } : {}),
       ...(fog ? { fog } : {}),
+      ...(effects ? { effects } : {}),
     });
   }
 
@@ -889,6 +925,9 @@ export async function importProject(sourcePath: string): Promise<ProjectImportSu
       await writeThumb(dir, ext, record.thumb);
       const fog = await readPng(record.fog);
       if (fog) await fs.writeFile(path.join(dir, 'fog.png'), fog);
+      // Optional field: files from before effects existed simply have none
+      const effects = await readPng(record.effects);
+      if (effects) await fs.writeFile(path.join(dir, 'effects.png'), effects);
       const pan = asRecord(record.pan);
       const zoom = finiteOr(record.zoom, 1);
       newMaps.push({

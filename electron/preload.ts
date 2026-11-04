@@ -7,6 +7,7 @@
 
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type {
+  EffectSnapshot,
   FogSnapshot,
   FogStroke,
   ImportResult,
@@ -40,6 +41,8 @@ const api = {
   loadMapMedia: (id: string): Promise<string | null> => ipcRenderer.invoke('library:loadMapMedia', id),
   loadMapThumb: (id: string): Promise<string | null> => ipcRenderer.invoke('library:loadMapThumb', id),
   loadMapFog: (id: string): Promise<string | null> => ipcRenderer.invoke('library:loadMapFog', id),
+  /** The map's painted effect layer, or null when it has none. */
+  loadMapEffects: (id: string): Promise<string | null> => ipcRenderer.invoke('library:loadMapEffects', id),
   saveMapView: (id: string, view: MapView): Promise<boolean> =>
     ipcRenderer.invoke('library:saveMapView', id, view),
   renameMap: (id: string, name: string): Promise<boolean> =>
@@ -97,6 +100,15 @@ const api = {
   /** A full copy of the mask. The main process also saves it when `persist` is set. */
   sendFogSnapshot: (snapshot: FogSnapshot): void => ipcRenderer.send('fog:snapshot', snapshot),
   onFogSnapshot: (callback: (snapshot: FogSnapshot) => void) => subscribe('fog:snapshot', callback),
+
+  // ─── Painted effects (DM window → player window) ────────────────────────────
+
+  /** The whole effect layer after each change (null: empty). Saved when `persist` is set. */
+  sendEffectsSnapshot: (snapshot: EffectSnapshot): void => ipcRenderer.send('effects:snapshot', snapshot),
+  onEffectsSnapshot: (callback: (snapshot: EffectSnapshot) => void) =>
+    subscribe('effects:snapshot', callback),
+  /** Player window, on start-up: the current effect layer. */
+  requestEffectsSnapshot: (): Promise<string | null> => ipcRenderer.invoke('player:requestEffects'),
 
   // ─── Player viewport ────────────────────────────────────────────────────────
 

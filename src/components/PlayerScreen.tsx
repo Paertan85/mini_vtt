@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Maximize2, Minimize2, X } from 'lucide-react';
 import type { FogStroke, MapState } from '../types/map';
 import { drawSnapshot, drawStroke, fillMask, fogMaskSize, loadImage } from '../lib/fog';
+import { EFFECT_OPACITY, showLayer } from '../lib/effects';
 import type { Size } from '../lib/geometry';
 
 const PLAYER_FOG_COLOR = '#000000';
@@ -51,6 +52,10 @@ export function PlayerScreen() {
   // are replayed on top of it (IPC is ordered, so they are newer).
   const snapshotSeqRef = useRef(0);
   const strokesDuringDecodeRef = useRef<FogStroke[] | null>(null);
+  // Painted effects: the latest layer for the current map (null: none)
+  const effectsCanvasRef = useRef<HTMLCanvasElement>(null);
+  const latestEffectsRef = useRef<string | null>(null);
+  const effectsSeqRef = useRef(0);
 
   // ─── Fog ──────────────────────────────────────────────────────────────────
 
@@ -86,11 +91,36 @@ export function PlayerScreen() {
     void applySnapshot(dataUrl);
   };
 
+  // ─── Painted effects (one snapshot per change, drawn under the fog) ──────
+
+  const applyEffects = async () => {
+    const canvas = effectsCanvasRef.current;
+    if (!canvas) return;
+    const seq = ++effectsSeqRef.current;
+    const dataUrl = latestEffectsRef.current;
+    if (!dataUrl) {
+      showLayer(canvas, null);
+      return;
+    }
+    try {
+      const image = await loadImage(dataUrl);
+      if (seq === effectsSeqRef.current) showLayer(canvas, image);
+    } catch {
+      // A damaged snapshot: keep showing the previous layer
+    }
+  };
+
+  const receiveEffects = (dataUrl: string | null) => {
+    latestEffectsRef.current = dataUrl;
+    void applyEffects();
+  };
+
   const receiveState = (next: MapState) => {
-    // A different map: the stored snapshot belongs to the old one
+    // A different map: the stored snapshots belong to the old one
     if (next.mediaUrl !== currentMediaUrlRef.current) {
       currentMediaUrlRef.current = next.mediaUrl;
       latestFogRef.current = null;
+      receiveEffects(null);
     }
     setState(next);
   };
@@ -112,6 +142,7 @@ export function PlayerScreen() {
     const ctx = canvas.getContext('2d');
     if (ctx) fillMask(ctx, PLAYER_FOG_COLOR);
     if (latestFogRef.current) void applySnapshot(latestFogRef.current);
+    void applyEffects();
   };
 
   useEffect(() => {
@@ -128,6 +159,8 @@ export function PlayerScreen() {
       if (latest) receiveState(latest);
       const fog = await api?.requestFogSnapshot();
       if (fog && !latestFogRef.current) receiveSnapshot(fog);
+      const effects = await api?.requestEffectsSnapshot();
+      if (effects && !latestEffectsRef.current) receiveEffects(effects);
     })();
     const unsubscribe = [
       api?.onMapState(receiveState),
@@ -143,6 +176,7 @@ export function PlayerScreen() {
         if (ctx) fillMask(ctx, PLAYER_FOG_COLOR);
       }),
       api?.onFogSnapshot((snapshot) => receiveSnapshot(snapshot.dataUrl)),
+      api?.onEffectsSnapshot((snapshot) => receiveEffects(snapshot.dataUrl)),
       api?.onViewportPan((x, y) => setPan({ x, y })),
     ];
     return () => unsubscribe.forEach((stop) => stop?.());
@@ -292,6 +326,15 @@ export function PlayerScreen() {
                 style={mediaSize ? { width: mediaSize.w, height: mediaSize.h } : undefined}
               />
             )}
+            {/* Draw order: map, effects, fog, so effects never show through unrevealed areas */}
+            <canvas
+              ref={effectsCanvasRef}
+              // 0×0 until a layer arrives (a bare canvas would allocate 300×150)
+              width={0}
+              height={0}
+              className="pointer-events-none absolute inset-0 h-full w-full"
+              style={{ opacity: EFFECT_OPACITY }}
+            />
             <canvas ref={fogCanvasRef} className="pointer-events-none absolute inset-0 h-full w-full" />
           </div>
         </div>
