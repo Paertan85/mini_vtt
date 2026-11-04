@@ -1,6 +1,7 @@
 # Mini VTT
 
-First of all I have used AI to build this project. I am an senior engineer but i program VHDL mostly. So while I am quite experienced in designing robust firmware I lack the skills to make something like this within any reasonable time without AI.
+First of all I have used AI to build this project. But no AI art, music or other artistic assets are AI. 
+I am an senior engineer but i program VHDL mostly. So while I am quite experienced in designing robust firmware I lack the skills to make something like this within any reasonable time without AI.
 Also this is based upon Lazy DM Companion I found on github with an license stating it was free to use. https://github.com/felipeabviana/lazy_dm_companion
 If author is not ok with this i will remove if from public view.
 
