@@ -255,6 +255,12 @@ app.whenReady().then(async () => {
 
   const passed = results.filter(Boolean).length;
   console.log(`\n${passed}/${results.length} passed`);
-  fs.rmSync(userData, { recursive: true, force: true });
+  // Best effort: on Windows the GPU process can still hold its cache files here,
+  // and a throw at this point would skip app.exit and leave the windows open
+  try {
+    fs.rmSync(userData, { recursive: true, force: true, maxRetries: 3 });
+  } catch (err) {
+    console.warn(`Couldn’t remove ${userData}: ${err.code ?? err}`);
+  }
   app.exit(passed === results.length ? 0 : 1);
 });
