@@ -17,6 +17,13 @@
 - The `ElectronAPI` type is derived from `electron/preload.ts`; add bridge calls there, never in a separate declaration. IPC channels are named `domain:action`, with the same name on both legs of a relay.
 - Validate everything that arrives over IPC in the main process; the renderer is sandboxed and has no Node access.
 
+## Art
+
+- Never create art, by any means (AI tools, code or by hand): no pictures (icons, illustrations, maps, textures), no sound or music, no video. When a change needs art, ask the user to supply it.
+- Drawing the interface is not art: controls, the fog, effects and spell area shapes are fine.
+- If a test needs anything that could count as art (an image, a sound, a video), ask the user first. They approve it or supply an alternative themselves.
+- Already approved: the plain grey map images that `scripts/test-app.mjs` builds, and the solid-colour images, the half-fogged mask and the WebM header bytes in `scripts/test-library.mjs`.
+
 ## Plans and ideas
 
 - `ROADMAP.md` holds what is planned (**Next**), ideas not decided on (**Ideas**), and what was turned down (**Decided against**, with the reason).
