@@ -314,7 +314,10 @@ app.whenReady().then(async () => {
     );
 
     // ── Turning new portrait maps and handouts ───────────────────────────────
-    check('a library turns nothing at first', (await lib.loadSnapshot()).settings.portraitRotation === 0);
+    check(
+      'new portrait images are turned left by default',
+      (await lib.loadSnapshot()).settings.portraitRotation === 270,
+    );
     check('only quarter turns are taken', (await lib.saveSettings({ portraitRotation: 45 })) === false);
     await lib.saveSettings({ portraitRotation: 90 });
     const tallMap = await lib.addMap(await fixture('tall.png', makePng({ width: 40, height: 80 })));
@@ -356,7 +359,7 @@ app.whenReady().then(async () => {
       u16(3, 12);
       u32(1, 14);
       u16(orientation, 18);
-      const payload = Buffer.concat([Buffer.from('Exif  ', 'latin1'), tiff]);
+      const payload = Buffer.concat([Buffer.from('Exif\0\0', 'latin1'), tiff]);
       const marker = Buffer.from([0xff, 0xe1, 0, 0]);
       marker.writeUInt16BE(payload.length + 2, 2);
       return Buffer.concat([marker, payload]);
@@ -877,7 +880,7 @@ app.whenReady().then(async () => {
     const migrated = (await lib.loadSnapshot()).settings;
     check(
       'old string settings are migrated to numbers',
-      migrated.playerScreenDiagonal === 27 && migrated.gridSize === 1.5,
+      migrated.playerScreenDiagonal === 27 && migrated.gridSize === 1.5 && migrated.portraitRotation === 270,
       JSON.stringify(migrated),
     );
 

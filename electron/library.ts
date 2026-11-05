@@ -218,7 +218,9 @@ function normalizeSettings(stored: unknown): LibrarySettings {
     gridSize: toPositiveNumber(raw.gridSize) ?? DEFAULT_SETTINGS.gridSize,
     showEffectTools: raw.showEffectTools !== false,
     showLibrary: raw.showLibrary !== false,
-    portraitRotation: isPortraitRotation(raw.portraitRotation) ? raw.portraitRotation : 0,
+    portraitRotation: isPortraitRotation(raw.portraitRotation)
+      ? raw.portraitRotation
+      : DEFAULT_SETTINGS.portraitRotation,
     ...(mapOrder ? { mapOrder } : {}),
   };
 }
@@ -229,7 +231,8 @@ const DEFAULT_SETTINGS: LibrarySettings = {
   gridSize: 1,
   showEffectTools: true,
   showLibrary: true,
-  portraitRotation: 0,
+  // Turned left: how most tables with the screen lying flat play
+  portraitRotation: 270,
 };
 
 /** Turns a new portrait map or handout can get: none, right or left. */

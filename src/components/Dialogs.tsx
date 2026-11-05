@@ -117,9 +117,8 @@ export function PlayerSetupDialog({
       <div className="mt-5">
         <p className="text-[13px] text-ink">New maps and handouts taller than wide</p>
         <p className="mt-1 text-xs leading-relaxed text-muted">
-          Turned as they are added, they lie along a landscape player screen. Rotate right points their top at
-          the screen’s right edge, so they read upright from its left end. Square and wide images are never
-          turned.
+          Turned as they are added, they lie along a landscape player screen: Rotate left points their top at
+          the screen’s left edge, Rotate right at its right edge. Square and wide images are never turned.
         </p>
         <div className="mt-2">
           <ButtonGroup label="New maps and handouts taller than wide">

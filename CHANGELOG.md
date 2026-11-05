@@ -12,10 +12,11 @@ All notable changes to this project are documented here. The format is based on
   Windows, macOS and Linux and drafts a GitHub release with the installers
   for all three, using the changelog as its notes. CI now tests on Windows
   too.
-- Player screen setup can turn new maps and handouts that are taller than
-  wide (Rotate right or Rotate left), so they lie along a landscape screen,
-  for a DM sitting at one end of a screen on the table. Square and wide
-  images are never turned, and nothing already in the library changes.
+- New maps and handouts that are taller than wide are turned left as they
+  are added, so they lie along a landscape screen on the table, the way
+  most groups play with the DM at one end. Player screen setup can turn
+  them right instead, or not at all. Square and wide images are never
+  turned, and nothing already in the library changes.
 
 ### Fixed
 

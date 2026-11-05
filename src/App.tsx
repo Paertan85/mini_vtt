@@ -143,7 +143,7 @@ export function App() {
   const [screenDiagonal, setScreenDiagonal] = useState<number | null>(null);
   const [gridSize, setGridSize] = useState(1);
   // New maps and handouts taller than wide are turned this much (the main process applies it)
-  const [portraitRotation, setPortraitRotation] = useState(0);
+  const [portraitRotation, setPortraitRotation] = useState(270);
   const [dialog, setDialog] = useState<'setup' | 'shortcuts' | null>(null);
 
   // Suppresses view saves while a map is being restored, so the restore can't

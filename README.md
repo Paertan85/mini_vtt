@@ -63,11 +63,13 @@ Without a Mac or Linux machine, run the **CI** workflow by hand on GitHub (Actio
 
 1. Click **Add maps…** in the library, or drop image or WebM files onto it. New maps start fully fogged.
 2. Click **Open player screen** and drag that window onto the table screen. Press F11, or use the button in its corner, to go fullscreen.
-3. Optionally, open **Settings → Player screen setup…** and enter the screen's diagonal and your grid size to get a true-scale grid in the frame. If the screen lies on the table and you sit at one end, the same dialog can turn maps and handouts that are taller than wide as you add them, so they lie along the screen.
+3. Optionally, open **Settings → Player screen setup…** and enter the screen's diagonal and your grid size to get a true-scale grid in the frame.
 4. With the **Frame** tool, drag the teal frame to choose what the players see, and scroll over it to zoom.
 5. Switch to the **Fog** tool and paint to reveal areas as the party explores.
 
 Everything is saved as you go. Double-click another map in the library to switch; it comes back exactly as you left it. Rotation and mirroring are in each map's **⋯** menu.
+
+**Rotation of new maps and handouts.** A screen lying on the table is usually played lengthwise, with the DM at one end. So maps and handouts that are taller than wide are turned left as you add them, to lie along the screen; square and wide ones are left as they are. To turn them right instead, or not at all, open **Settings → Player screen setup…**. You can still rotate any map or handout afterwards from its **⋯** menu.
 
 ### Controls
 
