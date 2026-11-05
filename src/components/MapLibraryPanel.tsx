@@ -2,7 +2,7 @@
 // the name and whether players can see it; everything else lives in the card's
 // menu, so the list stays calm.
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { memo, useEffect, useRef, useState } from 'react';
 import { MoreHorizontal } from 'lucide-react';
 import type { HandoutMeta, MapEntryMeta } from '../types/map';
 import { Button } from '../ui/controls';
@@ -43,7 +43,9 @@ interface MapLibraryPanelProps {
 
 type Tab = 'maps' | 'handouts';
 
-export function MapLibraryPanel(props: MapLibraryPanelProps) {
+// Memoized: the DM window re-renders on every frame of a drag, and the list
+// of cards never depends on that
+export const MapLibraryPanel = memo(function MapLibraryPanel(props: MapLibraryPanelProps) {
   const [tab, setTab] = useState<Tab>('maps');
   const [filesOver, setFilesOver] = useState(false);
   const isMaps = tab === 'maps';
@@ -111,7 +113,7 @@ export function MapLibraryPanel(props: MapLibraryPanelProps) {
       </div>
     </aside>
   );
-}
+});
 
 // ─── Maps ─────────────────────────────────────────────────────────────────────
 

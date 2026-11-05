@@ -21,6 +21,7 @@ import { MapStage, type Tool, type ViewControls } from './components/MapStage';
 import { BRUSH_STEP, MAX_BRUSH, MIN_BRUSH, Toolbar } from './components/Toolbar';
 import { PlayerSetupDialog, ShortcutsDialog, screenDimensions } from './components/Dialogs';
 import { useFog } from './hooks/useFog';
+import { useHandlers } from './hooks/useHandlers';
 import { useEffectLayer } from './hooks/useEffectLayer';
 import { clamp, clampZoom, orientedSize, stepZoom, type Size } from './lib/geometry';
 import { keyLabel } from './lib/platform';
@@ -115,6 +116,7 @@ export function App() {
   const [shiftHeld, setShiftHeld] = useState(false);
   const [brushSize, setBrushSize] = useState(80);
   const fog = useFog();
+  const fogIdle = fog.whenIdle;
   const effects = useEffectLayer();
   const [effectKind, setEffectKind] = useState<EffectKind>('fire');
   const [showEffectTools, setShowEffectTools] = useState(true);
@@ -255,6 +257,16 @@ export function App() {
     saveView(pending.id, pending.view);
   }, [saveView]);
 
+  /**
+   * Send everything still on its way: a fog change being encoded and a view
+   * change waiting out its delay. Before a map is switched, the library is
+   * exported, or the window reloads or quits.
+   */
+  const settleSaves = useCallback(async () => {
+    await fogIdle();
+    flushViewSave();
+  }, [fogIdle, flushViewSave]);
+
   useEffect(() => {
     if (!currentMapId || restoringRef.current) return;
     const view: MapView = { zoom, pan, rotation, mirrorHorizontal, mirrorVertical, circles };
@@ -284,8 +296,9 @@ export function App() {
    */
   const loadMap = useCallback(
     async (meta: MapEntryMeta, options: { centerFrame?: boolean } = {}) => {
-      flushViewSave();
       const token = ++loadTokenRef.current;
+      // The last stroke reaches the disk before this map's fog is read back
+      await settleSaves();
       const [url, savedFog, savedEffects] = await Promise.all([
         api?.loadMapMedia(meta.id),
         options.centerFrame ? null : api?.loadMapFog(meta.id),
@@ -321,7 +334,7 @@ export function App() {
       setCalibration(null);
       setMediaUrl(url);
     },
-    [api, flushViewSave],
+    [api, settleSaves],
   );
 
   const handleMediaLoad = useCallback(
@@ -481,8 +494,8 @@ export function App() {
   // ─── Project files ──────────────────────────────────────────────────────────
 
   const handleExportProject = async () => {
-    // Save the current framing first, so the file has the latest view
-    flushViewSave();
+    // Save the latest fog and framing first, so the file has them
+    await settleSaves();
     const result = await api?.exportProject();
     if (!result) return;
     if (!result.ok) {
@@ -1036,6 +1049,48 @@ export function App() {
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
+  // Fixed identities, so the library panel and toolbar skip the renders that
+  // dragging the frame or an area causes on every animation frame
+  const panelHandlers = useHandlers({
+    onLoadMap: handleLoadMap,
+    onReorderMaps: handleReorderMaps,
+    onRenameMap: handleRenameMap,
+    onRemoveMap: handleRemoveMap,
+    onChangeOrientation: handleChangeOrientation,
+    onAddMaps: handleAddMaps,
+    onDropMaps: (files: File[]) => handleDropFiles(files, 'map'),
+    onToggleHandout: handleToggleHandout,
+    onRotateHandout: handleRotateHandout,
+    onRemoveHandout: handleRemoveHandout,
+    onAddHandouts: handleAddHandouts,
+    onDropHandouts: (files: File[]) => handleDropFiles(files, 'handout'),
+  });
+  const toolbarHandlers = useHandlers({
+    onAddCircle: handleAddCircle,
+    onToggleEffectTools: handleToggleEffectTools,
+    onCalibrateGrid: startCalibration,
+    onRevealAll: handleRevealAll,
+    onZoomChange: (next: number) => setZoom(clampZoom(next)),
+    onToggleFit16by9: handleToggleFit16by9,
+    onOpenPlayer: handleOpenPlayer,
+    onToggleBlackout: () => setBlackout((value) => !value),
+    onOpenPlayerSetup: () => setDialog('setup'),
+    onOpenShortcuts: () => setDialog('shortcuts'),
+    onExportProject: () => void handleExportProject(),
+    onImportProject: () => void handleImportProject(),
+    onRevealLibraryFolder: () => void api?.revealLibraryFolder(),
+    onToggleFullScreen: () => void api?.toggleFullScreen(),
+    onReload: async () => {
+      await settleSaves();
+      api?.reloadWindow();
+    },
+    onToggleDevTools: () => api?.toggleDevTools(),
+    onQuit: async () => {
+      await settleSaves();
+      api?.quitApp();
+    },
+  });
+
   const gridCell =
     screenDiagonal && viewportSize && frameSize
       ? frameSize.w / (screenDimensions(screenDiagonal, viewportSize).width / gridSize)
@@ -1045,32 +1100,22 @@ export function App() {
   return (
     <div className="flex h-full bg-ground text-ink">
       <MapLibraryPanel
+        {...panelHandlers}
         loading={loading}
         maps={maps}
         currentMapId={currentMapId}
         selectedMapId={selectedMapId}
         onSelectMap={setSelectedMapId}
-        onLoadMap={handleLoadMap}
-        onReorderMaps={handleReorderMaps}
-        onRenameMap={handleRenameMap}
-        onRemoveMap={handleRemoveMap}
-        onChangeOrientation={handleChangeOrientation}
-        onAddMaps={handleAddMaps}
-        onDropMaps={(files) => handleDropFiles(files, 'map')}
         handouts={handouts}
         selectedHandoutId={selectedHandoutId}
         activeHandoutId={activeHandout?.id ?? null}
         onSelectHandout={setSelectedHandoutId}
-        onToggleHandout={handleToggleHandout}
-        onRotateHandout={handleRotateHandout}
-        onRemoveHandout={handleRemoveHandout}
-        onAddHandouts={handleAddHandouts}
-        onDropHandouts={(files) => handleDropFiles(files, 'handout')}
         hidden={!showLibrary}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <Toolbar
+          {...toolbarHandlers}
           hasMap={!!mediaUrl}
           tool={tool}
           onToolChange={setTool}
@@ -1084,39 +1129,16 @@ export function App() {
           onEffectKindChange={setEffectKind}
           canClearEffects={!effects.isEmpty}
           onClearEffects={effects.clear}
-          onAddCircle={handleAddCircle}
           showEffectTools={showEffectTools}
           showLibrary={showLibrary}
           onToggleLibrary={handleToggleLibrary}
           fogShape={fogShape}
           onFogShapeChange={setFogShape}
-          onToggleEffectTools={handleToggleEffectTools}
-          onCalibrateGrid={startCalibration}
-          onRevealAll={handleRevealAll}
           onCoverAll={fog.coverAll}
           zoom={zoom}
-          onZoomChange={(next) => setZoom(clampZoom(next))}
           fit16by9={fit16by9}
-          onToggleFit16by9={handleToggleFit16by9}
           playerOpen={playerOpen}
-          onOpenPlayer={handleOpenPlayer}
           blackout={blackout}
-          onToggleBlackout={() => setBlackout((value) => !value)}
-          onOpenPlayerSetup={() => setDialog('setup')}
-          onOpenShortcuts={() => setDialog('shortcuts')}
-          onExportProject={() => void handleExportProject()}
-          onImportProject={() => void handleImportProject()}
-          onRevealLibraryFolder={() => void api?.revealLibraryFolder()}
-          onToggleFullScreen={() => void api?.toggleFullScreen()}
-          onReload={() => {
-            flushViewSave();
-            api?.reloadWindow();
-          }}
-          onToggleDevTools={() => api?.toggleDevTools()}
-          onQuit={() => {
-            flushViewSave();
-            api?.quitApp();
-          }}
         />
 
         {(blackout || activeHandout) && (

@@ -5,7 +5,7 @@
 //
 // Each is a tiny external store rendered once by <NotificationHost />.
 
-import { useSyncExternalStore } from 'react';
+import { memo, useSyncExternalStore } from 'react';
 import { Button } from './controls';
 import { Dialog } from './Dialog';
 
@@ -75,7 +75,8 @@ const subscribe = (listener: () => void) => {
   };
 };
 
-export function NotificationHost() {
+// Memoized: it has no props, so it renders only when a toast or confirmation changes
+export const NotificationHost = memo(function NotificationHost() {
   const currentToasts = useSyncExternalStore(subscribe, () => toasts);
   const request = useSyncExternalStore(subscribe, () => confirmRequest);
 
@@ -120,4 +121,4 @@ export function NotificationHost() {
       )}
     </>
   );
-}
+});

@@ -16,7 +16,7 @@
 // Circles (Frame and Effects tools): drag the centre dot to move (Ctrl: snap
 // to square centres; Alt: leave a copy behind).
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Copy, Trash2 } from 'lucide-react';
 import type { AuraCircle, EffectKind, MapGrid, MapPan, MediaType, Point } from '../types/map';
 import type { Fog } from '../hooks/useFog';
@@ -549,7 +549,9 @@ export function MapStage(props: MapStageProps) {
   // ─── Render ────────────────────────────────────────────────────────────────
 
   const cursorDiameter = Math.max(4, brushSize * 2 * displayScale);
-  const discs = toDiscs(circles, grid);
+  // The same array while the templates are unchanged, so AuraDiscs skips the
+  // renders that moving the player frame causes
+  const discs = useMemo(() => toDiscs(circles, grid), [circles, grid]);
   const previewCell = gridPreview ? gridPreview.cell * displayScale : 0;
   const gridPx = gridCell * displayScale;
   const handleMediaLoad = (event: React.SyntheticEvent<HTMLImageElement | HTMLVideoElement>) => {

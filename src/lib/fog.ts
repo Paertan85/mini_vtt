@@ -73,6 +73,27 @@ export function fillShape(
   ctx.globalCompositeOperation = 'source-over';
 }
 
+/**
+ * Encode a mask as a PNG data URL without holding up the page. The canvas is
+ * copied straight away, so later painting doesn't change the result, but the
+ * PNG is compressed in the background: toDataURL would freeze the window for
+ * the whole encode, tens of milliseconds for a large mask on a slow laptop.
+ */
+export function encodeMask(canvas: HTMLCanvasElement): Promise<string> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error('Could not encode the fog mask'));
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error ?? new Error('Could not read the encoded fog mask'));
+      reader.readAsDataURL(blob);
+    }, 'image/png');
+  });
+}
+
 /** Decode a PNG data URL. */
 export function loadImage(dataUrl: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {

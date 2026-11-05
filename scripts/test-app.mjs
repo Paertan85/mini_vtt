@@ -308,6 +308,28 @@ app.whenReady().then(async () => {
     await press('l');
     await sleep(100);
 
+    // Snapshots are encoded in the background: an undo pressed while the last
+    // change is still encoding must undo that change, not the one before
+    const fogBeforeCover = fogHash();
+    await clickText('Fill');
+    await sleep(200);
+    await js(`(() => {
+      [...document.querySelectorAll('[role="menu"] button')].find((b) => b.textContent.trim() === 'Cover entire map').click();
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true }));
+    })()`);
+    await sleep(1200);
+    check('an undo pressed while a change is encoding undoes that change', fogHash() === fogBeforeCover);
+    check(
+      'and redo brings it back',
+      await (async () => {
+        await press('z', { ctrlKey: true, shiftKey: true });
+        await sleep(900);
+        return (await fogAlphaAt(0.75, 0.75)) > 0 && fogHash() !== fogBeforeCover;
+      })(),
+    );
+    await press('z', { ctrlKey: true });
+    await sleep(900);
+
     // Alt + wheel zooms the DM view only, around the pointer, in any tool
     const fogRect = () =>
       js(`(() => { const r = document.querySelector('canvas[aria-label="Fog of war"]').getBoundingClientRect();

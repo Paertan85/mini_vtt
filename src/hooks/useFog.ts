@@ -7,6 +7,10 @@
 // a room the DM reveals in one drag appears all at once when the mouse is
 // released, and the encode happens exactly once per stroke.
 //
+// The encode runs in the background, so the window doesn't freeze when the
+// mouse is released. Encoded snapshots and undo/redo steps wait their turn in
+// one queue, so they apply in the order they happened.
+//
 // A shape (freehand outline) only collects points while the mouse moves; the
 // inside is filled once on release and published like a stroke.
 //
@@ -16,7 +20,15 @@
 import { useCallback, useRef, useState } from 'react';
 import type { FogMode, Point } from '../types/map';
 import type { Size } from '../lib/geometry';
-import { drawSnapshot, drawStroke, fillMask, fillShape, fogMaskSize, loadImage } from '../lib/fog';
+import {
+  drawSnapshot,
+  drawStroke,
+  encodeMask,
+  fillMask,
+  fillShape,
+  fogMaskSize,
+  loadImage,
+} from '../lib/fog';
 
 /** Mask colour in the DM window: a deep indigo, so fog never blends into dark maps. */
 export const DM_FOG_COLOR = '#1d1a2e';
@@ -40,6 +52,8 @@ export interface Fog {
   redo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  /** Resolves once every change so far has been encoded and sent. */
+  whenIdle: () => Promise<void>;
 }
 
 export function useFog(): Fog {
@@ -52,33 +66,55 @@ export function useFog(): Fog {
   const currentRef = useRef<string | null>(null);
   const undoRef = useRef<string[]>([]);
   const redoRef = useRef<string[]>([]);
-  // Counts initialize calls, so one that is overtaken while decoding stops
+  // Counts initialize calls: one that is overtaken while decoding stops, and a
+  // snapshot still encoding for an earlier map leaves this one's history alone
   const initializeRunRef = useRef(0);
+  // Encoded snapshots and history steps, applied one after another
+  const queueRef = useRef<Promise<void>>(Promise.resolve());
   const [history, setHistory] = useState({ canUndo: false, canRedo: false });
 
   const context = () => canvasRef.current?.getContext('2d') ?? null;
   const syncHistoryState = () =>
     setHistory({ canUndo: undoRef.current.length > 0, canRedo: redoRef.current.length > 0 });
 
-  /** Encode the mask and hand it to the main process (relay + optional save). */
-  const publish = useCallback((persist: boolean) => {
-    const canvas = canvasRef.current;
-    const mapId = mapIdRef.current;
-    if (!canvas || !mapId) return null;
-    const dataUrl = canvas.toDataURL();
-    window.electronAPI?.sendFogSnapshot({ mapId, dataUrl, persist });
-    return dataUrl;
+  const enqueue = useCallback((task: () => Promise<void> | void) => {
+    queueRef.current = queueRef.current
+      .then(task)
+      .catch((err) => console.error('Could not update the fog.', err));
   }, []);
+
+  const whenIdle = useCallback(() => queueRef.current, []);
+
+  /**
+   * Copy the mask now and hand it to the main process (relay + optional save)
+   * once it is encoded. `then` gets the encoded mask, in order, if the same
+   * map is still loaded.
+   */
+  const publish = useCallback(
+    (persist: boolean, then?: (dataUrl: string) => void) => {
+      const canvas = canvasRef.current;
+      const mapId = mapIdRef.current;
+      if (!canvas || !mapId) return;
+      const run = initializeRunRef.current;
+      const encoded = encodeMask(canvas);
+      enqueue(async () => {
+        const dataUrl = await encoded;
+        window.electronAPI?.sendFogSnapshot({ mapId, dataUrl, persist });
+        if (run === initializeRunRef.current) then?.(dataUrl);
+      });
+    },
+    [enqueue],
+  );
 
   /** Record a finished change: the previous mask becomes an undo step. */
   const commit = useCallback(() => {
-    const previous = currentRef.current;
-    const next = publish(true);
-    if (!next) return;
-    if (previous) undoRef.current = [...undoRef.current.slice(-(MAX_HISTORY - 1)), previous];
-    redoRef.current = [];
-    currentRef.current = next;
-    syncHistoryState();
+    publish(true, (next) => {
+      const previous = currentRef.current;
+      if (previous) undoRef.current = [...undoRef.current.slice(-(MAX_HISTORY - 1)), previous];
+      redoRef.current = [];
+      currentRef.current = next;
+      syncHistoryState();
+    });
   }, [publish]);
 
   const initialize = useCallback(
@@ -117,7 +153,10 @@ export function useFog(): Fog {
         currentRef.current = savedMask;
       } else {
         // A freshly fogged map has nothing on disk yet, so save it
-        currentRef.current = publish(true);
+        currentRef.current = null;
+        publish(true, (encoded) => {
+          currentRef.current = encoded;
+        });
       }
       syncHistoryState();
     },
@@ -211,8 +250,9 @@ export function useFog(): Fog {
     [],
   );
 
-  const undo = useCallback(() => void step(undoRef, redoRef), [step]);
-  const redo = useCallback(() => void step(redoRef, undoRef), [step]);
+  // Behind any snapshot still encoding, so a step always starts from the latest change
+  const undo = useCallback(() => enqueue(() => step(undoRef, redoRef)), [enqueue, step]);
+  const redo = useCallback(() => enqueue(() => step(redoRef, undoRef)), [enqueue, step]);
 
   return {
     canvasRef,
@@ -229,5 +269,6 @@ export function useFog(): Fog {
     redo,
     canUndo: history.canUndo,
     canRedo: history.canRedo,
+    whenIdle,
   };
 }

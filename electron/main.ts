@@ -291,8 +291,13 @@ ipcMain.on('fog:snapshot', (_event, value: FogSnapshot) => {
     dataUrl: value.dataUrl,
     persist: value.persist === true,
   };
-  latestFogDataUrl = snapshot.dataUrl;
-  sendToPlayer('fog:snapshot', snapshot);
+  // Snapshots are encoded in the background, so one can arrive after the DM
+  // has moved on to another map: it is still saved, but never shown on the
+  // player screen, where it would uncover the wrong parts of the new map
+  if (latestMapState?.mediaUrl === `map-media://${snapshot.mapId}`) {
+    latestFogDataUrl = snapshot.dataUrl;
+    sendToPlayer('fog:snapshot', snapshot);
+  }
   if (snapshot.persist) fogSaves.schedule(snapshot.mapId, snapshot.dataUrl);
 });
 

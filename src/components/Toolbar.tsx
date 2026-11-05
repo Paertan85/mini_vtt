@@ -4,7 +4,7 @@
 //   centre  player view zoom and 16:9 fit
 //   right   player screen status, blackout, and the settings menu
 
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import {
   ChevronDown,
   CircleDashed,
@@ -76,7 +76,9 @@ interface ToolbarProps {
   onToggleLibrary: () => void;
 }
 
-export function Toolbar(props: ToolbarProps) {
+// Memoized: the DM window re-renders on every frame of a drag, and the toolbar
+// never depends on that
+export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
   const { hasMap, tool, zoom } = props;
   const layerName = tool === 'effect' ? 'effects' : 'fog';
 
@@ -308,7 +310,7 @@ export function Toolbar(props: ToolbarProps) {
       />
     </div>
   );
-}
+});
 
 /** − [ 100 % ] +  The field accepts a typed percentage on Enter or blur. */
 function ZoomControl({

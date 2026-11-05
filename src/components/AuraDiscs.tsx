@@ -7,6 +7,7 @@
 // per frame, and nothing is mounted when the map has no templates. Poison gets
 // the same dark hatch as painted poison, so it doesn't rely on hue alone.
 
+import { memo } from 'react';
 import type { AuraDisc } from '../types/map';
 import type { Size } from '../lib/geometry';
 import { EFFECT_KINDS, EFFECT_STYLES } from '../lib/effects';
@@ -18,7 +19,15 @@ const DISC_OPACITY = 0.4;
  * edge, so the disc stays solid over every square it covers. */
 const RIM_START = 0.94;
 
-export function AuraDiscs({ discs, media }: { discs: AuraDisc[]; media: Size | null }) {
+// Memoized: both windows re-render while the player frame moves, and the
+// templates only change when they are edited
+export const AuraDiscs = memo(function AuraDiscs({
+  discs,
+  media,
+}: {
+  discs: AuraDisc[];
+  media: Size | null;
+}) {
   if (!media || discs.length === 0) return null;
   return (
     <svg
@@ -98,4 +107,4 @@ export function AuraDiscs({ discs, media }: { discs: AuraDisc[]; media: Size | n
       })}
     </svg>
   );
-}
+});

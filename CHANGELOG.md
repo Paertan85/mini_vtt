@@ -29,6 +29,10 @@ All notable changes to this project are documented here. The format is based on
   as another map is loaded, dragging an area sends nothing to the player
   screen until it is dropped, and loading a map no longer re-encodes its
   saved fog.
+- Smoother: the DM window does about a third of the work it did while the
+  player frame or an area is dragged (the library and toolbar no longer
+  redraw on every frame), and it no longer freezes for a moment when a fog
+  stroke ends; the fog is encoded in the background.
 - The installer is smaller: the app ships under 1 MB of code instead of
   33 MB.
 
