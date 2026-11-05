@@ -11,6 +11,9 @@ import { app, nativeImage } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
+import yauzl from 'yauzl';
+import yazl from 'yazl';
+import Ajv2020 from 'ajv/dist/2020.js';
 
 const results = [];
 const check = (name, pass, detail = '') => {
@@ -588,10 +591,50 @@ app.whenReady().then(async () => {
       JSON.stringify(old),
     );
     check('angles are wrapped into 0..360', cone.shape === 'cone' && cone.angle === 270);
+    // Areas from a newer version or a fork
+    const area = (id, extra) => ({ id, x: 0, y: 0, radiusFt: 5, kind: 'fire', ...extra });
+    const report = { leftOut: 0, restyled: 0 };
+    const foreign = gridLib.normalizeCircles(
+      [
+        area('moon', { shape: 'halfmoon' }),
+        area('ice', { kind: 'ice', color: '#9be7ff' }),
+        area('acid', { kind: 'acid', color: '#7fff00' }),
+        area('spark', { kind: 'lightning', color: '#ffd400' }),
+        area('plain', { kind: 'shadow' }),
+        area('kept', { shape: 'cone' }),
+      ],
+      report,
+    );
     check(
-      'an unknown shape falls back to a circle',
-      gridLib.normalizeCircles([{ id: 'x', x: 0, y: 0, radiusFt: 5, kind: 'fire', shape: 'star' }])[0]
-        .shape === 'circle',
+      'an area of an unknown shape is left out, not guessed',
+      !foreign.some((c) => c.id === 'moon') && report.leftOut === 1,
+      JSON.stringify(report),
+    );
+    check(
+      'an area of an unknown kind is kept in the nearest colour',
+      foreign.find((c) => c.id === 'ice')?.kind === 'magic' &&
+        foreign.find((c) => c.id === 'acid')?.kind === 'poison' &&
+        foreign.find((c) => c.id === 'spark')?.kind === 'fire' &&
+        report.restyled === 4,
+      JSON.stringify(foreign.map((c) => c.kind)),
+    );
+    check(
+      'an unknown kind without a colour is shown as magic',
+      foreign.find((c) => c.id === 'plain')?.kind === 'magic',
+    );
+    check(
+      'known areas next to unknown ones are kept',
+      foreign.find((c) => c.id === 'kept')?.shape === 'cone',
+    );
+    const crowded = { leftOut: 0, restyled: 0 };
+    const capped = gridLib.normalizeCircles(
+      Array.from({ length: 60 }, (_, i) => area(`a${i}`)),
+      crowded,
+    );
+    check(
+      'areas over the limit are counted as left out',
+      capped.length === 50 && crowded.leftOut === 10,
+      JSON.stringify(crowded),
     );
     const disc = (shape, extra = {}) => ({
       x: 0,
@@ -694,7 +737,7 @@ app.whenReady().then(async () => {
         goodCircle,
         { id: 'c1', x: 1, y: 1, radiusFt: 5, kind: 'fire' }, // duplicate id
         { id: '../x', x: 1, y: 1, radiusFt: 5, kind: 'fire' }, // unsafe id
-        { id: 'c2', x: 1, y: 1, radiusFt: 5, kind: 'lava' }, // unknown kind
+        { id: 'c2', x: 1, y: 1, radiusFt: 5, kind: 'lava' }, // unknown kind: kept as magic
         { id: 'c3', x: 1, y: 1, radiusFt: 9999, kind: 'poison' }, // clamped
       ],
     });
@@ -702,9 +745,10 @@ app.whenReady().then(async () => {
     check('the grid persists', calibrated.grid?.cell === 100, JSON.stringify(calibrated.grid));
     check(
       'circles persist, invalid ones are dropped and radii clamped',
-      calibrated.circles.length === 2 &&
+      calibrated.circles.length === 3 &&
         calibrated.circles[0].id === 'c1' &&
-        calibrated.circles[1].radiusFt === gridLib.MAX_RADIUS_FT,
+        calibrated.circles[1].kind === 'magic' &&
+        calibrated.circles[2].radiusFt === gridLib.MAX_RADIUS_FT,
       JSON.stringify(calibrated.circles),
     );
     check(
@@ -755,6 +799,53 @@ app.whenReady().then(async () => {
     );
     check('export leaves no temp file', !(await fs.readdir(fixtures)).some((f) => f.endsWith('.tmp')));
 
+    // The export is an ordinary ZIP, so any unzip tool can open it
+    const unzip = async (file) => {
+      const zip = await yauzl.openPromise(file, { autoClose: false });
+      const files = new Map();
+      try {
+        for await (const entry of zip.eachEntry()) {
+          const chunks = [];
+          for await (const chunk of await zip.openReadStreamPromise(entry)) chunks.push(chunk);
+          files.set(entry.fileName, { method: entry.compressionMethod, bytes: Buffer.concat(chunks) });
+        }
+      } finally {
+        zip.close();
+      }
+      return files;
+    };
+    const archive = await unzip(projectPath);
+    const written = JSON.parse(archive.get('manifest.json')?.bytes.toString('utf8') ?? '{}');
+    const schema = JSON.parse(
+      await fs.readFile(new URL('../docs/project-manifest.schema.json', import.meta.url), 'utf8'),
+    );
+    const fitsSchema = new Ajv2020({ allErrors: true }).compile(schema);
+    const schemaErrors = (manifest) => (fitsSchema(manifest) ? '' : JSON.stringify(fitsSchema.errors));
+    const exportErrors = schemaErrors(written);
+    check('the exported manifest fits the published schema', exportErrors === '', exportErrors);
+    check('the project file is a ZIP with the manifest first', [...archive.keys()][0] === 'manifest.json');
+    check(
+      'files are stored uncompressed',
+      [...archive.values()].every((file) => file.method === 0),
+    );
+    check(
+      'the manifest names its format, version and maker',
+      written.format === 'mini-vtt-project' && written.version === 2 && /^Mini VTT /.test(written.generator),
+      JSON.stringify({ format: written.format, version: written.version, generator: written.generator }),
+    );
+    check(
+      'every file the manifest names is in the archive',
+      [...written.maps, ...written.handouts]
+        .flatMap((record) => [record.media, record.thumb, record.fog, record.effects])
+        .filter(Boolean)
+        .every((name) => archive.has(name)),
+    );
+    check(
+      'areas carry their colour for versions without their kind',
+      written.maps.some((map) => map.circles.length > 0) &&
+        written.maps.every((map) => map.circles.every((circle) => /^#[0-9a-f]{6}$/.test(circle.color))),
+    );
+
     await lib.removeMap(b.id);
     await lib.removeMap(c.id);
     await lib.removeHandout(letter.id);
@@ -786,7 +877,7 @@ app.whenReady().then(async () => {
     );
     check(
       'grid and circles travel with the project',
-      second.grid?.cell === 100 && second.circles.length === 2 && first.grid === null,
+      second.grid?.cell === 100 && second.circles.length === 3 && first.grid === null,
       JSON.stringify({ grid: second.grid, circles: second.circles.length }),
     );
     check('map media resolves', !!(await lib.resolveMapMediaPath(second.id)));
@@ -871,6 +962,313 @@ app.whenReady().then(async () => {
       fromNewer.message,
     );
     check('rejected imports do not change the library', (await lib.loadSnapshot()).maps.length === 4);
+
+    // ── Project files from 1.1 and 1.2 ──────────────────────────────────────
+    const mapPng = makePng({ rgb: [120, 120, 120] });
+    const halfFog = makePng({ rgb: [9, 9, 11], leftHalfOnly: true });
+    const legacyManifest = Buffer.from(
+      JSON.stringify({
+        format: 'mini-vtt-project',
+        version: 1,
+        exportedAt: 0,
+        settings: {},
+        maps: [
+          {
+            name: 'old map',
+            mediaType: 'image',
+            width: 64,
+            height: 64,
+            zoom: 2,
+            pan: { x: 3, y: 4 },
+            rotation: 90,
+            mirrorHorizontal: false,
+            mirrorVertical: false,
+            circles: [{ id: 'c1', x: 5, y: 5, radiusFt: 15, kind: 'poison' }],
+            media: { offset: 0, size: mapPng.length },
+            fog: { offset: mapPng.length, size: halfFog.length },
+          },
+        ],
+        handouts: [],
+      }),
+    );
+    const legacyHeader = Buffer.alloc(12);
+    Buffer.from('MVTTPRJ1').copy(legacyHeader);
+    legacyHeader.writeUInt32LE(legacyManifest.length, 8);
+    const fromLegacy = await lib.importProject(
+      await fixture('old.minivtt', Buffer.concat([legacyHeader, legacyManifest, mapPng, halfFog])),
+    );
+    const oldMap = (await lib.loadSnapshot()).maps.find((map) => map.id === fromLegacy.firstMap?.id);
+    check(
+      'a project file from 1.1 or 1.2 still imports',
+      fromLegacy.maps === 1 &&
+        oldMap?.hasFog &&
+        oldMap.zoom === 2 &&
+        oldMap.rotation === 90 &&
+        oldMap.circles[0]?.shape === 'circle' &&
+        oldMap.circles[0]?.kind === 'poison',
+      JSON.stringify(fromLegacy),
+    );
+
+    // ── Files from newer versions and forks ─────────────────────────────────
+    const makeZip = async (files, options = {}) => {
+      const zip = new yazl.ZipFile();
+      for (const [name, content] of Object.entries(files)) {
+        const bytes = Buffer.isBuffer(content)
+          ? content
+          : Buffer.from(typeof content === 'string' ? content : JSON.stringify(content));
+        zip.addBuffer(bytes, name, { compress: false, ...options });
+      }
+      zip.end();
+      const chunks = [];
+      for await (const chunk of zip.outputStream) chunks.push(chunk);
+      return Buffer.concat(chunks);
+    };
+    const forkManifest = {
+      format: 'mini-vtt-project',
+      version: 2,
+      generator: 'Mini VTT Halfmoon 2.0',
+      somethingNew: { anything: true },
+      extensions: { halfmoon: { theme: 'dusk' } },
+      settings: {},
+      maps: [
+        {
+          name: 'From a fork',
+          media: 'maps/1/media.png',
+          fog: 'maps/1/fog.vec',
+          grid: { cell: 64, offsetX: 0, offsetY: 0, feetPerCell: 5 },
+          circles: [
+            { id: 'a', x: 1, y: 1, radiusFt: 10, kind: 'fire', shape: 'circle', color: '#ff6a1a' },
+            { id: 'b', x: 1, y: 1, radiusFt: 10, kind: 'fire', shape: 'halfmoon' },
+            { id: 'c', x: 1, y: 1, radiusFt: 10, kind: 'ice', shape: 'square', color: '#9be7ff' },
+          ],
+          notes: 'a field this version has never heard of',
+          extensions: { halfmoon: { pinned: true } },
+        },
+        { name: 'Unsupported media', media: 'maps/2/media.mp4' },
+        { name: 'Missing media', media: 'maps/3/media.png' },
+      ],
+      handouts: [],
+    };
+    // Deflated, as another program's ZIP library may write it
+    const fromFork = await lib.importProject(
+      await fixture(
+        'fork.minivtt',
+        await makeZip(
+          {
+            'manifest.json': forkManifest,
+            'maps/1/media.png': mapPng,
+            'maps/1/fog.vec': 'fog in a form this version does not know',
+            'maps/2/media.mp4': 'not a map Mini VTT can show',
+            'halfmoon/settings.json': '{}',
+          },
+          { compress: true },
+        ),
+      ),
+    );
+    const forkMap = (await lib.loadSnapshot()).maps.find((map) => map.id === fromFork.firstMap?.id);
+    check(
+      'a fork’s file imports what this version understands',
+      fromFork.maps === 1 && forkMap?.name === 'From a fork' && forkMap.grid?.cell === 64,
+      JSON.stringify(fromFork),
+    );
+    check(
+      'what it doesn’t understand is counted for the DM',
+      fromFork.skipped === 2 &&
+        fromFork.areasLeftOut === 1 &&
+        fromFork.areasRestyled === 1 &&
+        fromFork.fogLeftOut === 1 &&
+        fromFork.effectsLeftOut === 0,
+      JSON.stringify(fromFork),
+    );
+    check(
+      'unknown areas: the half moon is left out, the ice area shown as magic',
+      JSON.stringify(forkMap?.circles.map((c) => [c.id, c.kind, c.shape])) ===
+        JSON.stringify([
+          ['a', 'fire', 'circle'],
+          ['c', 'magic', 'square'],
+        ]),
+      JSON.stringify(forkMap?.circles),
+    );
+    check('fog that can’t be read leaves the map fully fogged', forkMap?.hasFog === false);
+
+    const needsFeature = await rejects(
+      'needs-feature.minivtt',
+      await makeZip({
+        'manifest.json': { ...forkManifest, requires: ['halfmoon-arcs'] },
+        'maps/1/media.png': mapPng,
+      }),
+    );
+    check(
+      'a file requiring a feature this version lacks is refused, naming it and its maker',
+      needsFeature.rejected &&
+        needsFeature.message.includes('halfmoon-arcs') &&
+        needsFeature.message.includes('Mini VTT Halfmoon 2.0'),
+      needsFeature.message,
+    );
+    const newerZip = await rejects(
+      'newer-format.minivtt',
+      await makeZip({ 'manifest.json': { ...forkManifest, version: 3 }, 'maps/1/media.png': mapPng }),
+    );
+    check(
+      'a ZIP project of a newer format version is refused',
+      newerZip.rejected && /newer/.test(newerZip.message),
+      newerZip.message,
+    );
+    const plainZip = await rejects('photos.minivtt', await makeZip({ 'photo.png': mapPng }));
+    check(
+      'a ZIP without a manifest is not a project',
+      plainZip.rejected && plainZip.message.includes('isn’t a Mini VTT project'),
+      plainZip.message,
+    );
+    const zippedFolder = await rejects(
+      'zipped-folder.minivtt',
+      await makeZip({ 'session/manifest.json': forkManifest, 'session/maps/1/media.png': mapPng }),
+    );
+    check(
+      'a manifest inside a folder gets a message saying how to fix it',
+      zippedFolder.rejected && zippedFolder.message.includes('inside a folder'),
+      zippedFolder.message,
+    );
+
+    // A file damaged inside the archive is caught by its CRC-32
+    const otherPng = makePng({ rgb: [200, 60, 60] });
+    const bitrot = await makeZip({
+      'manifest.json': {
+        ...forkManifest,
+        maps: [
+          { name: 'intact', media: 'maps/1/media.png' },
+          { name: 'damaged', media: 'maps/2/media.png' },
+        ],
+      },
+      'maps/1/media.png': mapPng,
+      'maps/2/media.png': otherPng,
+    });
+    bitrot[bitrot.indexOf(otherPng) + Math.floor(otherPng.length / 2)] ^= 0xff;
+    const fromBitrot = await lib.importProject(await fixture('bitrot.minivtt', bitrot));
+    check(
+      'a damaged file inside the ZIP fails its checksum and is skipped',
+      fromBitrot.maps === 1 && fromBitrot.skipped === 1 && fromBitrot.firstMap?.name === 'intact',
+      JSON.stringify(fromBitrot),
+    );
+
+    // yazl won't write a name that climbs out of the archive, so patch one in
+    const climbing = Buffer.from(
+      (
+        await makeZip({
+          'manifest.json': { ...forkManifest, maps: [{ name: 'x', media: '../evil.png' }] },
+          'aa/evil.png': mapPng,
+        })
+      )
+        .toString('latin1')
+        .replaceAll('aa/evil.png', '../evil.png'),
+      'latin1',
+    );
+    const escape = await rejects('climbing.minivtt', climbing);
+    check(
+      'a ZIP with a name outside the archive is refused and writes nothing',
+      escape.rejected && escape.cleanedUp && !(await exists(path.join(tmp, 'evil.png'))),
+      escape.message,
+    );
+
+    // A file claiming to unpack to more than the disk holds is refused up front
+    const huge = await makeZip(
+      { 'manifest.json': forkManifest, 'maps/1/media.png': mapPng },
+      { compress: true, forceZip64Format: true },
+    );
+    const CENTRAL_HEADER = Buffer.from([0x50, 0x4b, 0x01, 0x02]);
+    let claimed = false;
+    for (let at = huge.indexOf(CENTRAL_HEADER); at !== -1; at = huge.indexOf(CENTRAL_HEADER, at + 4)) {
+      const nameLength = huge.readUInt16LE(at + 28);
+      if (huge.toString('latin1', at + 46, at + 46 + nameLength) !== 'maps/1/media.png') continue;
+      const extraEnd = at + 46 + nameLength + huge.readUInt16LE(at + 30);
+      for (let field = at + 46 + nameLength; field < extraEnd; field += 4 + huge.readUInt16LE(field + 2)) {
+        // The ZIP64 field's first value is the uncompressed size
+        if (huge.readUInt16LE(field) === 0x0001) {
+          huge.writeBigUInt64LE(2n ** 50n, field + 4);
+          claimed = true;
+        }
+      }
+    }
+    const tooBig = await rejects('huge.minivtt', huge);
+    check(
+      'a project bigger than the free disk space is refused before writing',
+      claimed && tooBig.rejected && /disk space/.test(tooBig.message) && tooBig.cleanedUp,
+      tooBig.message,
+    );
+
+    // ── The examples in docs/project-format.md ──────────────────────────────
+    const formatDoc = await fs.readFile(new URL('../docs/project-format.md', import.meta.url), 'utf8');
+    const examples = [...formatDoc.matchAll(/```json\r?\n([\s\S]*?)\r?\n\s*```/g)]
+      .map(([, json]) => {
+        try {
+          return JSON.parse(json);
+        } catch {
+          return null; // a fragment, not a whole manifest
+        }
+      })
+      .filter((example) => example?.format === 'mini-vtt-project');
+    check('the format document has its two example manifests', examples.length === 2, `${examples.length}`);
+    // Into an empty library whose player screen is set up already
+    for (const map of (await lib.loadSnapshot()).maps) await lib.removeMap(map.id);
+    for (const handout of (await lib.loadSnapshot()).handouts) await lib.removeHandout(handout.id);
+    await lib.saveSettings({ playerScreenDiagonal: 32, gridSize: 1.25 });
+    const effectsPng = makePng({ rgb: [255, 106, 26] });
+    for (const [index, example] of examples.entries()) {
+      const label = index === 0 ? 'the minimal example' : 'the complete example';
+      const errors = schemaErrors(example);
+      check(`${label} fits the schema`, errors === '', errors);
+      // Every file it names, filled with the approved test images
+      const files = { 'manifest.json': example };
+      for (const record of [...(example.maps ?? []), ...(example.handouts ?? [])]) {
+        files[record.media] = mapPng;
+        if (record.thumb) files[record.thumb] = mapPng;
+        if (record.fog) files[record.fog] = halfFog;
+        if (record.effects) files[record.effects] = effectsPng;
+      }
+      const result = await lib.importProject(await fixture(`example-${index}.minivtt`, await makeZip(files)));
+      const leftOut =
+        result.skipped +
+        result.areasLeftOut +
+        result.areasRestyled +
+        result.fogLeftOut +
+        result.effectsLeftOut;
+      check(
+        `${label} imports with nothing left out`,
+        leftOut === 0 &&
+          result.maps === (example.maps?.length ?? 0) &&
+          result.handouts === (example.handouts?.length ?? 0),
+        JSON.stringify({ ...result, firstMap: undefined }),
+      );
+      if (index === 0) {
+        const { settings, maps } = await lib.loadSnapshot();
+        check(
+          'a file without settings leaves the player screen setup alone',
+          !result.settingsApplied && settings.playerScreenDiagonal === 32 && settings.gridSize === 1.25,
+          JSON.stringify(settings),
+        );
+        check(
+          'a size the file leaves out is measured from the image',
+          maps[0]?.width === 64 && maps[0]?.height === 64 && !!(await lib.loadMapThumb(maps[0].id)),
+          JSON.stringify(maps[0]),
+        );
+      }
+    }
+    const withMap = (map) => ({ format: 'mini-vtt-project', version: 2, maps: [map] });
+    const withArea = (area) => withMap({ media: 'map.png', circles: [area] });
+    const mistakes = {
+      'version as a string': { ...withMap({ media: 'map.png' }), version: '2' },
+      'no maps or handouts': { format: 'mini-vtt-project', version: 2 },
+      'a map without media': withMap({ name: 'Crypt' }),
+      'a path that climbs out': withMap({ media: 'maps/../../map.png' }),
+      'a path from the root': withMap({ media: '/maps/map.png' }),
+      'backslashes in a path': withMap({ media: 'maps\\1\\media.png' }),
+      'an area sized in pixels': withArea({ id: 'a', x: 0, y: 0, radiusFt: 3000, kind: 'fire' }),
+      'an area without an id': withArea({ x: 0, y: 0, radiusFt: 15, kind: 'fire' }),
+      'an unknown shape': withArea({ id: 'a', x: 0, y: 0, radiusFt: 15, kind: 'fire', shape: 'halfmoon' }),
+      'a rotation off the right angles': withMap({ media: 'map.png', rotation: 45 }),
+    };
+    const missed = Object.keys(mistakes).filter((name) => fitsSchema(mistakes[name]));
+    check('the schema catches the usual mistakes', missed.length === 0, missed.join(', '));
 
     // ── Settings from libraries written before 1.1 ──────────────────────────
     const indexPath = path.join(tmp, 'library', 'index.json');

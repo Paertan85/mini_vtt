@@ -6,12 +6,12 @@
 // use the geometry. All coordinates are map natural pixels, unrotated.
 
 import type { AreaShape, AuraCircle, AuraDisc, EffectKind, MapGrid, Point } from '../types/map';
+import { EFFECT_KINDS, nearestEffectKind } from './effects';
 
 export const MAX_CIRCLES = 50;
 export const MIN_RADIUS_FT = 1;
 export const MAX_RADIUS_FT = 500;
 export const DEFAULT_FEET_PER_CELL = 5;
-const EFFECT_KIND_NAMES: readonly EffectKind[] = ['fire', 'poison', 'magic'];
 export const AREA_SHAPES: readonly AreaShape[] = ['circle', 'square', 'cone', 'line'];
 export const AREA_LABELS: Record<AreaShape, string> = {
   circle: 'Circle',
@@ -39,27 +39,52 @@ export function normalizeGrid(value: unknown): MapGrid | null {
 export const clampRadius = (radiusFt: number) =>
   Math.min(MAX_RADIUS_FT, Math.max(MIN_RADIUS_FT, Math.round(radiusFt)));
 
-/** Valid circles only, at most MAX_CIRCLES, with unique ids. */
-export function normalizeCircles(value: unknown): AuraCircle[] {
+/** What `normalizeCircles` changed, so an import can tell the DM. */
+export interface AreaReport {
+  /** Left out: a shape this version doesn't have, damaged, or over MAX_CIRCLES */
+  leftOut: number;
+  /** Kept, but shown as another kind: a kind this version doesn't have */
+  restyled: number;
+}
+
+/**
+ * Valid areas only, at most MAX_CIRCLES, with unique ids. Areas can come from
+ * a newer version or a fork: one of an unknown shape is left out, as which
+ * squares it covers can't be known; one of an unknown kind is kept and shown
+ * as the kind nearest to its `color`. `report` counts both.
+ */
+export function normalizeCircles(value: unknown, report?: AreaReport): AuraCircle[] {
   if (!Array.isArray(value)) return [];
   const seen = new Set<string>();
   const circles: AuraCircle[] = [];
   for (const raw of value) {
-    if (circles.length >= MAX_CIRCLES) break;
-    if (!raw || typeof raw !== 'object') continue;
-    const { id, x, y, radiusFt, kind, shape, angle, widthFt } = raw as Record<string, unknown>;
-    if (typeof id !== 'string' || !CIRCLE_ID.test(id) || seen.has(id)) continue;
-    if (!finite(x) || !finite(y) || !finite(radiusFt)) continue;
-    if (!EFFECT_KIND_NAMES.includes(kind as EffectKind)) continue;
+    const fields = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+    const { id, x, y, radiusFt, kind, shape, angle, widthFt, color } = fields;
+    // Areas saved before shapes existed have none: they are circles
+    const knownShape = shape === undefined ? 'circle' : AREA_SHAPES.find((name) => name === shape);
+    if (
+      circles.length >= MAX_CIRCLES ||
+      !knownShape ||
+      typeof id !== 'string' ||
+      !CIRCLE_ID.test(id) ||
+      seen.has(id) ||
+      !finite(x) ||
+      !finite(y) ||
+      !finite(radiusFt)
+    ) {
+      if (report) report.leftOut += 1;
+      continue;
+    }
+    const knownKind = EFFECT_KINDS.find((name) => name === kind);
+    if (!knownKind && report) report.restyled += 1;
     seen.add(id);
-    // Templates saved before shapes existed are circles
     circles.push({
       id,
       x,
       y,
       radiusFt: clampRadius(radiusFt),
-      kind: kind as EffectKind,
-      shape: AREA_SHAPES.includes(shape as AreaShape) ? (shape as AreaShape) : 'circle',
+      kind: knownKind ?? nearestEffectKind(color),
+      shape: knownShape,
       angle: finite(angle) ? ((angle % 360) + 360) % 360 : 0,
       widthFt: finite(widthFt) ? clampRadius(widthFt) : DEFAULT_LINE_WIDTH_FT,
     });
@@ -76,8 +101,7 @@ export function normalizeDiscs(value: unknown): AuraDisc[] {
     const { x, y, radius, kind, shape, angle, width } = raw as Record<string, unknown>;
     if (!finite(x) || !finite(y) || !finite(radius) || !finite(angle) || !finite(width)) continue;
     if (radius <= 0 || width < 0) continue;
-    if (!EFFECT_KIND_NAMES.includes(kind as EffectKind) || !AREA_SHAPES.includes(shape as AreaShape))
-      continue;
+    if (!EFFECT_KINDS.includes(kind as EffectKind) || !AREA_SHAPES.includes(shape as AreaShape)) continue;
     discs.push({ x, y, radius, kind: kind as EffectKind, shape: shape as AreaShape, angle, width });
   }
   return discs;

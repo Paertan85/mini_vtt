@@ -176,6 +176,14 @@ export interface ProjectImportSummary {
   handouts: number;
   /** Entries in the file that were damaged or not a supported format */
   skipped: number;
+  /** Spell areas left out: a shape this version doesn't have, damaged, or over the limit */
+  areasLeftOut: number;
+  /** Spell areas of a kind this version doesn't have, shown as the nearest kind */
+  areasRestyled: number;
+  /** Maps whose saved fog couldn't be read; they start fully fogged */
+  fogLeftOut: number;
+  /** Maps whose painted effects couldn't be read */
+  effectsLeftOut: number;
   /** Whether the file's player screen settings were adopted (only into an empty library) */
   settingsApplied: boolean;
   /** The first imported map, so the DM window can open it if nothing is loaded */

@@ -30,6 +30,42 @@ export const EFFECT_STYLES: Record<EffectKind, EffectStyle> = {
 
 export const EFFECT_KINDS = Object.keys(EFFECT_STYLES) as EffectKind[];
 
+/** Hue of a `#rrggbb` colour in degrees; null for anything else, or a grey. */
+function hueOf(color: string): number | null {
+  const match = /^#([0-9a-f]{6})$/i.exec(color);
+  if (!match) return null;
+  const value = parseInt(match[1], 16);
+  const r = (value >> 16) & 255;
+  const g = (value >> 8) & 255;
+  const b = value & 255;
+  const max = Math.max(r, g, b);
+  const range = max - Math.min(r, g, b);
+  if (range < 24) return null;
+  const sector = max === r ? (g - b) / range : max === g ? (b - r) / range + 2 : (r - g) / range + 4;
+  return (sector * 60 + 360) % 360;
+}
+
+/**
+ * The kind to show an area as when its kind is one this version doesn't have
+ * (from a newer version or a fork): the kind closest in hue to the colour the
+ * file gives for it, or magic when it gives none.
+ */
+export function nearestEffectKind(color: unknown): EffectKind {
+  const hue = typeof color === 'string' ? hueOf(color) : null;
+  if (hue === null) return 'magic';
+  let nearest: EffectKind = 'magic';
+  let nearestDistance = Infinity;
+  for (const kind of EFFECT_KINDS) {
+    const difference = Math.abs(hue - (hueOf(EFFECT_STYLES[kind].color) ?? 0));
+    const distance = Math.min(difference, 360 - difference);
+    if (distance < nearestDistance) {
+      nearest = kind;
+      nearestDistance = distance;
+    }
+  }
+  return nearest;
+}
+
 /** Largest edge blur, in layer pixels (about a tenth of a typical square). */
 const MAX_EDGE_SOFTNESS = 3;
 

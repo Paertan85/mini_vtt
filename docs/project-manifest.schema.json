@@ -1,0 +1,221 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/Paertan85/mini_vtt/main/docs/project-manifest.schema.json",
+  "title": "Mini VTT project manifest",
+  "description": "manifest.json at the top of a .minivtt project file (a ZIP archive), format version 2. Explained in docs/project-format.md. Fields not listed here are allowed: readers ignore what they don't know.",
+  "type": "object",
+  "required": ["format", "version"],
+  "anyOf": [
+    { "required": ["maps"], "properties": { "maps": { "type": "array", "minItems": 1 } } },
+    { "required": ["handouts"], "properties": { "handouts": { "type": "array", "minItems": 1 } } }
+  ],
+  "properties": {
+    "format": { "const": "mini-vtt-project" },
+    "version": { "const": 2 },
+    "generator": {
+      "type": "string",
+      "description": "The app that wrote the file, with its version. Shown when a file can't be opened."
+    },
+    "exportedAt": {
+      "type": "number",
+      "description": "When the file was written, in milliseconds since 1970 (UTC)."
+    },
+    "requires": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Features a reader must have to read this file correctly. A reader lacking one refuses the file. Leave it out unless you need it."
+    },
+    "settings": { "$ref": "#/$defs/settings" },
+    "maps": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": { "$ref": "#/$defs/map" },
+      "description": "In library order, top first."
+    },
+    "handouts": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": { "$ref": "#/$defs/handout" },
+      "description": "In library order, top first."
+    },
+    "extensions": { "$ref": "#/$defs/extensions" }
+  },
+  "$defs": {
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!(?:.*/)?\\.\\.(?:/|$))[^\\\\]+$",
+      "description": "A file in the archive, with / between folders: relative, no '..' and no backslashes."
+    },
+    "rotation": {
+      "enum": [0, 90, 180, 270],
+      "description": "Degrees clockwise."
+    },
+    "extensions": {
+      "type": "object",
+      "additionalProperties": { "type": "object" },
+      "description": "Data for other apps and forks, one object per app, named after it. Readers ignore apps they don't know."
+    },
+    "settings": {
+      "type": "object",
+      "description": "The player screen setup. Only taken over by an empty library, and only the fields given.",
+      "properties": {
+        "playerScreenDiagonal": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0,
+          "description": "The player screen's diagonal in any unit, or null for no grid on the player screen."
+        },
+        "gridSize": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "One grid square on the player screen, in the same unit as the diagonal."
+        },
+        "portraitRotation": {
+          "enum": [0, 90, 270],
+          "description": "How maps and handouts taller than wide are turned when added, in degrees clockwise."
+        }
+      }
+    },
+    "map": {
+      "type": "object",
+      "required": ["media"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Shown in the library. Mini VTT keeps up to 80 characters."
+        },
+        "media": {
+          "$ref": "#/$defs/path",
+          "description": "The image (PNG, JPEG, GIF, WebP, BMP) or WebM video (VP8, VP9, AV1)."
+        },
+        "thumb": {
+          "$ref": "#/$defs/path",
+          "description": "A PNG thumbnail. Made from the media when missing."
+        },
+        "fog": {
+          "$ref": "#/$defs/path",
+          "description": "A PNG fog mask: opaque is fogged, transparent revealed. Missing means fully fogged."
+        },
+        "effects": {
+          "$ref": "#/$defs/path",
+          "description": "A PNG of painted effects, coloured pixels on transparent."
+        },
+        "mediaType": {
+          "enum": ["image", "video"],
+          "description": "Informational: readers look at the file itself."
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Pixels, as shown. Measured when missing or 0."
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Pixels, as shown. Measured when missing or 0."
+        },
+        "zoom": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Player view zoom: 1 shows one map pixel per screen pixel."
+        },
+        "pan": {
+          "type": "object",
+          "required": ["x", "y"],
+          "properties": { "x": { "type": "number" }, "y": { "type": "number" } },
+          "description": "Top-left corner of the player view, in pixels of the rotated map."
+        },
+        "rotation": { "$ref": "#/$defs/rotation" },
+        "mirrorHorizontal": { "type": "boolean" },
+        "mirrorVertical": { "type": "boolean" },
+        "grid": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/grid" }],
+          "description": "The map's own grid, or null when not measured."
+        },
+        "circles": {
+          "type": "array",
+          "maxItems": 50,
+          "items": { "$ref": "#/$defs/area" },
+          "description": "Spell areas (named after the first shape, the circle)."
+        },
+        "extensions": { "$ref": "#/$defs/extensions" }
+      }
+    },
+    "grid": {
+      "type": "object",
+      "required": ["cell", "feetPerCell"],
+      "description": "In pixels of the unrotated map.",
+      "properties": {
+        "cell": { "type": "number", "minimum": 2, "maximum": 100000, "description": "Width of one square." },
+        "offsetX": { "type": "number", "description": "Where a vertical grid line lies. Default 0." },
+        "offsetY": { "type": "number", "description": "Where a horizontal grid line lies. Default 0." },
+        "feetPerCell": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1000,
+          "description": "Feet one square stands for, usually 5."
+        }
+      }
+    },
+    "area": {
+      "type": "object",
+      "required": ["id", "x", "y", "radiusFt", "kind"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,32}$", "description": "Unique on its map." },
+        "x": {
+          "type": "number",
+          "description": "Pixels of the unrotated map: the centre of a circle or square, or where a cone or line starts."
+        },
+        "y": { "type": "number" },
+        "shape": { "enum": ["circle", "square", "cone", "line"], "description": "Default circle." },
+        "radiusFt": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 500,
+          "description": "Feet: a circle's radius, a square's side, or a cone's or line's length."
+        },
+        "angle": {
+          "type": "number",
+          "description": "Degrees, 0 pointing right; larger angles turn clockwise. Default 0."
+        },
+        "widthFt": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 500,
+          "description": "A line's width in feet. Default 5."
+        },
+        "kind": { "enum": ["fire", "poison", "magic"] },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$",
+          "description": "The kind's colour, for readers that don't know the kind."
+        },
+        "extensions": { "$ref": "#/$defs/extensions" }
+      }
+    },
+    "handout": {
+      "type": "object",
+      "required": ["media"],
+      "properties": {
+        "name": { "type": "string", "description": "Shown in the library." },
+        "media": { "$ref": "#/$defs/path", "description": "The image (PNG, JPEG, GIF, WebP, BMP)." },
+        "thumb": {
+          "$ref": "#/$defs/path",
+          "description": "A PNG thumbnail. Made from the image when missing."
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Pixels, as shown. Measured when missing or 0."
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Pixels, as shown. Measured when missing or 0."
+        },
+        "rotation": { "$ref": "#/$defs/rotation" },
+        "extensions": { "$ref": "#/$defs/extensions" }
+      }
+    }
+  }
+}

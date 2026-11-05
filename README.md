@@ -113,6 +113,8 @@ Maps, fog masks and settings live in a `library` folder inside the app's user-da
 
 **Settings → Export project…** saves the whole library (every map and handout with its fog, effects, zoom, framing, rotation, mirroring and order, plus the player screen setup) as a single `.minivtt` file. Copy that file to the other computer and choose **Settings → Import project…** there. Importing adds the project's maps and handouts to whatever is already in the library and never replaces anything; the player screen setup is taken over only when the library is still empty.
 
+A `.minivtt` file is an ordinary ZIP archive, so any unzip tool can open it (rename it to `.zip` first). [docs/project-format.md](docs/project-format.md) explains how to make one yourself, by hand or from another program, and the rules that keep files readable across versions and forks. Mini VTT 1.1 and 1.2 can't open these files, but files from those versions still import.
+
 ## Development
 
 ```bash

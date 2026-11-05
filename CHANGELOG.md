@@ -17,6 +17,29 @@ All notable changes to this project are documented here. The format is based on
   most groups play with the DM at one end. Player screen setup can turn
   them right instead, or not at all. Square and wide images are never
   turned, and nothing already in the library changes.
+- [docs/project-format.md](docs/project-format.md) explains how to make a
+  project file by hand or from another program, with examples, a short
+  script and a checklist, and the rules that keep files readable across
+  versions and forks. [A JSON Schema](docs/project-manifest.schema.json)
+  defines the manifest for tools that check files.
+- A project file needs only its maps' or handouts' images: sizes and
+  thumbnails left out are taken from the images. A file without player
+  screen settings no longer resets the player screen setup of an empty
+  library, and a ZIP made from the folder instead of its contents gets a
+  message saying how to fix it.
+
+### Changed
+
+- Project files are now ordinary ZIP archives, so any unzip tool can open
+  them and other programs can read and write them. Files exported by Mini
+  VTT 1.1 and 1.2 still import, but those versions can't open the new files.
+- Importing a project made by a newer version or a fork keeps everything
+  this version understands and says what it left out. A spell area of an
+  unknown shape is left out instead of becoming a circle. One of an unknown
+  kind is kept and shown in the nearest colour instead of disappearing. A
+  file that needs a feature this version lacks is refused, naming it.
+- Importing checks each file in the project against its checksum, and stops
+  before writing anything if the disk doesn't have room for the project.
 
 ### Fixed
 

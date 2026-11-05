@@ -520,12 +520,20 @@ export function App() {
     notify(
       `Imported ${plural(result.maps, 'map')} and ${plural(result.handouts, 'handout')} from “${result.fileName}”`,
     );
-    if (result.skipped > 0) {
-      notify(
+    // What didn't come across, e.g. from a newer version or a fork of Mini VTT
+    const leftOut = [
+      result.skipped > 0 &&
         `Skipped ${plural(result.skipped, 'item')} that were damaged or in an unsupported format.`,
-        'error',
-      );
-    }
+      result.areasLeftOut > 0 &&
+        `Left out ${plural(result.areasLeftOut, 'spell area')} this version can’t show.`,
+      result.areasRestyled > 0 &&
+        `${plural(result.areasRestyled, 'spell area')} of a kind this version doesn’t have ${result.areasRestyled === 1 ? 'is' : 'are'} shown in the nearest colour.`,
+      result.fogLeftOut > 0 &&
+        `The fog of ${plural(result.fogLeftOut, 'map')} couldn’t be read, so ${result.fogLeftOut === 1 ? 'it starts' : 'they start'} fully fogged.`,
+      result.effectsLeftOut > 0 &&
+        `The painted effects of ${plural(result.effectsLeftOut, 'map')} couldn’t be read.`,
+    ].filter(Boolean);
+    if (leftOut.length > 0) notify(leftOut.join(' '), 'error');
     const snapshot = await reloadLibrary();
     if (snapshot && result.settingsApplied) {
       setScreenDiagonal(snapshot.settings.playerScreenDiagonal);
