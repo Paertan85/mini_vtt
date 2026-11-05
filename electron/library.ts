@@ -218,6 +218,7 @@ function normalizeSettings(stored: unknown): LibrarySettings {
     gridSize: toPositiveNumber(raw.gridSize) ?? DEFAULT_SETTINGS.gridSize,
     showEffectTools: raw.showEffectTools !== false,
     showLibrary: raw.showLibrary !== false,
+    portraitRotation: isPortraitRotation(raw.portraitRotation) ? raw.portraitRotation : 0,
     ...(mapOrder ? { mapOrder } : {}),
   };
 }
@@ -228,7 +229,19 @@ const DEFAULT_SETTINGS: LibrarySettings = {
   gridSize: 1,
   showEffectTools: true,
   showLibrary: true,
+  portraitRotation: 0,
 };
+
+/** Turns a new portrait map or handout can get: none, right or left. */
+const isPortraitRotation = (value: unknown): value is number => value === 0 || value === 90 || value === 270;
+
+/**
+ * The rotation for a map or handout being added: one taller than wide is
+ * turned as the settings ask, so it lies along the player screen. Square and
+ * wider images already fit a landscape screen.
+ */
+const rotationForNew = (size: { width: number; height: number }, settings: LibrarySettings) =>
+  size.height > size.width ? settings.portraitRotation : 0;
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
@@ -256,17 +269,19 @@ const handoutsDir = () => path.join(LIBRARY_DIR(), 'handouts');
 const handoutDir = (id: string) => path.join(handoutsDir(), id);
 
 export async function addHandout(sourcePath: string): Promise<HandoutMeta | null> {
-  const ext = detectExt(await readHeader(sourcePath));
+  const header = await readHeader(sourcePath, HEADER_BYTES);
+  const ext = detectExt(header);
   if (!ext || ext === 'webm') return null;
 
   const probe = nativeImage.createFromPath(sourcePath);
-  if (probe.isEmpty()) return null;
-  const size = probe.getSize();
+  const size = shownImageSize(probe, header, ext);
+  if (!size) return null;
   const id = newId(HANDOUT_ID_PREFIX);
   const dir = handoutDir(id);
   await fs.mkdir(dir, { recursive: true });
   await fs.copyFile(sourcePath, path.join(dir, `image.${ext}`));
-  const thumb = makeThumb(probe);
+  // GIF, WebP and BMP get no preview: this process can't decode them
+  const thumb = makeThumb(probe, ext === 'jpg' ? readJpegOrientation(header) : 1);
   if (thumb) await fs.writeFile(path.join(dir, 'thumb.png'), thumb);
 
   const handout: HandoutMeta = {
@@ -278,6 +293,7 @@ export async function addHandout(sourcePath: string): Promise<HandoutMeta | null
     addedAt: Date.now(),
   };
   await mutateIndex((index) => {
+    handout.rotation = rotationForNew(size, index.settings);
     index.handouts.push(handout);
   });
   return handout;
@@ -436,6 +452,37 @@ export async function loadHandoutThumb(id: string): Promise<string | null> {
   }
 }
 
+/** A drawn thumbnail is a small PNG: anything bigger is refused */
+const MAX_THUMB_BYTES = 2 * 1024 * 1024;
+const MAX_THUMB_EDGE = 4096;
+
+/**
+ * Keep a thumbnail the DM window drew for a map or handout without one (this
+ * process can't decode GIF, WebP or BMP). It must be a small PNG, for an
+ * entry in the library, and never replaces a thumbnail already there.
+ */
+export async function saveThumb(id: unknown, png: unknown): Promise<boolean> {
+  if (typeof id !== 'string' || !SAFE_ID.test(id)) return false;
+  if (!(png instanceof Uint8Array) || png.length === 0 || png.length > MAX_THUMB_BYTES) return false;
+  const bytes = Buffer.from(png.buffer, png.byteOffset, png.byteLength);
+  if (detectExt(bytes) !== 'png') return false;
+  const image = nativeImage.createFromBuffer(bytes);
+  const { width, height } = image.getSize();
+  if (image.isEmpty() || width > MAX_THUMB_EDGE || height > MAX_THUMB_EDGE) return false;
+  const handout = isHandoutId(id);
+  const listed = await withIndex((index) =>
+    handout ? index.handouts.some((entry) => entry.id === id) : index.maps.some((m) => m.id === id),
+  );
+  if (!listed) return false;
+  try {
+    // 'wx': fails if the file exists, so a thumbnail is never replaced
+    await fs.writeFile(path.join(handout ? handoutDir(id) : mapDir(id), 'thumb.png'), bytes, { flag: 'wx' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function reorderMaps(ids: string[]): Promise<boolean> {
   if (!Array.isArray(ids)) return false;
   return mutateIndex((index) => {
@@ -451,18 +498,139 @@ export async function reorderMaps(ids: string[]): Promise<boolean> {
   });
 }
 
-/** Build a small PNG preview so the panel never decodes full-size maps. */
-function makeThumb(img: Electron.NativeImage): Buffer | null {
+/**
+ * Build a small PNG preview so the panel never decodes full-size maps, turned
+ * upright by a JPEG's EXIF orientation as the windows show the image.
+ */
+function makeThumb(img: Electron.NativeImage, orientation = 1): Buffer | null {
   try {
     if (img.isEmpty()) return null;
     const { width } = img.getSize();
     const targetW = Math.min(240, width);
     const thumb = targetW < width ? img.resize({ width: targetW, quality: 'good' }) : img;
-    return thumb.toPNG();
+    return orient(thumb, orientation).toPNG();
   } catch {
     // A preview is a nicety - never fail an import over it
     return null;
   }
+}
+
+/**
+ * Where pixel (x, y) of an image shown with EXIF `orientation` comes from in
+ * the stored `w` × `h` image. Orientations 5 to 8 swap width and height.
+ */
+export function orientedSource(orientation: number, x: number, y: number, w: number, h: number) {
+  switch (orientation) {
+    case 2: // mirrored left to right
+      return { x: w - 1 - x, y };
+    case 3: // upside down
+      return { x: w - 1 - x, y: h - 1 - y };
+    case 4: // mirrored top to bottom
+      return { x, y: h - 1 - y };
+    case 5: // mirrored along the diagonal
+      return { x: y, y: x };
+    case 6: // turned right to be shown
+      return { x: y, y: h - 1 - x };
+    case 7: // mirrored along the other diagonal
+      return { x: w - 1 - y, y: h - 1 - x };
+    case 8: // turned left to be shown
+      return { x: w - 1 - y, y: x };
+    default:
+      return { x, y };
+  }
+}
+
+/** Turn a small image (a thumbnail) the way its EXIF orientation says it is shown. */
+function orient(image: Electron.NativeImage, orientation: number): Electron.NativeImage {
+  if (orientation < 2 || orientation > 8) return image;
+  const { width: w, height: h } = image.getSize();
+  const source = image.toBitmap();
+  if (source.length !== w * h * 4) return image; // not a plain 4-byte-per-pixel bitmap
+  const sideways = orientation >= 5;
+  const outW = sideways ? h : w;
+  const outH = sideways ? w : h;
+  const out = Buffer.alloc(source.length);
+  for (let y = 0; y < outH; y++) {
+    for (let x = 0; x < outW; x++) {
+      const from = orientedSource(orientation, x, y, w, h);
+      const at = (from.y * w + from.x) * 4;
+      source.copy(out, (y * outW + x) * 4, at, at + 4);
+    }
+  }
+  return nativeImage.createFromBitmap(out, { width: outW, height: outH });
+}
+
+/** A JPEG's EXIF orientation (1 to 8) from its first bytes; 1 when it has none. */
+export function readJpegOrientation(bytes: Buffer): number {
+  try {
+    for (let at = 2; at + 4 <= bytes.length && bytes[at] === 0xff;) {
+      const marker = bytes[at + 1];
+      if (marker === 0xda || marker === 0xd9) break; // the image data starts
+      const length = bytes.readUInt16BE(at + 2);
+      if (marker === 0xe1 && bytes.toString('latin1', at + 4, at + 10) === 'Exif\0\0') {
+        const tiff = at + 10;
+        const little = bytes.toString('latin1', tiff, tiff + 2) === 'II';
+        const u16 = (offset: number) => (little ? bytes.readUInt16LE(offset) : bytes.readUInt16BE(offset));
+        const u32 = (offset: number) => (little ? bytes.readUInt32LE(offset) : bytes.readUInt32BE(offset));
+        const ifd = tiff + u32(tiff + 4);
+        for (let i = 0; i < u16(ifd); i++) {
+          const entry = ifd + 2 + i * 12;
+          if (u16(entry) !== 0x0112) continue;
+          const orientation = u16(entry + 8);
+          return orientation >= 1 && orientation <= 8 ? orientation : 1;
+        }
+        return 1;
+      }
+      at += 2 + length;
+    }
+  } catch {
+    // Cut short or malformed: treat it as upright
+  }
+  return 1;
+}
+
+/**
+ * The size of a GIF, WebP or BMP image from its first bytes; Electron's
+ * decoder in this process only reads PNG and JPEG. Null if unrecognised.
+ */
+export function readImageSize(bytes: Buffer, ext: string): { width: number; height: number } | null {
+  let size: { width: number; height: number } | null = null;
+  try {
+    if (ext === 'gif') size = { width: bytes.readUInt16LE(6), height: bytes.readUInt16LE(8) };
+    else if (ext === 'bmp') {
+      // A core header (12 bytes) stores 16-bit sizes; the others signed 32-bit
+      size =
+        bytes.readUInt32LE(14) === 12
+          ? { width: bytes.readUInt16LE(18), height: bytes.readUInt16LE(20) }
+          : { width: Math.abs(bytes.readInt32LE(18)), height: Math.abs(bytes.readInt32LE(22)) };
+    } else if (ext === 'webp') {
+      const chunk = bytes.toString('latin1', 12, 16);
+      if (chunk === 'VP8 ') {
+        size = { width: bytes.readUInt16LE(26) & 0x3fff, height: bytes.readUInt16LE(28) & 0x3fff };
+      } else if (chunk === 'VP8L') {
+        const bits = bytes.readUInt32LE(21);
+        size = { width: (bits & 0x3fff) + 1, height: ((bits >>> 14) & 0x3fff) + 1 };
+      } else if (chunk === 'VP8X') {
+        size = { width: bytes.readUIntLE(24, 3) + 1, height: bytes.readUIntLE(27, 3) + 1 };
+      }
+    }
+  } catch {
+    return null; // cut short
+  }
+  return size && size.width > 0 && size.height > 0 ? size : null;
+}
+
+/**
+ * An image's size as the windows show it: decoded for PNG and JPEG (a JPEG
+ * turned by its EXIF orientation, as browsers do), read from the header for
+ * GIF, WebP and BMP. Null when it can't be told.
+ */
+function shownImageSize(probe: Electron.NativeImage, header: Buffer, ext: string) {
+  if (ext !== 'png' && ext !== 'jpg') return readImageSize(header, ext);
+  if (probe.isEmpty()) return null;
+  const { width, height } = probe.getSize();
+  const sideways = ext === 'jpg' && readJpegOrientation(header) >= 5;
+  return sideways ? { width: height, height: width } : { width, height };
 }
 
 const normalizeRotation = (rotation: number) => {
@@ -471,10 +639,10 @@ const normalizeRotation = (rotation: number) => {
 };
 
 /** Read the first few KB of a file so its type can be sniffed. */
-async function readHeader(sourcePath: string): Promise<Buffer> {
+async function readHeader(sourcePath: string, bytes = 4096): Promise<Buffer> {
   const file = await fs.open(sourcePath, 'r');
   try {
-    const headerBuffer = Buffer.alloc(4096);
+    const headerBuffer = Buffer.alloc(bytes);
     const { bytesRead } = await file.read(headerBuffer, 0, headerBuffer.length, 0);
     return headerBuffer.subarray(0, bytesRead);
   } finally {
@@ -482,8 +650,73 @@ async function readHeader(sourcePath: string): Promise<Buffer> {
   }
 }
 
+/**
+ * How much of a file to read for what its header says: a WebM's track
+ * header, a JPEG's EXIF orientation. Both come before the image data.
+ */
+const HEADER_BYTES = 64 * 1024;
+
+/** An EBML variable-length number: element ids keep their length marker, sizes don't. */
+function readVint(bytes: Buffer, at: number, isId: boolean) {
+  const first = bytes[at];
+  if (first === undefined || first === 0) return null;
+  const length = Math.clz32(first) - 23;
+  if (length > (isId ? 4 : 8) || at + length > bytes.length) return null;
+  let value = isId ? first : first & (0xff >> length);
+  let allOnes = value === 0xff >> length;
+  for (let i = 1; i < length; i++) {
+    value = value * 256 + bytes[at + i];
+    if (bytes[at + i] !== 0xff) allOnes = false;
+  }
+  // A size with every bit set means "unknown" (streamed files)
+  return { value, length, unknown: !isId && allOnes };
+}
+
+const EBML_SEGMENT = 0x18538067;
+const EBML_TRACKS = 0x1654ae6b;
+const EBML_TRACK_ENTRY = 0xae;
+const EBML_VIDEO = 0xe0;
+const EBML_PIXEL_WIDTH = 0xb0;
+const EBML_PIXEL_HEIGHT = 0xba;
+const EBML_CLUSTER = 0x1f43b675;
+/** The elements on the way to a video track's size; everything else is skipped */
+const EBML_PATH = new Set([EBML_SEGMENT, EBML_TRACKS, EBML_TRACK_ENTRY, EBML_VIDEO]);
+
+/**
+ * A WebM video's frame size, from its track header (Segment > Tracks >
+ * TrackEntry > Video > PixelWidth and PixelHeight), or null if the bytes
+ * don't reach it.
+ */
+export function readVideoSize(bytes: Buffer): { width: number; height: number } | null {
+  let width = 0;
+  let height = 0;
+  let at = 0;
+  while (at < bytes.length) {
+    const id = readVint(bytes, at, true);
+    const size = id && readVint(bytes, at + id.length, false);
+    if (!id || !size) return null;
+    at += id.length + size.length;
+    // Video data starts here: the track header is over
+    if (id.value === EBML_CLUSTER) return null;
+    // Step inside: its children follow directly
+    if (EBML_PATH.has(id.value)) continue;
+    if (id.value === EBML_PIXEL_WIDTH || id.value === EBML_PIXEL_HEIGHT) {
+      if (size.value <= 6 && at + size.value <= bytes.length) {
+        const value = size.value ? bytes.readUIntBE(at, size.value) : 0;
+        if (id.value === EBML_PIXEL_WIDTH) width = value;
+        else height = value;
+      }
+      if (width > 0 && height > 0) return { width, height };
+    }
+    if (size.unknown) return null; // can't be skipped
+    at += size.value;
+  }
+  return null;
+}
+
 export async function addMap(sourcePath: string): Promise<MapEntryMeta | null> {
-  const ext = detectExt(await readHeader(sourcePath));
+  const header = await readHeader(sourcePath, HEADER_BYTES);
+  const ext = detectExt(header);
   if (!ext) return null;
 
   const id = newId(MAP_ID_PREFIX);
@@ -493,10 +726,14 @@ export async function addMap(sourcePath: string): Promise<MapEntryMeta | null> {
   const mediaPath = path.join(dir, `image.${ext}`);
   await fs.copyFile(sourcePath, mediaPath);
 
-  // Decode straight from disk rather than buffering the whole file in JS
+  // Decode straight from disk rather than buffering the whole file in JS; a
+  // video's size comes from its track header
   const probe = ext === 'webm' ? null : nativeImage.createFromPath(mediaPath);
-  const size = !probe || probe.isEmpty() ? { width: 0, height: 0 } : probe.getSize();
-  const thumb = probe ? makeThumb(probe) : null;
+  const size = (probe ? shownImageSize(probe, header, ext) : readVideoSize(header)) ?? {
+    width: 0,
+    height: 0,
+  };
+  const thumb = probe ? makeThumb(probe, ext === 'jpg' ? readJpegOrientation(header) : 1) : null;
   if (thumb) await fs.writeFile(path.join(dir, 'thumb.png'), thumb);
 
   const entry: MapEntryMeta = {
@@ -516,6 +753,7 @@ export async function addMap(sourcePath: string): Promise<MapEntryMeta | null> {
     addedAt: Date.now(),
   };
   await mutateIndex((index) => {
+    entry.rotation = rotationForNew(size, index.settings);
     index.maps.push(entry);
     index.settings = { ...index.settings, currentMapId: id };
   });
@@ -534,16 +772,10 @@ export function sniffVideoCodec(bytes: Buffer): VideoCodec | null {
 export async function loadVideoCodec(id: string): Promise<VideoCodec | null> {
   const mediaPath = await resolveMapMediaPath(id);
   if (!mediaPath?.endsWith('.webm')) return null;
-  const file = await fs.open(mediaPath, 'r');
   try {
-    // The track header comes before any video data
-    const buffer = Buffer.alloc(64 * 1024);
-    const { bytesRead } = await file.read(buffer, 0, buffer.length, 0);
-    return sniffVideoCodec(buffer.subarray(0, bytesRead));
+    return sniffVideoCodec(await readHeader(mediaPath, HEADER_BYTES));
   } catch {
     return null;
-  } finally {
-    await file.close();
   }
 }
 
@@ -729,6 +961,7 @@ export async function saveSettings(patch: Partial<LibrarySettings>): Promise<boo
   if (toPositiveNumber(patch.gridSize) !== null) clean.gridSize = patch.gridSize;
   if (typeof patch.showEffectTools === 'boolean') clean.showEffectTools = patch.showEffectTools;
   if (typeof patch.showLibrary === 'boolean') clean.showLibrary = patch.showLibrary;
+  if (isPortraitRotation(patch.portraitRotation)) clean.portraitRotation = patch.portraitRotation;
   if (Object.keys(clean).length === 0) return false;
   await mutateIndex((index) => {
     index.settings = { ...index.settings, ...clean };
@@ -801,7 +1034,7 @@ interface ProjectManifest {
   format: typeof PROJECT_FORMAT;
   version: number;
   exportedAt: number;
-  settings: Pick<LibrarySettings, 'playerScreenDiagonal' | 'gridSize'>;
+  settings: Pick<LibrarySettings, 'playerScreenDiagonal' | 'gridSize' | 'portraitRotation'>;
   maps: ProjectMapRecord[];
   handouts: ProjectHandoutRecord[];
 }
@@ -886,7 +1119,11 @@ export async function exportProject(destPath: string): Promise<{ maps: number; h
     format: PROJECT_FORMAT,
     version: PROJECT_VERSION,
     exportedAt: Date.now(),
-    settings: { playerScreenDiagonal: settings.playerScreenDiagonal, gridSize: settings.gridSize },
+    settings: {
+      playerScreenDiagonal: settings.playerScreenDiagonal,
+      gridSize: settings.gridSize,
+      portraitRotation: settings.portraitRotation,
+    },
     maps: [],
     handouts: [],
   };
@@ -1057,8 +1294,12 @@ export async function importProject(sourcePath: string): Promise<ProjectImportSu
     };
     const writeThumb = async (dir: string, ext: string, stored: unknown) => {
       let thumb = await readPng(stored);
-      if (!thumb && ext !== 'webm')
-        thumb = makeThumb(nativeImage.createFromPath(path.join(dir, `image.${ext}`)));
+      if (!thumb && ext !== 'webm') {
+        const mediaPath = path.join(dir, `image.${ext}`);
+        const orientation =
+          ext === 'jpg' ? readJpegOrientation(await readHeader(mediaPath, HEADER_BYTES)) : 1;
+        thumb = makeThumb(nativeImage.createFromPath(mediaPath), orientation);
+      }
       if (thumb) await fs.writeFile(path.join(dir, 'thumb.png'), thumb);
     };
     /** Make a folder for a new entry and extract its media; null if unusable. */
@@ -1156,6 +1397,7 @@ export async function importProject(sourcePath: string): Promise<ProjectImportSu
         const imported = normalizeSettings(manifest.settings);
         index.settings.playerScreenDiagonal = imported.playerScreenDiagonal;
         index.settings.gridSize = imported.gridSize;
+        index.settings.portraitRotation = imported.portraitRotation;
       }
       return { settingsApplied: wasEmpty };
     });

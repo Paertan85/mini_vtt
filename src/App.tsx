@@ -142,6 +142,8 @@ export function App() {
   );
   const [screenDiagonal, setScreenDiagonal] = useState<number | null>(null);
   const [gridSize, setGridSize] = useState(1);
+  // New maps and handouts taller than wide are turned this much (the main process applies it)
+  const [portraitRotation, setPortraitRotation] = useState(0);
   const [dialog, setDialog] = useState<'setup' | 'shortcuts' | null>(null);
 
   // Suppresses view saves while a map is being restored, so the restore can't
@@ -375,6 +377,7 @@ export function App() {
       if (snapshot) {
         setScreenDiagonal(snapshot.settings.playerScreenDiagonal);
         setGridSize(snapshot.settings.gridSize);
+        setPortraitRotation(snapshot.settings.portraitRotation);
         setShowEffectTools(snapshot.settings.showEffectTools);
         setShowLibrary(snapshot.settings.showLibrary);
         const last = snapshot.maps.find((entry) => entry.id === snapshot.settings.currentMapId);
@@ -527,6 +530,7 @@ export function App() {
     if (snapshot && result.settingsApplied) {
       setScreenDiagonal(snapshot.settings.playerScreenDiagonal);
       setGridSize(snapshot.settings.gridSize);
+      setPortraitRotation(snapshot.settings.portraitRotation);
     }
     if (!currentMapId && result.firstMap) await loadMap(result.firstMap);
   };
@@ -660,10 +664,11 @@ export function App() {
     setFit16by9(true);
   };
 
-  const handleSavePlayerSetup = (diagonal: number | null, grid: number) => {
+  const handleSavePlayerSetup = (diagonal: number | null, grid: number, rotation: number) => {
     setScreenDiagonal(diagonal);
     setGridSize(grid);
-    void api?.saveSettings({ playerScreenDiagonal: diagonal, gridSize: grid });
+    setPortraitRotation(rotation);
+    void api?.saveSettings({ playerScreenDiagonal: diagonal, gridSize: grid, portraitRotation: rotation });
   };
 
   const handleRevealAll = async () => {
@@ -1227,6 +1232,7 @@ export function App() {
         <PlayerSetupDialog
           diagonal={screenDiagonal}
           gridSize={gridSize}
+          portraitRotation={portraitRotation}
           viewportSize={viewportSize}
           onSave={handleSavePlayerSetup}
           onClose={() => setDialog(null)}

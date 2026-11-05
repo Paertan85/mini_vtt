@@ -41,6 +41,9 @@ const api = {
   getDroppedFilePaths: (files: File[]): string[] => files.map((file) => webUtils.getPathForFile(file)),
   loadMapMedia: (id: string): Promise<string | null> => ipcRenderer.invoke('library:loadMapMedia', id),
   loadMapThumb: (id: string): Promise<string | null> => ipcRenderer.invoke('library:loadMapThumb', id),
+  /** Keep a thumbnail drawn in this window, for a map or handout without one (PNG bytes). */
+  saveThumb: (id: string, png: Uint8Array): Promise<boolean> =>
+    ipcRenderer.invoke('library:saveThumb', id, png),
   /** A video map's codec (from its file header), or null for images. */
   loadVideoCodec: (id: string): Promise<VideoCodec | null> =>
     ipcRenderer.invoke('library:loadVideoCodec', id),

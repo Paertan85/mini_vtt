@@ -12,6 +12,21 @@ All notable changes to this project are documented here. The format is based on
   Windows, macOS and Linux and drafts a GitHub release with the installers
   for all three, using the changelog as its notes. CI now tests on Windows
   too.
+- Player screen setup can turn new maps and handouts that are taller than
+  wide (Rotate right or Rotate left), so they lie along a landscape screen,
+  for a DM sitting at one end of a screen on the table. Square and wide
+  images are never turned, and nothing already in the library changes.
+
+### Fixed
+
+- WebP, GIF and BMP handouts were refused, and maps in those formats were
+  added without a size or a thumbnail. The DM window now draws their
+  thumbnails (once; they are kept), as the main process can't decode those
+  formats.
+- A JPEG stored on its side with an EXIF orientation (as cameras and
+  phones save photos) was measured on its side, and its thumbnail was
+  sideways.
+- Video maps now get their size when added; it used to stay unknown.
 
 ## 1.2.0 - 2026-11-05
 

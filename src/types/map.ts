@@ -145,6 +145,11 @@ export interface LibrarySettings {
   showEffectTools: boolean;
   /** Whether the map and handout library panel is shown */
   showLibrary: boolean;
+  /**
+   * Rotation given to maps and handouts taller than wide when they are added,
+   * so they lie along a landscape player screen: 0 (none), 90 or 270
+   */
+  portraitRotation: number;
 }
 
 /** The library plus settings, as returned on startup. */

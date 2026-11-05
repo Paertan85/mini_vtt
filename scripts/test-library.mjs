@@ -280,6 +280,220 @@ app.whenReady().then(async () => {
     check('an image map has none', (await lib.loadVideoCodec(b.id)) === null);
     await lib.removeMap(clip.id);
 
+    // A WebM header with a frame size: EBML elements with one-byte sizes
+    const el = (id, ...children) => {
+      const payload = Buffer.concat(children.map((child) => Buffer.from(child)));
+      return Buffer.concat([Buffer.from(id), Buffer.from([0x80 | payload.length]), payload]);
+    };
+    const uint16 = (n) => [n >> 8, n & 0xff];
+    const webmOfSize = (width, height, { clusterFirst = false } = {}) => {
+      const header = el([0x1a, 0x45, 0xdf, 0xa3], el([0x42, 0x82], 'webm'));
+      const info = el([0x15, 0x49, 0xa9, 0x66], el([0x2a, 0xd7, 0xb1], [0x0f, 0x42, 0x40]));
+      const video = el([0xe0], el([0xb0], uint16(width)), el([0xba], uint16(height)));
+      const tracks = el([0x16, 0x54, 0xae, 0x6b], el([0xae], el([0x83], [1]), el([0x86], 'V_VP9'), video));
+      const cluster = el([0x1f, 0x43, 0xb6, 0x75], el([0xe7], [0]));
+      // A segment of unknown size, as streamed files have
+      const segment = Buffer.from([0x18, 0x53, 0x80, 0x67, 0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]);
+      return Buffer.concat([
+        header,
+        segment,
+        info,
+        ...(clusterFirst ? [cluster, tracks] : [tracks, cluster]),
+      ]);
+    };
+    check(
+      'a WebM header gives the video’s size',
+      JSON.stringify(lib.readVideoSize(webmOfSize(1512, 2664))) ===
+        JSON.stringify({ width: 1512, height: 2664 }),
+      JSON.stringify(lib.readVideoSize(webmOfSize(1512, 2664))),
+    );
+    check(
+      'but not from past the start of the video data, or from cut-off bytes',
+      lib.readVideoSize(webmOfSize(1512, 2664, { clusterFirst: true })) === null &&
+        lib.readVideoSize(webmOfSize(1512, 2664).subarray(0, 40)) === null,
+    );
+
+    // ── Turning new portrait maps and handouts ───────────────────────────────
+    check('a library turns nothing at first', (await lib.loadSnapshot()).settings.portraitRotation === 0);
+    check('only quarter turns are taken', (await lib.saveSettings({ portraitRotation: 45 })) === false);
+    await lib.saveSettings({ portraitRotation: 90 });
+    const tallMap = await lib.addMap(await fixture('tall.png', makePng({ width: 40, height: 80 })));
+    const wideMap = await lib.addMap(await fixture('wide.png', makePng({ width: 80, height: 40 })));
+    const squareMap = await lib.addMap(await fixture('square.png', makePng({ width: 64, height: 64 })));
+    check('a map taller than wide is turned as it is added', tallMap.rotation === 90);
+    check('wide and square maps are not', wideMap.rotation === 0 && squareMap.rotation === 0);
+    check(
+      'the turn is saved with the map',
+      (await lib.loadSnapshot()).maps.find((m) => m.id === tallMap.id)?.rotation === 90,
+    );
+    const tallVideo = await lib.addMap(await fixture('tall.webm', webmOfSize(1512, 2664)));
+    check(
+      'a video map gets its size from its header, and is turned too',
+      tallVideo.mediaType === 'video' &&
+        tallVideo.width === 1512 &&
+        tallVideo.height === 2664 &&
+        tallVideo.rotation === 90,
+      JSON.stringify(tallVideo),
+    );
+    const tallHandout = await lib.addHandout(
+      await fixture('tall-letter.png', makePng({ width: 30, height: 90 })),
+    );
+    const wideHandout = await lib.addHandout(
+      await fixture('wide-letter.png', makePng({ width: 90, height: 30 })),
+    );
+    check('handouts too', tallHandout.rotation === 90 && wideHandout.rotation === 0);
+
+    // EXIF orientation: a JPEG stored on its side but shown upright
+    const exifSegment = (orientation, little = true) => {
+      const tiff = Buffer.alloc(26);
+      const u16 = (value, at) => (little ? tiff.writeUInt16LE(value, at) : tiff.writeUInt16BE(value, at));
+      const u32 = (value, at) => (little ? tiff.writeUInt32LE(value, at) : tiff.writeUInt32BE(value, at));
+      tiff.write(little ? 'II' : 'MM', 0, 'latin1');
+      u16(42, 2);
+      u32(8, 4); // the first directory follows the header
+      u16(1, 8); // one entry: Orientation, a short
+      u16(0x0112, 10);
+      u16(3, 12);
+      u32(1, 14);
+      u16(orientation, 18);
+      const payload = Buffer.concat([Buffer.from('Exif  ', 'latin1'), tiff]);
+      const marker = Buffer.from([0xff, 0xe1, 0, 0]);
+      marker.writeUInt16BE(payload.length + 2, 2);
+      return Buffer.concat([marker, payload]);
+    };
+    const jpegStart = (orientation, little) =>
+      Buffer.concat([
+        Buffer.from([0xff, 0xd8]),
+        exifSegment(orientation, little),
+        Buffer.from([0xff, 0xda, 0, 2]),
+      ]);
+    check(
+      'the EXIF orientation is read, in either byte order',
+      lib.readJpegOrientation(jpegStart(8, true)) === 8 &&
+        lib.readJpegOrientation(jpegStart(6, false)) === 6 &&
+        lib.readJpegOrientation(Buffer.from([0xff, 0xd8, 0xff, 0xda, 0, 2])) === 1,
+    );
+    const turns = [2, 3, 4, 5, 6, 7, 8].every((orientation) => {
+      // Every stored pixel is used exactly once, whatever the orientation
+      const [w, h] = [4, 2];
+      const [outW, outH] = orientation >= 5 ? [h, w] : [w, h];
+      const used = new Set();
+      for (let y = 0; y < outH; y++)
+        for (let x = 0; x < outW; x++) {
+          const from = lib.orientedSource(orientation, x, y, w, h);
+          used.add(`${from.x},${from.y}`);
+        }
+      return used.size === w * h;
+    });
+    const at = (orientation, x, y) => JSON.stringify(lib.orientedSource(orientation, x, y, 4, 2));
+    check(
+      'turning a thumbnail upright takes the right pixels',
+      turns &&
+        at(6, 0, 0) === '{"x":0,"y":1}' && // turned right: the stored bottom-left becomes the top-left
+        at(8, 0, 0) === '{"x":3,"y":0}' && // turned left: the stored top-right does
+        at(3, 0, 0) === '{"x":3,"y":1}',
+    );
+    const sideways = withExif(nativeImage.createFromBuffer(makePng({ width: 80, height: 40 })).toJPEG(90), 8);
+    function withExif(jpeg, orientation) {
+      return Buffer.concat([jpeg.subarray(0, 2), exifSegment(orientation), jpeg.subarray(2)]);
+    }
+    const exifMap = await lib.addMap(await fixture('sideways.jpg', sideways));
+    const exifThumb = nativeImage.createFromDataURL(await lib.loadMapThumb(exifMap.id)).getSize();
+    check(
+      'a JPEG stored on its side counts as shown: taller than wide, so turned',
+      exifMap.width === 40 && exifMap.height === 80 && exifMap.rotation === 90,
+      JSON.stringify({ width: exifMap.width, height: exifMap.height, rotation: exifMap.rotation }),
+    );
+    check(
+      'and its thumbnail is upright',
+      exifThumb.width === 40 && exifThumb.height === 80,
+      JSON.stringify(exifThumb),
+    );
+
+    // GIF, WebP and BMP: sizes from their headers (this process can't decode them)
+    const riff = (chunk, body) =>
+      Buffer.concat([
+        Buffer.from('RIFF'),
+        Buffer.alloc(4),
+        Buffer.from('WEBP'),
+        Buffer.from(chunk),
+        Buffer.alloc(4),
+        body,
+      ]);
+    const vp8 = (w, h) => {
+      const frame = Buffer.from([0, 0, 0, 0x9d, 0x01, 0x2a, 0, 0, 0, 0]);
+      frame.writeUInt16LE(w, 6);
+      frame.writeUInt16LE(h, 8);
+      return riff('VP8 ', frame);
+    };
+    const vp8l = (w, h) => {
+      const body = Buffer.alloc(5);
+      body[0] = 0x2f;
+      body.writeUInt32LE(((w - 1) | ((h - 1) << 14)) >>> 0, 1);
+      return riff('VP8L', body);
+    };
+    const vp8x = (w, h) => {
+      const body = Buffer.alloc(10);
+      body.writeUIntLE(w - 1, 4, 3);
+      body.writeUIntLE(h - 1, 7, 3);
+      return riff('VP8X', body);
+    };
+    const gif = Buffer.from([...Buffer.from('GIF89a'), 30, 0, 90, 0]);
+    const bmp = (w, h) => {
+      const header = Buffer.alloc(26);
+      header.write('BM', 0, 'latin1');
+      header.writeUInt32LE(40, 14);
+      header.writeInt32LE(w, 18);
+      header.writeInt32LE(h, 22);
+      return header;
+    };
+    const sizeOf = (bytes, ext) => JSON.stringify(lib.readImageSize(bytes, ext));
+    check(
+      'GIF, WebP and BMP sizes come from their headers',
+      sizeOf(vp8(1000, 1455), 'webp') === '{"width":1000,"height":1455}' &&
+        sizeOf(vp8l(1000, 1455), 'webp') === '{"width":1000,"height":1455}' &&
+        sizeOf(vp8x(1000, 1455), 'webp') === '{"width":1000,"height":1455}' &&
+        sizeOf(gif, 'gif') === '{"width":30,"height":90}' &&
+        sizeOf(bmp(30, -90), 'bmp') === '{"width":30,"height":90}' &&
+        lib.readImageSize(Buffer.from('GIF8'), 'gif') === null,
+      [
+        sizeOf(vp8(1000, 1455), 'webp'),
+        sizeOf(vp8l(1000, 1455), 'webp'),
+        sizeOf(vp8x(1000, 1455), 'webp'),
+      ].join(' '),
+    );
+    const webpHandout = await lib.addHandout(await fixture('note.webp', vp8x(1000, 1455)));
+    check(
+      'a WebP handout is taken (it used to be refused) and turned',
+      webpHandout?.width === 1000 && webpHandout.height === 1455 && webpHandout.rotation === 90,
+      JSON.stringify(webpHandout),
+    );
+
+    // Thumbnails the DM window draws for images this process can't decode
+    const drawnThumb = makePng({ width: 24, height: 35 });
+    check(
+      'a thumbnail drawn in the DM window is kept for an entry without one',
+      (await lib.saveThumb(webpHandout.id, drawnThumb)) === true &&
+        !!(await lib.loadHandoutThumb(webpHandout.id))?.startsWith('data:image/png'),
+    );
+    check('but never replaces one', (await lib.saveThumb(webpHandout.id, drawnThumb)) === false);
+    check(
+      'only small PNGs, for entries in the library, are taken',
+      (await lib.saveThumb('h_unknown', drawnThumb)) === false &&
+        (await lib.saveThumb('../evil', drawnThumb)) === false &&
+        (await lib.saveThumb(tallVideo.id, Buffer.from('not a png'))) === false &&
+        (await lib.saveThumb(tallVideo.id, 'text')) === false &&
+        (await lib.saveThumb(tallVideo.id, makePng({ width: 5000, height: 4 }))) === false,
+    );
+
+    await lib.saveSettings({ portraitRotation: 270 });
+    const leftMap = await lib.addMap(await fixture('tall2.png', makePng({ width: 40, height: 80 })));
+    check('or turned the other way', leftMap.rotation === 270);
+    for (const entry of [tallMap, wideMap, squareMap, tallVideo, exifMap, leftMap])
+      await lib.removeMap(entry.id);
+    for (const entry of [tallHandout, wideHandout, webpHandout]) await lib.removeHandout(entry.id);
+    await lib.saveSettings({ portraitRotation: 0 });
+
     // ── Handouts ─────────────────────────────────────────────────────────────
     const handout = await lib.addHandout(await fixture('letter.png', makePng({ width: 300, height: 100 })));
     check('addHandout returns metadata', !!handout && handout.id.startsWith('h_'));
@@ -304,7 +518,7 @@ app.whenReady().then(async () => {
     });
     const letter = await lib.addHandout(await fixture('letter2.png', makePng({ width: 120, height: 60 })));
     await lib.rotateHandout(letter.id, 90);
-    await lib.saveSettings({ playerScreenDiagonal: 43, gridSize: 2.5 });
+    await lib.saveSettings({ playerScreenDiagonal: 43, gridSize: 2.5, portraitRotation: 270 });
     // ── Grid calibration and circles ─────────────────────────────────────────
     const measured = gridLib.gridFromCorners({ x: 110, y: 60 }, { x: 410, y: 360 }, 3, 5);
     check(
@@ -541,7 +755,7 @@ app.whenReady().then(async () => {
     await lib.removeMap(b.id);
     await lib.removeMap(c.id);
     await lib.removeHandout(letter.id);
-    await lib.saveSettings({ playerScreenDiagonal: null, gridSize: 1 });
+    await lib.saveSettings({ playerScreenDiagonal: null, gridSize: 1, portraitRotation: 0 });
 
     const imported = await lib.importProject(projectPath);
     check(
@@ -581,7 +795,8 @@ app.whenReady().then(async () => {
       'an empty library takes the player screen settings',
       imported.settingsApplied &&
         afterImport.settings.playerScreenDiagonal === 43 &&
-        afterImport.settings.gridSize === 2.5,
+        afterImport.settings.gridSize === 2.5 &&
+        afterImport.settings.portraitRotation === 270,
       JSON.stringify(afterImport.settings),
     );
     check('first imported map becomes current', afterImport.settings.currentMapId === first.id);

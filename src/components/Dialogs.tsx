@@ -2,17 +2,25 @@
 
 import { useState } from 'react';
 import { Dialog } from '../ui/Dialog';
-import { Button, Kbd, inputClass } from '../ui/controls';
+import { Button, ButtonGroup, Kbd, inputClass } from '../ui/controls';
 import type { Size } from '../lib/geometry';
 import { keyLabel } from '../lib/platform';
 
 interface PlayerSetupDialogProps {
   diagonal: number | null;
   gridSize: number;
+  /** Rotation for new maps and handouts taller than wide: 0, 90 or 270 */
+  portraitRotation: number;
   viewportSize: Size | null;
-  onSave: (diagonal: number | null, gridSize: number) => void;
+  onSave: (diagonal: number | null, gridSize: number, portraitRotation: number) => void;
   onClose: () => void;
 }
+
+const PORTRAIT_CHOICES = [
+  { rotation: 0, label: 'Don’t rotate' },
+  { rotation: 90, label: 'Rotate right' },
+  { rotation: 270, label: 'Rotate left' },
+];
 
 /** Physical width and height of a screen with this diagonal and aspect ratio. */
 export function screenDimensions(diagonal: number, viewport: Size) {
@@ -24,12 +32,14 @@ export function screenDimensions(diagonal: number, viewport: Size) {
 export function PlayerSetupDialog({
   diagonal,
   gridSize,
+  portraitRotation,
   viewportSize,
   onSave,
   onClose,
 }: PlayerSetupDialogProps) {
   const [diagonalText, setDiagonalText] = useState(diagonal === null ? '' : String(diagonal));
   const [gridText, setGridText] = useState(String(gridSize));
+  const [rotation, setRotation] = useState(portraitRotation);
 
   const parsedDiagonal = parseFloat(diagonalText);
   const validDiagonal = Number.isFinite(parsedDiagonal) && parsedDiagonal > 0 ? parsedDiagonal : null;
@@ -38,7 +48,7 @@ export function PlayerSetupDialog({
   const dimensions = validDiagonal && viewportSize ? screenDimensions(validDiagonal, viewportSize) : null;
 
   const save = () => {
-    onSave(validDiagonal, validGrid ?? gridSize);
+    onSave(validDiagonal, validGrid ?? gridSize, rotation);
     onClose();
   };
 
@@ -103,6 +113,28 @@ export function PlayerSetupDialog({
             )}
           </span>
         )}
+      </div>
+      <div className="mt-5">
+        <p className="text-[13px] text-ink">New maps and handouts taller than wide</p>
+        <p className="mt-1 text-xs leading-relaxed text-muted">
+          Turned as they are added, they lie along a landscape player screen. Rotate right points their top at
+          the screen’s right edge, so they read upright from its left end. Square and wide images are never
+          turned.
+        </p>
+        <div className="mt-2">
+          <ButtonGroup label="New maps and handouts taller than wide">
+            {PORTRAIT_CHOICES.map((choice) => (
+              <Button
+                key={choice.rotation}
+                tone={rotation === choice.rotation ? 'active' : 'default'}
+                aria-pressed={rotation === choice.rotation}
+                onClick={() => setRotation(choice.rotation)}
+              >
+                {choice.label}
+              </Button>
+            ))}
+          </ButtonGroup>
+        </div>
       </div>
     </Dialog>
   );

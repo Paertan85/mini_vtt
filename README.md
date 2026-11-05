@@ -63,7 +63,7 @@ Without a Mac or Linux machine, run the **CI** workflow by hand on GitHub (Actio
 
 1. Click **Add maps…** in the library, or drop image or WebM files onto it. New maps start fully fogged.
 2. Click **Open player screen** and drag that window onto the table screen. Press F11, or use the button in its corner, to go fullscreen.
-3. Optionally, open **Settings → Player screen setup…** and enter the screen's diagonal and your grid size to get a true-scale grid in the frame.
+3. Optionally, open **Settings → Player screen setup…** and enter the screen's diagonal and your grid size to get a true-scale grid in the frame. If the screen lies on the table and you sit at one end, the same dialog can turn maps and handouts that are taller than wide as you add them, so they lie along the screen.
 4. With the **Frame** tool, drag the teal frame to choose what the players see, and scroll over it to zoom.
 5. Switch to the **Fog** tool and paint to reveal areas as the party explores.
 

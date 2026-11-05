@@ -74,6 +74,23 @@ function makePng(width, height) {
   ]);
 }
 
+/** A plain grey 24-bit BMP, which the main process can't decode (so it makes no thumbnail). */
+function makeBmp(width, height) {
+  const row = Math.ceil((width * 3) / 4) * 4;
+  const pixels = Buffer.alloc(row * height, 150);
+  const header = Buffer.alloc(54);
+  header.write('BM', 0, 'latin1');
+  header.writeUInt32LE(54 + pixels.length, 2);
+  header.writeUInt32LE(54, 10);
+  header.writeUInt32LE(40, 14);
+  header.writeInt32LE(width, 18);
+  header.writeInt32LE(height, 22);
+  header.writeUInt16LE(1, 26);
+  header.writeUInt16LE(24, 28);
+  header.writeUInt32LE(pixels.length, 34);
+  return Buffer.concat([header, pixels]);
+}
+
 // ─── Seed a library: map A was last used at 250% with a custom pan ───────────
 
 const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'minivtt-app-test-'));
@@ -94,6 +111,8 @@ const mapEntry = (id, name, zoom, pan) => ({
   hasFog: false,
   addedAt: Date.now(),
 });
+fs.mkdirSync(path.join(libraryDir, 'handouts', 'h_grey'), { recursive: true });
+fs.writeFileSync(path.join(libraryDir, 'handouts', 'h_grey', 'image.bmp'), makeBmp(64, 32));
 for (const id of ['m_alpha', 'm_beta']) {
   fs.mkdirSync(path.join(libraryDir, id), { recursive: true });
   fs.writeFileSync(path.join(libraryDir, id, 'image.png'), makePng(800, 600));
@@ -107,7 +126,7 @@ fs.writeFileSync(
       mapEntry('m_alpha', 'Alpha', 2.5, { x: 50, y: 40 }),
       mapEntry('m_beta', 'Beta', 1, { x: 0, y: 0 }),
     ],
-    handouts: [],
+    handouts: [{ id: 'h_grey', name: 'Grey note', width: 64, height: 32, rotation: 0, addedAt: Date.now() }],
   }),
 );
 
@@ -674,6 +693,36 @@ app.whenReady().then(async () => {
     check(
       'rotating a map from its menu is saved',
       readIndex().maps.find((m) => m.id === 'm_beta').rotation === 90,
+    );
+
+    // A BMP handout has no thumbnail (the main process can't decode BMP): the DM window draws one
+    const greyThumb = path.join(libraryDir, 'handouts', 'h_grey', 'thumb.png');
+    const tab = (name) =>
+      js(
+        `[...document.querySelectorAll('[role="tab"]')].find((t) => t.textContent.startsWith('${name}')).click()`,
+      );
+    check('a BMP handout starts without a thumbnail', !fs.existsSync(greyThumb));
+    await tab('Handouts');
+    await sleep(1500);
+    check(
+      'the DM window draws it one, and it is kept',
+      fs.existsSync(greyThumb) && (await js(`!!document.querySelector('[aria-label="Handouts"] img')`)),
+    );
+    await tab('Maps');
+    await sleep(300);
+
+    // Player screen setup: new maps and handouts taller than wide can be turned
+    await click('[aria-label="Settings"]');
+    await sleep(200);
+    await clickText('Player screen setup…');
+    await sleep(300);
+    await clickText('Rotate right');
+    await clickText('Save');
+    await sleep(600);
+    check(
+      'player screen setup saves how new portrait maps and handouts are turned',
+      readIndex().settings.portraitRotation === 90,
+      JSON.stringify(readIndex().settings),
     );
 
     // In a confirmation dialog, keyboard focus stays where it is moved to

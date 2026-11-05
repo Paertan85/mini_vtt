@@ -23,7 +23,7 @@
 - Never create art, by any means (AI tools, code or by hand): no pictures (icons, illustrations, maps, textures), no sound or music, no video. When a change needs art, ask the user to supply it.
 - Drawing the interface is not art: controls, the fog, effects and spell area shapes are fine.
 - If a test needs anything that could count as art (an image, a sound, a video), ask the user first. They approve it or supply an alternative themselves.
-- Already approved: the plain grey map images that `scripts/test-app.mjs` builds, and the solid-colour images, the half-fogged mask and the WebM header bytes in `scripts/test-library.mjs`.
+- Already approved: the plain grey map images and the plain grey BMP handout that `scripts/test-app.mjs` builds, and in `scripts/test-library.mjs` the solid-colour images (one of them a JPEG with an EXIF orientation tag), the half-fogged mask, and the header-only bytes for WebM, WebP, GIF and BMP files.
 
 ## Plans and ideas
 

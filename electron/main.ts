@@ -391,6 +391,7 @@ ipcMain.handle('library:importMaps', async (_e, paths: unknown) => importFiles(p
 ipcMain.handle('library:loadMapMedia', async (_e, id: string) => library.loadMapMediaUrl(id));
 ipcMain.handle('library:loadMapThumb', async (_e, id: string) => library.loadMapThumb(id));
 ipcMain.handle('library:loadVideoCodec', async (_e, id: string) => library.loadVideoCodec(id));
+ipcMain.handle('library:saveThumb', async (_e, id: unknown, png: unknown) => library.saveThumb(id, png));
 ipcMain.handle('library:loadMapFog', async (_e, id: string) => {
   // A save may still be pending for this map: write it first so the read is current
   await fogSaves.flushFor(id);

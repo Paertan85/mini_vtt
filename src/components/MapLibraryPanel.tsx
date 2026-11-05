@@ -7,6 +7,7 @@ import { MoreHorizontal } from 'lucide-react';
 import type { HandoutMeta, MapEntryMeta } from '../types/map';
 import { Button } from '../ui/controls';
 import { Menu, type MenuItem } from '../ui/Menu';
+import { drawThumbnail, toDataUrl } from '../lib/thumbnail';
 
 export interface OrientationChange {
   rotation?: number;
@@ -215,7 +216,7 @@ function MapList(props: MapLibraryPanelProps) {
               live={isCurrent}
               liveLabel="On player screen"
               details={details.join(', ')}
-              thumb={<Thumb id={map.id} kind="map" />}
+              thumb={<Thumb id={map.id} kind="map" image={map.mediaType === 'image'} width={map.width} />}
               renaming={renamingId === map.id}
               onRename={(name) => {
                 setRenamingId(null);
@@ -257,7 +258,7 @@ function HandoutList(props: MapLibraryPanelProps) {
               live={isActive}
               liveLabel="Showing on player screen"
               details={handout.rotation ? `Rotated ${handout.rotation}°` : ''}
-              thumb={<Thumb id={handout.id} kind="handout" />}
+              thumb={<Thumb id={handout.id} kind="handout" image width={handout.width} />}
               onClick={() => props.onSelectHandout(handout.id)}
               onDoubleClick={() => props.onToggleHandout(handout)}
               title={`${handout.name}: double-click to ${isActive ? 'hide' : 'show'}`}
@@ -397,7 +398,32 @@ const thumbCache = new Map<string, string | null>();
 /** Drop a removed map's or handout's thumbnail from the cache. */
 export const forgetThumb = (id: string) => thumbCache.delete(id);
 
-function Thumb({ id, kind }: { id: string; kind: 'map' | 'handout' }) {
+/**
+ * Draw a thumbnail the main process couldn't make (GIF, WebP and BMP
+ * images), show it, and have it kept for next time.
+ */
+async function drawAndKeepThumb(id: string, kind: 'map' | 'handout', width: number) {
+  const api = window.electronAPI;
+  const media = kind === 'map' ? await api?.loadMapMedia(id) : await api?.loadHandoutMedia(id);
+  const png = media ? await drawThumbnail(media, width) : null;
+  if (!png) return null;
+  void api?.saveThumb(id, new Uint8Array(await png.arrayBuffer()));
+  return toDataUrl(png);
+}
+
+function Thumb({
+  id,
+  kind,
+  image,
+  width,
+}: {
+  id: string;
+  kind: 'map' | 'handout';
+  /** An image, which can be drawn when it has no thumbnail yet (not a video) */
+  image: boolean;
+  /** The image's own width, 0 when unknown */
+  width: number;
+}) {
   const ref = useRef<HTMLSpanElement>(null);
   const [url, setUrl] = useState<string | null | undefined>(() => thumbCache.get(id));
 
@@ -411,9 +437,10 @@ function Thumb({ id, kind }: { id: string; kind: 'map' | 'handout' }) {
       observer.disconnect();
       const api = window.electronAPI;
       const request = kind === 'map' ? api?.loadMapThumb(id) : api?.loadHandoutThumb(id);
-      void request?.then((loaded) => {
-        thumbCache.set(id, loaded ?? null);
-        if (!cancelled) setUrl(loaded ?? null);
+      void request?.then(async (loaded) => {
+        const thumb = loaded ?? (image ? await drawAndKeepThumb(id, kind, width) : null);
+        thumbCache.set(id, thumb);
+        if (!cancelled) setUrl(thumb);
       });
     });
     observer.observe(element);
@@ -421,7 +448,7 @@ function Thumb({ id, kind }: { id: string; kind: 'map' | 'handout' }) {
       cancelled = true;
       observer.disconnect();
     };
-  }, [id, kind, url]);
+  }, [id, kind, image, width, url]);
 
   return (
     <span ref={ref} className="h-10 w-14 shrink-0 overflow-hidden rounded-sm border border-line bg-ground">
