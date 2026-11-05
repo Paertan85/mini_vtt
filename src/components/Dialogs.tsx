@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Dialog } from '../ui/Dialog';
 import { Button, Kbd, inputClass } from '../ui/controls';
 import type { Size } from '../lib/geometry';
+import { keyLabel } from '../lib/platform';
 
 interface PlayerSetupDialogProps {
   diagonal: number | null;
@@ -148,7 +149,7 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
             <dt className="text-muted">{action}</dt>
             <dd className="flex justify-end gap-1">
               {keys.map((key) => (
-                <Kbd key={key}>{key}</Kbd>
+                <Kbd key={key}>{keyLabel(key)}</Kbd>
               ))}
             </dd>
           </div>

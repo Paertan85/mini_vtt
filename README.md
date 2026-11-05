@@ -20,7 +20,7 @@ It's built to stay out of the way on modest hardware: no accounts, no server, no
 - **Fog of war.** Select the Fog tool and paint: the left mouse button reveals, the right button covers. Undo and redo any change, or reveal or cover the whole map at once. The DM sees fog as an indigo tint; players see solid black.
 - **Painted effects.** The Effects tool paints fire, poison or magic onto the map with soft edges, for burning terrain, poison clouds or spell areas. Right-click erases, **Clear** removes them all. Effects and circles sit under the fog, so they never give away unexplored areas, and poison is hatched so it stays distinct from fire for colour-blind players. A map that never uses effects costs nothing extra, and **Settings → Show effect tools** hides them entirely.
 - **Spell areas.** Place a circle (Spirit Guardians, Fireball), square (cube), cone or line/wall, sized in feet. Drag its dot to move it (hold Ctrl to snap it to the grid, Alt to leave a copy), turn the mouse wheel over it to resize it in 5 ft steps (a line's width), or type the size. Cones and lines have a handle at their tip: drag it to aim and set the length. A square's handle sits on one edge: drag it to turn the square (it settles square to the grid near a right angle). The DM sees the size; players only see the area. Measure the map's grid once (**Settings → Measure map grid…**: click two corners of a square) so feet match the map.
-- **Player view framing.** A teal frame on the DM window shows exactly what the player screen shows. Drag it to pan and Ctrl+scroll to zoom.
+- **Player view framing.** A teal frame on the DM window shows exactly what the player screen shows. Drag it to pan and scroll over it to zoom.
 - **True-scale grid.** Enter the player screen's diagonal and your grid size, and the frame shows a grid that matches the physical screen, so 1-inch minis line up with the map.
 - **Blackout.** One key hides everything on the player screen while you set up the next scene.
 - **Map library.** Maps, along with each map's fog, effects, zoom, framing, rotation and mirroring, are saved automatically and restored when you switch maps or restart.
@@ -32,7 +32,9 @@ It's built to stay out of the way on modest hardware: no accounts, no server, no
 
 ### Download
 
-Prebuilt Windows and macOS builds are published on the [Releases](https://github.com/Paertan85/mini_vtt/releases) page when available. The builds are not code-signed, so Windows SmartScreen and macOS Gatekeeper will warn the first time you open them.
+Prebuilt Windows and macOS builds are published on the [Releases](https://github.com/Paertan85/mini_vtt/releases) page when available. The builds are not code-signed, so Windows SmartScreen and macOS Gatekeeper will warn the first time you open them. On a Mac, right-click the app and choose **Open**; if macOS says the app is damaged, run `xattr -cr "/Applications/Mini VTT.app"` in Terminal once.
+
+The macOS build is tested automatically but hasn't been tried on a real Mac yet; reports are welcome.
 
 ### Build from source
 
@@ -52,17 +54,21 @@ npm run dist:win   # Windows installer + portable .exe, written to release/
 npm run dist:mac   # macOS .dmg (arm64 and x64); run this on a Mac
 ```
 
+Without a Mac, run the **CI** workflow by hand on GitHub (Actions → CI → Run workflow): it tests the app on macOS and attaches the `.dmg` to the run. Version tags build it too.
+
 ## Running a session
 
 1. Click **Add maps…** in the library, or drop image or WebM files onto it. New maps start fully fogged.
 2. Click **Open player screen** and drag that window onto the table screen. Press F11, or use the button in its corner, to go fullscreen.
 3. Optionally, open **Settings → Player screen setup…** and enter the screen's diagonal and your grid size to get a true-scale grid in the frame.
-4. With the **Frame** tool, drag the teal frame to choose what the players see, and Ctrl+scroll to zoom.
+4. With the **Frame** tool, drag the teal frame to choose what the players see, and scroll over it to zoom.
 5. Switch to the **Fog** tool and paint to reveal areas as the party explores.
 
 Everything is saved as you go. Double-click another map in the library to switch; it comes back exactly as you left it. Rotation and mirroring are in each map's **⋯** menu.
 
 ### Controls
+
+On a Mac, use Cmd for Ctrl and Option for Alt.
 
 | Action                              | How                                                                                                                 |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------- |

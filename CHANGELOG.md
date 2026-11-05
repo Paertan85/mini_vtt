@@ -23,9 +23,13 @@ All notable changes to this project are documented here. The format is based on
     (Shift: 1 ft), and the radius can be typed in the circle's toolbar.
     Shift + wheel no longer sets 1 ft steps.
 - The brush goes from 10 to 600 in steps of 10 (was up to 300, in steps of 5).
+- On a Mac, Cmd works wherever Ctrl does (zoom with Cmd + wheel, snap with
+  Cmd while dragging), and tooltips and the shortcut list name Mac keys.
 
 ### Added
 
+- CI also tests on macOS, and builds an unsigned .dmg for version tags and
+  manual runs.
 - Spell areas: besides circles, the Effects tool's **Area** menu places
   squares (cubes), cones and lines/walls, sized in feet. Drag the handle at
   a cone's or line's tip to aim it and set its length (5 ft steps), or the

@@ -23,6 +23,7 @@ import { PlayerSetupDialog, ShortcutsDialog, screenDimensions } from './componen
 import { useFog } from './hooks/useFog';
 import { useEffectLayer } from './hooks/useEffectLayer';
 import { clamp, clampZoom, orientedSize, stepZoom, type Size } from './lib/geometry';
+import { keyLabel } from './lib/platform';
 import {
   clampRadius,
   DEFAULT_AREA_FT,
@@ -595,7 +596,7 @@ export function App() {
   const handleRevealAll = async () => {
     const confirmed = await confirmAction({
       title: 'Reveal entire map',
-      message: 'Players will see the whole map straight away. You can undo this with Ctrl+Z.',
+      message: keyLabel('Players will see the whole map straight away. You can undo this with Ctrl+Z.'),
       confirmLabel: 'Reveal map',
       danger: true,
     });

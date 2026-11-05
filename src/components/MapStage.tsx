@@ -33,6 +33,7 @@ import {
 } from '../lib/grid';
 import { AuraDiscs } from './AuraDiscs';
 import { orientedSize, type Size } from '../lib/geometry';
+import { keyLabel } from '../lib/platform';
 
 export type Tool = 'frame' | 'fog' | 'effect';
 
@@ -375,9 +376,9 @@ export function MapStage(props: MapStageProps) {
     const onWheel = (event: WheelEvent) => {
       const current = latest.current;
       if (!current.mediaUrl) return;
-      // Ctrl or Alt + wheel zooms the DM view in any tool, keeping the spot
+      // Ctrl, Cmd or Alt + wheel zooms the DM view in any tool, keeping the spot
       // under the pointer. A touchpad pinch arrives as Ctrl + wheel.
-      if (event.ctrlKey || event.altKey) {
+      if (event.ctrlKey || event.metaKey || event.altKey) {
         event.preventDefault();
         const rect = container.getBoundingClientRect();
         hideCursor(); // it would sit off the pointer until the next move
@@ -517,7 +518,10 @@ export function MapStage(props: MapStageProps) {
       return;
     }
     const area = circles.find((circle) => circle.id === drag.id);
-    props.onMoveCircle(drag.id, grid && area && event.ctrlKey ? snapArea(point, area, grid) : point);
+    props.onMoveCircle(
+      drag.id,
+      grid && area && (event.ctrlKey || event.metaKey) ? snapArea(point, area, grid) : point,
+    );
   };
 
   const endCircleDrag = () => {
@@ -761,9 +765,11 @@ export function MapStage(props: MapStageProps) {
                   <button
                     type="button"
                     aria-label={`${label}, ${sizeText}`}
-                    title={`Drag to move (Ctrl: snap to the grid, Alt: leave a copy). Mouse wheel over it changes the ${
-                      circle.shape === 'line' ? 'width' : 'size'
-                    }; arrow keys nudge it.`}
+                    title={keyLabel(
+                      `Drag to move (Ctrl: snap to the grid, Alt: leave a copy). Mouse wheel over it changes the ${
+                        circle.shape === 'line' ? 'width' : 'size'
+                      }; arrow keys nudge it.`,
+                    )}
                     className={`absolute z-30 h-4 w-4 cursor-move rounded-full border-2 ${
                       selected ? 'border-ground bg-gold' : 'border-gold'
                     }`}
@@ -909,7 +915,9 @@ export function MapStage(props: MapStageProps) {
       {mediaUrl && shownView.zoom > 1 && (
         <button
           type="button"
-          title="DM view only; players are unaffected. Alt + mouse wheel zooms, middle-drag pans. Click to fit the map."
+          title={keyLabel(
+            'DM view only; players are unaffected. Alt + mouse wheel zooms, middle-drag pans. Click to fit the map.',
+          )}
           onClick={() => setView(FIT_VIEW)}
           className="absolute bottom-3 right-3 z-50 rounded border border-line bg-panel/90 px-2 py-1 text-[12px] tabular-nums text-ink hover:bg-raised"
         >

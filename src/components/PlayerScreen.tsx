@@ -12,6 +12,7 @@ import { drawSnapshot, fillMask, fogMaskSize, loadImage } from '../lib/fog';
 import { EFFECT_OPACITY, showLayer } from '../lib/effects';
 import { AuraDiscs } from './AuraDiscs';
 import type { Size } from '../lib/geometry';
+import { keyLabel } from '../lib/platform';
 
 const PLAYER_FOG_COLOR = '#000000';
 const MIN_HANDOUT_ZOOM = 0.1;
@@ -231,7 +232,7 @@ export function PlayerScreen() {
     };
     const overlay = handoutRef.current;
     const onWheel = (event: WheelEvent) => {
-      if (!event.ctrlKey) return;
+      if (!event.ctrlKey && !event.metaKey) return; // Cmd on a Mac
       event.preventDefault();
       const factor = event.deltaY < 0 ? 1.1 : 1 / 1.1;
       setHandoutZoom((zoom) => Math.min(MAX_HANDOUT_ZOOM, Math.max(MIN_HANDOUT_ZOOM, zoom * factor)));
@@ -361,7 +362,7 @@ export function PlayerScreen() {
 
       <button
         onClick={toggleFullScreen}
-        title={isFullScreen ? 'Exit full screen (F11)' : 'Full screen (F11)'}
+        title={keyLabel(isFullScreen ? 'Exit full screen (F11)' : 'Full screen (F11)')}
         aria-label={isFullScreen ? 'Exit full screen' : 'Full screen'}
         className={`${controlClass} bottom-3 right-3`}
       >

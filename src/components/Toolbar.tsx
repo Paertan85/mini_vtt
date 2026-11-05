@@ -23,6 +23,7 @@ import type { Tool } from './MapStage';
 import type { AreaShape, EffectKind } from '../types/map';
 import { AREA_LABELS, AREA_SHAPES } from '../lib/grid';
 import { EFFECT_KINDS, EFFECT_STYLES } from '../lib/effects';
+import { keyLabel } from '../lib/platform';
 
 export const MIN_BRUSH = 10;
 export const MAX_BRUSH = 600;
@@ -87,7 +88,9 @@ export function Toolbar(props: ToolbarProps) {
         aria-controls="library-panel"
         aria-expanded={props.showLibrary}
         aria-label={props.showLibrary ? 'Hide maps and handouts' : 'Show maps and handouts'}
-        title={props.showLibrary ? 'Hide maps and handouts (Ctrl+B)' : 'Show maps and handouts (Ctrl+B)'}
+        title={keyLabel(
+          props.showLibrary ? 'Hide maps and handouts (Ctrl+B)' : 'Show maps and handouts (Ctrl+B)',
+        )}
         onClick={props.onToggleLibrary}
       >
         {props.showLibrary ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
@@ -148,7 +151,7 @@ export function Toolbar(props: ToolbarProps) {
           square
           onClick={props.onUndo}
           disabled={!props.canUndo}
-          title={`Undo ${layerName} change (Ctrl+Z)`}
+          title={keyLabel(`Undo ${layerName} change (Ctrl+Z)`)}
           aria-label="Undo"
         >
           <Undo2 className="h-4 w-4" />
@@ -157,7 +160,7 @@ export function Toolbar(props: ToolbarProps) {
           square
           onClick={props.onRedo}
           disabled={!props.canRedo}
-          title={`Redo ${layerName} change (Ctrl+Y or Ctrl+Shift+Z)`}
+          title={keyLabel(`Redo ${layerName} change (Ctrl+Y or Ctrl+Shift+Z)`)}
           aria-label="Redo"
         >
           <Redo2 className="h-4 w-4" />
@@ -183,7 +186,7 @@ export function Toolbar(props: ToolbarProps) {
           <Button
             onClick={props.onClearEffects}
             disabled={!props.canClearEffects}
-            title="Remove all effects from this map (undo with Ctrl+Z)"
+            title={keyLabel('Remove all effects from this map (undo with Ctrl+Z)')}
           >
             Clear
           </Button>
@@ -287,9 +290,14 @@ export function Toolbar(props: ToolbarProps) {
           { label: 'Export project…', onSelect: props.onExportProject, separated: true },
           { label: 'Import project…', onSelect: props.onImportProject },
           { label: 'Open library folder', onSelect: props.onRevealLibraryFolder },
-          { label: 'Full screen', onSelect: props.onToggleFullScreen, hint: 'F11', separated: true },
-          { label: 'Reload', onSelect: props.onReload, hint: 'Ctrl+R' },
-          { label: 'Developer tools', onSelect: props.onToggleDevTools, hint: 'Ctrl+Shift+I' },
+          {
+            label: 'Full screen',
+            onSelect: props.onToggleFullScreen,
+            hint: keyLabel('F11'),
+            separated: true,
+          },
+          { label: 'Reload', onSelect: props.onReload, hint: keyLabel('Ctrl+R') },
+          { label: 'Developer tools', onSelect: props.onToggleDevTools, hint: keyLabel('Ctrl+Shift+I') },
           { label: 'Quit', onSelect: props.onQuit, separated: true },
         ]}
         trigger={(trigger) => (
