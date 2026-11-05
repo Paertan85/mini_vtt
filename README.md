@@ -32,9 +32,11 @@ It's built to stay out of the way on modest hardware: no accounts, no server, no
 
 ### Download
 
-Prebuilt Windows and macOS builds are published on the [Releases](https://github.com/Paertan85/mini_vtt/releases) page when available. The builds are not code-signed, so Windows SmartScreen and macOS Gatekeeper will warn the first time you open them. On a Mac, right-click the app and choose **Open**; if macOS says the app is damaged, run `xattr -cr "/Applications/Mini VTT.app"` in Terminal once.
+Prebuilt Windows, macOS and Linux builds are published on the [Releases](https://github.com/Paertan85/mini_vtt/releases) page when available. The builds are not code-signed, so Windows SmartScreen and macOS Gatekeeper will warn the first time you open them. On a Mac, right-click the app and choose **Open**; if macOS says the app is damaged, run `xattr -cr "/Applications/Mini VTT.app"` in Terminal once.
 
 The macOS build is tested automatically but hasn't been tried on a real Mac yet; reports are welcome.
+
+On Linux, including a Steam Deck in desktop mode, download the `.AppImage`, make it executable (right-click → Properties → Permissions, or `chmod +x`) and open it. It runs from your home folder, so SteamOS updates don't remove it. Touch input on the Deck hasn't been tuned yet; a mouse and keyboard work as on a PC.
 
 ### Build from source
 
@@ -52,9 +54,10 @@ To package an installer:
 ```bash
 npm run dist:win   # Windows installer + portable .exe, written to release/
 npm run dist:mac   # macOS .dmg (arm64 and x64); run this on a Mac
+npm run dist:linux # Linux AppImage (x64); run this on Linux
 ```
 
-Without a Mac, run the **CI** workflow by hand on GitHub (Actions → CI → Run workflow): it tests the app on macOS and attaches the `.dmg` to the run. Version tags build it too.
+Without a Mac or Linux machine, run the **CI** workflow by hand on GitHub (Actions → CI → Run workflow): it tests the app on both and attaches the `.dmg` and the AppImage to the run. Version tags build them too.
 
 ## Running a session
 
@@ -102,7 +105,7 @@ All shortcuts are also listed under **Settings → Keyboard shortcuts…**.
 
 ### Where your library is stored
 
-Maps, fog masks and settings live in a `library` folder inside the app's user-data directory (typically `%APPDATA%\mini-vtt\library` on Windows and `~/Library/Application Support/mini-vtt/library` on macOS). **Settings → Open library folder** opens it. Imported files are copied there, so moving or deleting the originals doesn't affect the library.
+Maps, fog masks and settings live in a `library` folder inside the app's user-data directory (typically `%APPDATA%\mini-vtt\library` on Windows, `~/Library/Application Support/mini-vtt/library` on macOS, and `~/.config/mini-vtt/library` on Linux). **Settings → Open library folder** opens it. Imported files are copied there, so moving or deleting the originals doesn't affect the library.
 
 ### Moving your library to another computer
 

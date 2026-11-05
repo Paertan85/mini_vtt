@@ -28,6 +28,9 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- Linux builds as an AppImage, for desktops and the Steam Deck's desktop
+  mode (CI tests on Linux and builds it for version tags and manual runs).
+- The DM window opens sized to fit small screens, such as the Steam Deck's.
 - CI also tests on macOS, and builds an unsigned .dmg for version tags and
   manual runs.
 - Spell areas: besides circles, the Effects tool's **Area** menu places

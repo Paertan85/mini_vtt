@@ -17,7 +17,8 @@
     "test:app": "vite build && electron scripts/test-app.mjs",
     "dist:dir": "npm run build && electron-builder --win --dir",
     "dist:win": "npm run build && electron-builder --win",
-    "dist:mac": "npm run build && electron-builder --mac"
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:linux": "npm run build && electron-builder --linux"
   },
   "keywords": [
     "vtt",
@@ -72,6 +73,7 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
+      "build/icon.png",
       "!dist-electron/*.test.mjs"
     ],
     "win": {
@@ -96,6 +98,19 @@
         }
       ],
       "identity": null
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "category": "Game",
+      "synopsis": "A virtual tabletop for a TV or monitor on the table",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
     },
     "forceCodeSigning": false,
     "nsis": {

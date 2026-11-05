@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, dialog, shell, protocol, net } from 'electron';
+import { app, BrowserWindow, Menu, ipcMain, dialog, shell, protocol, net, screen } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -36,9 +36,19 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist');
 
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST;
 
-// Unpacked runs (npm run dev) have no executable icon, so set it on the window
-const unpackedIcon = path.join(process.env.APP_ROOT, 'build', 'icon.ico');
-const windowIcon = !app.isPackaged && existsSync(unpackedIcon) ? unpackedIcon : undefined;
+// Windows takes the icon from the executable, except in unpacked runs (npm run
+// dev). Linux has no executable icon, and an AppImage that isn't integrated
+// into the desktop has no .desktop file either, so the window always sets it.
+const iconFile = path.join(
+  process.env.APP_ROOT,
+  'build',
+  process.platform === 'linux' ? 'icon.png' : 'icon.ico',
+);
+const windowIcon =
+  (process.platform === 'linux' || !app.isPackaged) && existsSync(iconFile) ? iconFile : undefined;
+
+/** The DM window's preferred size, shrunk to fit small screens such as the Steam Deck's 1280×800. */
+const DM_WINDOW = { width: 1280, height: 860 };
 
 // Matches the UI's background colour, so windows don't flash white on open
 const WINDOW_BACKGROUND = '#171412';
@@ -87,10 +97,12 @@ const sendToPlayer = (channel: string, ...args: unknown[]) => {
 };
 
 function createDmWindow() {
+  const area = screen.getPrimaryDisplay().workAreaSize;
+  const tooSmall = area.width < DM_WINDOW.width || area.height < DM_WINDOW.height;
   dmWindow = new BrowserWindow({
     title: 'Mini VTT',
-    width: 1280,
-    height: 860,
+    width: Math.min(DM_WINDOW.width, area.width),
+    height: Math.min(DM_WINDOW.height, area.height),
     minWidth: 960,
     minHeight: 620,
     icon: windowIcon,
@@ -105,6 +117,8 @@ function createDmWindow() {
   dmWindow.webContents.on('before-input-event', (event, input) => {
     if (input.key === 'Alt' && !input.control && !input.shift && !input.meta) event.preventDefault();
   });
+  // On a screen smaller than the preferred size, use all of it
+  if (tooSmall) dmWindow.maximize();
   lockDownNavigation(dmWindow);
   dmWindow.on('closed', () => {
     dmWindow = null;

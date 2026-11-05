@@ -5,7 +5,7 @@ on:
     branches: [main]
     tags: ['v*']
   pull_request:
-  # Run by hand (Actions → CI → Run workflow) to get a macOS build to try
+  # Run by hand (Actions → CI → Run workflow) to get macOS and Linux builds to try
   workflow_dispatch:
 
 jobs:
@@ -37,6 +37,19 @@ jobs:
 
       - name: App smoke test
         run: xvfb-run -a npm run test:app
+
+      # For Linux and the Steam Deck's desktop mode, on version tags and manual runs
+      - name: Build the AppImage
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+        run: npx electron-builder --linux --publish never
+
+      - name: Upload the AppImage
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: mini-vtt-linux
+          path: release/*.AppImage
+          if-no-files-found: error
 
   # The same tests on a Mac, since there is none to test on by hand. The .dmg
   # is only built for version tags and manual runs, to save macOS minutes.
