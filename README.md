@@ -18,7 +18,8 @@ It's built to stay out of the way on modest hardware: no accounts, no server, no
 ## Features
 
 - **Fog of war.** Select the Fog tool and paint: the left mouse button reveals, the right button covers. Undo and redo any change, or reveal or cover the whole map at once. The DM sees fog as an indigo tint; players see solid black.
-- **Painted effects.** The Effects tool paints fire, poison or magic onto the map with soft edges, for burning terrain, poison clouds or spell areas. Right-click erases, **Clear** removes them all. Effects sit under the fog, so they never give away unexplored areas, and poison is hatched so it stays distinct from fire for colour-blind players. A map that never uses effects costs nothing extra.
+- **Painted effects.** The Effects tool paints fire, poison or magic onto the map with soft edges, for burning terrain, poison clouds or spell areas. Right-click erases, **Clear** removes them all. Effects and circles sit under the fog, so they never give away unexplored areas, and poison is hatched so it stays distinct from fire for colour-blind players. A map that never uses effects costs nothing extra, and **Settings → Show effect tools** hides them entirely.
+- **Aura circles.** Place a soft circle for Spirit Guardians or any spell area, sized in feet. Drag its centre dot to move it anywhere (hold Alt to snap it to a square's centre), scroll over it to resize in 5 ft steps, and duplicate or delete it with one click. The DM sees the radius; players only see the soft disc. Measure the map's grid once (**Settings → Measure map grid…**: click two corners of a square) so feet match the map.
 - **Player view framing.** A teal frame on the DM window shows exactly what the player screen shows. Drag it to pan and Ctrl+scroll to zoom.
 - **True-scale grid.** Enter the player screen's diagonal and your grid size, and the frame shows a grid that matches the physical screen, so 1-inch minis line up with the map.
 - **Blackout.** One key hides everything on the player screen while you set up the next scene.
@@ -63,21 +64,24 @@ Everything is saved as you go. Double-click another map in the library to switch
 
 ### Controls
 
-| Action                              | How                                                                                    |
-| ----------------------------------- | -------------------------------------------------------------------------------------- |
-| Frame / Fog / Effects tool          | V / F / E                                                                              |
-| Reveal / cover fog                  | Fog tool, then drag with the Left Mouse button / Right mouse button                    |
-| Paint / erase effects               | Effects tool, pick a colour, then drag with the Left Mouse button / Right mouse button |
-| Paint fog with any tool             | Hold Shift and use either mouse button                                                 |
-| Move the player view while painting | Hold Space and drag the frame                                                          |
-| Brush size                          | Ctrl + mouse wheel with the Fog or Effects tool                                        |
-| Undo / redo                         | Ctrl+Z / Ctrl+Y or Ctrl+Shift+Z (effects in the Effects tool, otherwise fog)           |
-| Zoom the player view                | Ctrl + mouse wheel with the Frame tool, or the − and + buttons                         |
-| Blackout the player screen          | B                                                                                      |
-| Load a map / show a handout         | Double-click it in the library                                                         |
-| Rename, rotate, mirror or remove    | The ⋯ menu on the map or handout                                                       |
-| Handout zoom and pan                | Ctrl + wheel and arrow keys on the player screen (Shift for bigger steps); Esc closes  |
-| Player screen fullscreen            | F11 or the corner button                                                               |
+| Action                              | How                                                                                         |
+| ----------------------------------- | ------------------------------------------------------------------------------------------- |
+| Frame / Fog / Effects tool          | V / F / E                                                                                   |
+| Reveal / cover fog                  | Fog tool, then drag with the Left Mouse button / Right mouse button                         |
+| Paint / erase effects               | Effects tool, pick a colour, then drag with the Left Mouse button / Right mouse button      |
+| Add an aura circle                  | Effects tool, then **Circle**                                                               |
+| Move / resize a circle              | Drag its centre dot (Alt: snap to square centres) / mouse wheel over it (Shift: 1 ft steps) |
+| Delete a circle                     | Select it, then Del or its delete button                                                    |
+| Paint fog with any tool             | Hold Shift and use either mouse button                                                      |
+| Move the player view while painting | Hold Space and drag the frame                                                               |
+| Brush size                          | Ctrl + mouse wheel with the Fog or Effects tool                                             |
+| Undo / redo                         | Ctrl+Z / Ctrl+Y or Ctrl+Shift+Z (effects in the Effects tool, otherwise fog)                |
+| Zoom the player view                | Ctrl + mouse wheel with the Frame tool, or the − and + buttons                              |
+| Blackout the player screen          | B                                                                                           |
+| Load a map / show a handout         | Double-click it in the library                                                              |
+| Rename, rotate, mirror or remove    | The ⋯ menu on the map or handout                                                            |
+| Handout zoom and pan                | Ctrl + wheel and arrow keys on the player screen (Shift for bigger steps); Esc closes       |
+| Player screen fullscreen            | F11 or the corner button                                                                    |
 
 All shortcuts are also listed under **Settings → Keyboard shortcuts…**.
 
@@ -123,7 +127,7 @@ src/
 scripts/         Tests and the Windows icon patch used by electron-builder
 ```
 
-Both windows load the same page; the player screen is opened with `?mode=view`. The DM window owns all state and pushes it to the player screen over IPC. Fog strokes are streamed as they're painted; at the end of each stroke the DM window encodes the mask once, and the main process relays that snapshot to the player screen and saves it to disk.
+Both windows load the same page; the player screen is opened with `?mode=view`. The DM window owns all state and pushes it to the player screen over IPC. Fog strokes are painted in the DM window only; at the end of each stroke the DM window encodes the mask once, and the main process relays that snapshot to the player screen and saves it to disk. Players therefore see a whole stroke appear at once, never the brush moving.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. The design rules for keeping the app light on low-end laptops are in [AGENTS.md](AGENTS.md).
 

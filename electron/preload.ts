@@ -9,10 +9,10 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type {
   EffectSnapshot,
   FogSnapshot,
-  FogStroke,
   ImportResult,
   LibrarySettings,
   LibrarySnapshot,
+  MapGrid,
   MapState,
   MapView,
   ProjectImportSummary,
@@ -45,6 +45,9 @@ const api = {
   loadMapEffects: (id: string): Promise<string | null> => ipcRenderer.invoke('library:loadMapEffects', id),
   saveMapView: (id: string, view: MapView): Promise<boolean> =>
     ipcRenderer.invoke('library:saveMapView', id, view),
+  /** Save the map's measured grid; null removes it. */
+  saveMapGrid: (id: string, grid: MapGrid | null): Promise<boolean> =>
+    ipcRenderer.invoke('library:saveMapGrid', id, grid),
   renameMap: (id: string, name: string): Promise<boolean> =>
     ipcRenderer.invoke('library:renameMap', id, name),
   removeMap: (id: string): Promise<boolean> => ipcRenderer.invoke('library:removeMap', id),
@@ -92,8 +95,6 @@ const api = {
 
   // ─── Fog of war (DM window → player window) ─────────────────────────────────
 
-  sendFogStroke: (stroke: FogStroke): void => ipcRenderer.send('fog:stroke', stroke),
-  onFogStroke: (callback: (stroke: FogStroke) => void) => subscribe('fog:stroke', callback),
   /** A different map was loaded: the player clears its fog until a snapshot arrives. */
   sendFogReset: (): void => ipcRenderer.send('fog:reset'),
   onFogReset: (callback: () => void) => subscribe('fog:reset', callback),

@@ -6,12 +6,18 @@
 //         any tool      Shift + left/right paints fog, Ctrl + wheel zooms the
 //                       player view (Frame tool) or resizes the brush (Fog and
 //                       Effects tools)
+//         circles       (Frame and Effects tools) drag the centre dot to move,
+//                       freely (Alt: snap to square centres); wheel over the
+//                       selected circle resizes it, 5 ft per notch (Shift: 1 ft)
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import type { EffectKind, MapPan, MediaType, Point } from '../types/map';
+import { Copy, Trash2 } from 'lucide-react';
+import type { AuraCircle, EffectKind, MapGrid, MapPan, MediaType, Point } from '../types/map';
 import type { Fog } from '../hooks/useFog';
 import type { EffectLayer } from '../hooks/useEffectLayer';
-import { EFFECT_OPACITY, EFFECT_STYLES } from '../lib/effects';
+import { EFFECT_KINDS, EFFECT_OPACITY, EFFECT_STYLES } from '../lib/effects';
+import { feetToPixels, snapToCell, toDiscs } from '../lib/grid';
+import { AuraDiscs } from './AuraDiscs';
 import { orientedSize, type Size } from '../lib/geometry';
 
 export type Tool = 'frame' | 'fog' | 'effect';
@@ -44,9 +50,35 @@ interface MapStageProps {
   constrainPan: (pan: MapPan) => MapPan;
   onPanChange: (pan: MapPan) => void;
   onZoomWheel: (factor: number) => void;
+
+  /** The map's measured grid, needed to size and snap circles */
+  grid: MapGrid | null;
+  /** A grid drawn over the map, while calibrating */
+  gridPreview: MapGrid | null;
+  circles: AuraCircle[];
+  selectedCircleId: string | null;
+  /** Whether circle handles are shown and respond to the mouse */
+  circlesInteractive: boolean;
+  onSelectCircle: (id: string | null) => void;
+  /** A circle drag started (true) or ended (false); players only see where it lands. */
+  onCircleDrag: (dragging: boolean) => void;
+  onMoveCircle: (id: string, center: Point) => void;
+  /** Wheel notches: positive grows; `fine` steps 1 ft instead of 5 */
+  onResizeCircle: (id: string, notches: number, fine: boolean) => void;
+  onDuplicateCircle: (id: string) => void;
+  onDeleteCircle: (id: string) => void;
+  onRecolorCircle: (id: string, kind: EffectKind) => void;
+
+  /** Corners clicked so far while calibrating the grid; null when not calibrating */
+  calibrationPoints: Point[] | null;
+  onCalibrationPoint: (point: Point) => void;
 }
 
 const STAGE_PADDING = 24;
+/** Wheel distance that counts as one notch; trackpads send many small deltas */
+const WHEEL_NOTCH = 100;
+/** How close (screen px) the pointer must be to a small circle for the wheel to resize it */
+const MIN_WHEEL_TARGET = 24;
 
 const mediaSizeOf = (element: HTMLImageElement | HTMLVideoElement): Size =>
   element instanceof HTMLVideoElement
@@ -71,12 +103,20 @@ export function MapStage(props: MapStageProps) {
     viewportSize,
     zoom,
     gridCell,
+    grid,
+    gridPreview,
+    circles,
+    selectedCircleId,
+    circlesInteractive,
+    calibrationPoints,
   } = props;
 
   const containerRef = useRef<HTMLElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const cursorRef = useRef<HTMLDivElement>(null);
   const frameDragRef = useRef<{ start: Point; startPan: MapPan } | null>(null);
+  const circleDragRef = useRef<{ id: string; pointerId: number } | null>(null);
+  const wheelRemainderRef = useRef(0);
   const [available, setAvailable] = useState<Size>({ w: 0, h: 0 });
 
   // Latest props for the native listeners, which are registered once
@@ -139,6 +179,21 @@ export function MapStage(props: MapStageProps) {
     [mediaSize, rotation, mirrorHorizontal, mirrorVertical],
   );
 
+  /** Map natural pixels → position on the surface (CSS px), applying mirroring then rotation. */
+  const mapToSurface = (point: Point): Point => {
+    if (!mediaSize) return { x: 0, y: 0 };
+    let x = (point.x - mediaSize.w / 2) * displayScale;
+    let y = (point.y - mediaSize.h / 2) * displayScale;
+    if (mirrorHorizontal) x = -x;
+    if (mirrorVertical) y = -y;
+    if (rotation === 90) [x, y] = [-y, x];
+    else if (rotation === 180) [x, y] = [-x, -y];
+    else if (rotation === 270) [x, y] = [y, -x];
+    return { x: x + surfaceSize.w / 2, y: y + surfaceSize.h / 2 };
+  };
+  const geometry = useRef({ mapToSurface, displayScale });
+  geometry.current = { mapToSurface, displayScale };
+
   // ─── Brush cursor (moved directly, without re-rendering) ──────────────────
 
   const moveCursor = (clientX: number, clientY: number) => {
@@ -193,6 +248,32 @@ export function MapStage(props: MapStageProps) {
     const onWheel = (event: WheelEvent) => {
       const current = latest.current;
       if (!current.mediaUrl) return;
+      // The wheel over the selected circle resizes it, with or without Ctrl
+      const selected = current.circlesInteractive
+        ? current.circles.find((circle) => circle.id === current.selectedCircleId)
+        : undefined;
+      const surface = surfaceRef.current;
+      if (selected && current.grid && surface) {
+        const { mapToSurface: toSurface, displayScale: scale } = geometry.current;
+        const rect = surface.getBoundingClientRect();
+        const center = toSurface(selected);
+        const reach = Math.max(MIN_WHEEL_TARGET, feetToPixels(selected.radiusFt, current.grid) * scale);
+        const distance = Math.hypot(
+          event.clientX - rect.left - center.x,
+          event.clientY - rect.top - center.y,
+        );
+        if (distance <= reach) {
+          event.preventDefault();
+          // Shift turns vertical scrolling horizontal in Chromium, so read both axes
+          const raw = event.deltaY || event.deltaX;
+          const delta = raw * (event.deltaMode === 1 ? 40 : event.deltaMode === 2 ? 800 : 1);
+          const total = wheelRemainderRef.current - delta;
+          const notches = Math.trunc(total / WHEEL_NOTCH);
+          wheelRemainderRef.current = total - notches * WHEEL_NOTCH;
+          if (notches !== 0) current.onResizeCircle(selected.id, notches, event.shiftKey);
+          return;
+        }
+      }
       if (event.ctrlKey && (current.tool === 'fog' || current.tool === 'effect')) {
         event.preventDefault();
         current.onBrushResize(Math.sign(event.deltaY || event.deltaX) > 0 ? -1 : 1);
@@ -231,9 +312,47 @@ export function MapStage(props: MapStageProps) {
     frameDragRef.current = null;
   };
 
+  // ─── Circles: drag the centre dot to move ──────────────────────────────────
+
+  const handleCirclePointerDown = (event: React.PointerEvent<HTMLElement>, id: string) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    circleDragRef.current = { id, pointerId: event.pointerId };
+    wheelRemainderRef.current = 0;
+    props.onSelectCircle(id);
+    props.onCircleDrag(true);
+  };
+
+  const handleCirclePointerMove = (event: React.PointerEvent<HTMLElement>) => {
+    const drag = circleDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const point = toMapPoint(event.clientX, event.clientY);
+    if (!point) return;
+    props.onMoveCircle(drag.id, grid && event.altKey ? snapToCell(point, grid) : point);
+  };
+
+  const endCircleDrag = () => {
+    if (!circleDragRef.current) return;
+    circleDragRef.current = null;
+    props.onCircleDrag(false);
+  };
+
+  // ─── Grid calibration: clicks pick the corners ────────────────────────────
+
+  const handleCalibrationPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const point = toMapPoint(event.clientX, event.clientY);
+    if (point) props.onCalibrationPoint(point);
+  };
+
   // ─── Render ────────────────────────────────────────────────────────────────
 
   const cursorDiameter = Math.max(4, brushSize * 2 * displayScale);
+  const discs = toDiscs(circles, grid);
+  const previewCell = gridPreview ? gridPreview.cell * displayScale : 0;
   const gridPx = gridCell * displayScale;
   const handleMediaLoad = (event: React.SyntheticEvent<HTMLImageElement | HTMLVideoElement>) => {
     const size = mediaSizeOf(event.currentTarget);
@@ -252,6 +371,10 @@ export function MapStage(props: MapStageProps) {
           className="relative shrink-0"
           style={{ width: surfaceSize.w, height: surfaceSize.h }}
           onPointerLeave={hideCursor}
+          onPointerDownCapture={(event) => {
+            const target = event.target as HTMLElement;
+            if (selectedCircleId && !target.closest('[data-circle-control]')) props.onSelectCircle(null);
+          }}
         >
           <div
             className="absolute"
@@ -302,6 +425,20 @@ export function MapStage(props: MapStageProps) {
               className="pointer-events-none absolute inset-0 h-full w-full"
               style={{ opacity: EFFECT_OPACITY }}
             />
+            <AuraDiscs discs={discs} media={mediaSize} />
+            {gridPreview && previewCell > 1 && (
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 z-10"
+                style={{
+                  backgroundImage:
+                    'linear-gradient(to right, rgb(212 175 55 / 0.8) 0 1px, transparent 1px),' +
+                    'linear-gradient(to bottom, rgb(212 175 55 / 0.8) 0 1px, transparent 1px)',
+                  backgroundSize: `${previewCell}px ${previewCell}px`,
+                  backgroundPosition: `${gridPreview.offsetX * displayScale}px ${gridPreview.offsetY * displayScale}px`,
+                }}
+              />
+            )}
             <canvas
               ref={fog.canvasRef}
               aria-label="Fog of war"
@@ -336,6 +473,112 @@ export function MapStage(props: MapStageProps) {
               onPointerUp={endFrameDrag}
               onPointerCancel={endFrameDrag}
             />
+          )}
+
+          {circlesInteractive &&
+            grid &&
+            circles.map((circle) => {
+              const center = mapToSurface(circle);
+              const selected = circle.id === selectedCircleId;
+              const diameter = feetToPixels(circle.radiusFt, grid) * 2 * displayScale;
+              return (
+                <div key={circle.id} data-circle-control="">
+                  {selected && (
+                    <div
+                      aria-hidden="true"
+                      className="pointer-events-none absolute z-20 rounded-full border-2 border-dashed border-gold"
+                      style={{
+                        left: center.x - diameter / 2,
+                        top: center.y - diameter / 2,
+                        width: diameter,
+                        height: diameter,
+                      }}
+                    />
+                  )}
+                  <button
+                    type="button"
+                    aria-label={`Circle, ${circle.radiusFt} ft`}
+                    title="Drag to move (Alt: snap to square centres). Mouse wheel over the circle resizes it (Shift: 1 ft steps)."
+                    className={`absolute z-30 h-4 w-4 cursor-move rounded-full border-2 ${
+                      selected ? 'border-ground bg-gold' : 'border-gold'
+                    }`}
+                    style={{
+                      left: center.x - 8,
+                      top: center.y - 8,
+                      backgroundColor: selected ? undefined : EFFECT_STYLES[circle.kind].color,
+                    }}
+                    onPointerDown={(event) => handleCirclePointerDown(event, circle.id)}
+                    onPointerMove={handleCirclePointerMove}
+                    onPointerUp={endCircleDrag}
+                    onPointerCancel={endCircleDrag}
+                  />
+                  <div
+                    className="pointer-events-none absolute z-30 -translate-x-1/2 whitespace-nowrap rounded bg-ground/85 px-1.5 text-[11px] font-medium tabular-nums text-ink"
+                    style={{ left: center.x, top: center.y + 10 }}
+                  >
+                    {circle.radiusFt} ft
+                  </div>
+                  {selected && (
+                    <div
+                      role="toolbar"
+                      aria-label="Selected circle"
+                      className="absolute z-30 flex -translate-x-1/2 items-center gap-0.5 rounded border border-line bg-panel p-0.5"
+                      style={{ left: center.x, top: center.y + 30 }}
+                    >
+                      {EFFECT_KINDS.map((kind) => (
+                        <button
+                          key={kind}
+                          type="button"
+                          title={EFFECT_STYLES[kind].label}
+                          aria-label={EFFECT_STYLES[kind].label}
+                          aria-pressed={circle.kind === kind}
+                          onClick={() => props.onRecolorCircle(circle.id, kind)}
+                          className={`h-5 w-5 rounded-sm border-2 ${circle.kind === kind ? 'border-gold' : 'border-transparent'}`}
+                          style={{ backgroundColor: EFFECT_STYLES[kind].color }}
+                        />
+                      ))}
+                      <button
+                        type="button"
+                        title="Duplicate"
+                        aria-label="Duplicate circle"
+                        onClick={() => props.onDuplicateCircle(circle.id)}
+                        className="flex h-6 w-6 items-center justify-center rounded text-muted hover:bg-raised hover:text-ink"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        title="Delete (Del)"
+                        aria-label="Delete circle"
+                        onClick={() => props.onDeleteCircle(circle.id)}
+                        className="flex h-6 w-6 items-center justify-center rounded text-muted hover:bg-raised hover:text-crimson-bright"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+          {calibrationPoints && (
+            <div
+              aria-label="Grid calibration"
+              className="absolute inset-0 z-40 cursor-crosshair"
+              onPointerDown={handleCalibrationPointerDown}
+            >
+              {calibrationPoints.map((point, index) => {
+                const at = mapToSurface(point);
+                return (
+                  <span
+                    key={index}
+                    aria-hidden="true"
+                    className="pointer-events-none absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-ground bg-gold"
+                    style={{ left: at.x, top: at.y }}
+                  />
+                );
+              })}
+            </div>
           )}
 
           <div

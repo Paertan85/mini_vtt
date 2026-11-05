@@ -21,6 +21,7 @@ import {
   effectMaskSize,
   showLayer,
   type Box,
+  edgeSoftness,
 } from '../lib/effects';
 
 const MAX_HISTORY = 20;
@@ -183,7 +184,7 @@ export function useEffectLayer(): EffectLayer {
     strokeRef.current = null;
     if (!stroke || !canvas || !scratch) return;
     const ctx = canvas.getContext('2d');
-    if (ctx) bakeStroke(ctx, scratch, stroke.kind, stroke.box, Math.max(1, stroke.radius * 0.35));
+    if (ctx) bakeStroke(ctx, scratch, stroke.kind, stroke.box, edgeSoftness(stroke.radius));
     showLayer(scratch, null);
     versionRef.current += 1;
     commit(canvas.toDataURL());

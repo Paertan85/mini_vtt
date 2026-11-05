@@ -15,6 +15,12 @@ import os from 'node:os';
 import zlib from 'node:zlib';
 import crypto from 'node:crypto';
 
+// Keep animation frames running when other windows cover the test windows
+// (Windows otherwise marks them occluded and pauses requestAnimationFrame)
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -132,8 +138,17 @@ app.whenReady().then(async () => {
     js(
       `document.querySelector('button[title^="${name}"]').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`,
     );
+  // Presses and moves report the held button, as a real drag does (or pointer
+  // capture is never taken)
   const mouse = (type, x, y, button = 'left') =>
-    main.webContents.sendInputEvent({ type, x: Math.round(x), y: Math.round(y), button, clickCount: 1 });
+    main.webContents.sendInputEvent({
+      type,
+      x: Math.round(x),
+      y: Math.round(y),
+      button,
+      clickCount: 1,
+      modifiers: type === 'mouseUp' ? [] : [`${button}ButtonDown`],
+    });
   const centerOf = (selector) =>
     js(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return null;
       const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
@@ -198,6 +213,23 @@ app.whenReady().then(async () => {
     await sleep(900);
     check('redo re-applies the stroke', fogHash() === fogAfter);
 
+    // Players see a stroke only when it ends, so a room is revealed at once
+    const playerFog = () => js(`[...document.querySelectorAll('canvas')].at(-1).toDataURL()`, player);
+    const playerFogBefore = await playerFog();
+    const start = { x: canvas.x - 60, y: canvas.y + 40 };
+    mouse('mouseDown', start.x, start.y);
+    for (let i = 1; i <= 5; i++) {
+      mouse('mouseMove', start.x + i * 24, start.y);
+      await sleep(30);
+    }
+    await sleep(500);
+    check('the player screen waits while fog is painted', (await playerFog()) === playerFogBefore);
+    mouse('mouseUp', start.x + 120, start.y);
+    await sleep(900);
+    check('releasing the mouse reveals the stroke to players', (await playerFog()) !== playerFogBefore);
+    await press('z', { ctrlKey: true });
+    await sleep(900);
+
     // Effects tool: nothing is allocated until the first stroke; painting saves
     // a layer and shows it on the player screen, undo frees it again
     const effectsFile = path.join(libraryDir, 'm_alpha', 'effects.png');
@@ -221,6 +253,68 @@ app.whenReady().then(async () => {
       !fs.existsSync(effectsFile) && (await dmEffectsWidth()) === 0 && (await playerEffectsWidth()) === 0,
     );
     check('undo in the Effects tool leaves the fog alone', fogHash() === fogAfter);
+
+    // Circles: "Circle" without a grid starts measuring; two clicks and Save
+    // store the grid, then a circle can be placed, resized and deleted
+    const alpha = () => readIndex().maps.find((m) => m.id === 'm_alpha');
+    await clickText('Circle');
+    await sleep(300);
+    check(
+      'adding a circle without a grid starts measuring',
+      (await js(`!!document.querySelector('[aria-label="Grid calibration"]')`)) === true,
+    );
+    for (const point of [canvas, { x: canvas.x + 60, y: canvas.y + 60 }]) {
+      mouse('mouseDown', point.x, point.y);
+      mouse('mouseUp', point.x, point.y);
+      await sleep(150);
+    }
+    await clickText('Save grid');
+    await sleep(500);
+    check('measuring saves the grid', alpha().grid?.cell > 0, JSON.stringify(alpha().grid));
+    await clickText('Circle');
+    await sleep(900);
+    check(
+      'a 15 ft circle is added and saved',
+      alpha().circles.length === 1 && alpha().circles[0].radiusFt === 15,
+      JSON.stringify(alpha().circles),
+    );
+    check(
+      'the player screen draws the circle',
+      (await js(`document.querySelectorAll('svg circle').length`, player)) >= 1,
+    );
+    await js(`(() => {
+      const handle = document.querySelector('button[aria-label^="Circle,"]');
+      const r = handle.getBoundingClientRect();
+      handle.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, clientX: r.x + 8, clientY: r.y + 8, bubbles: true, cancelable: true }));
+    })()`);
+    await sleep(900);
+    check('one wheel notch grows the circle by 5 ft', alpha().circles[0]?.radiusFt === 20);
+    check(
+      'the DM sees the radius',
+      (await js(`document.querySelector('button[aria-label^="Circle,"]').getAttribute('aria-label')`)) ===
+        'Circle, 20 ft',
+    );
+    // A dragged circle stays put for players until it is dropped
+    const playerCircleX = () => js(`document.querySelector('svg circle').getAttribute('cx')`, player);
+    const circleXBefore = await playerCircleX();
+    const handle = await centerOf('button[aria-label^="Circle,"]');
+    mouse('mouseDown', handle.x, handle.y);
+    for (let i = 1; i <= 5; i++) {
+      mouse('mouseMove', handle.x + i * 30, handle.y);
+      await sleep(30);
+    }
+    await sleep(400);
+    check('players don’t see a circle being dragged', (await playerCircleX()) === circleXBefore);
+    mouse('mouseUp', handle.x + 150, handle.y);
+    await sleep(400);
+    check('players see the circle where it is dropped', (await playerCircleX()) !== circleXBefore);
+    await press('Delete');
+    await sleep(900);
+    check('Delete removes the selected circle', alpha().circles.length === 0);
+    check(
+      'the player screen drops it',
+      (await js(`document.querySelectorAll('svg circle').length`, player)) === 0,
+    );
     await press('v');
 
     // Blackout reaches the player screen

@@ -7,9 +7,9 @@ import * as library from './library.js';
 import type {
   EffectSnapshot,
   FogSnapshot,
-  FogStroke,
   ImportResult,
   LibrarySettings,
+  MapGrid,
   MapState,
   MapView,
   ProjectImportSummary,
@@ -217,8 +217,6 @@ ipcMain.handle('player:requestEffects', async () => latestEffects?.dataUrl ?? nu
 
 ipcMain.on('handout:close', () => sendToDm('handout:close'));
 
-ipcMain.on('fog:stroke', (_event, stroke: FogStroke) => sendToPlayer('fog:stroke', stroke));
-
 ipcMain.on('fog:reset', () => {
   latestFogDataUrl = null;
   sendToPlayer('fog:reset');
@@ -315,6 +313,9 @@ ipcMain.handle('library:loadMapEffects', async (_e, id: string) => {
   return library.loadMapEffects(id);
 });
 ipcMain.handle('library:saveMapView', async (_e, id: string, view: MapView) => library.saveMapView(id, view));
+ipcMain.handle('library:saveMapGrid', async (_e, id: string, grid: MapGrid | null) =>
+  library.saveMapGrid(id, grid),
+);
 ipcMain.handle('library:renameMap', async (_e, id: string, name: string) => library.renameMap(id, name));
 ipcMain.handle('library:removeMap', async (_e, id: string) => {
   // Don't let a late fog save recreate the deleted map's folder

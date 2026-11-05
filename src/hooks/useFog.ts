@@ -1,10 +1,11 @@
 // The DM window's fog of war: the mask canvas, painting, undo/redo, and keeping
 // the player screen in sync.
 //
-// Sync model: every stroke segment is streamed to the player as it's painted,
-// and when a stroke ends the whole mask is encoded once and sent as a
-// snapshot. The main process relays that snapshot to the player screen and
-// saves it to disk, so the encode happens exactly once per stroke.
+// Sync model: strokes are painted locally only. When a stroke ends the whole
+// mask is encoded once and sent as a snapshot, which the main process relays
+// to the player screen and saves to disk. Players never watch the brush move:
+// a room the DM reveals in one drag appears all at once when the mouse is
+// released, and the encode happens exactly once per stroke.
 //
 // Undo needs no extra work: the state before a stroke is the snapshot that was
 // encoded at the end of the previous one.
@@ -102,13 +103,10 @@ export function useFog(): Fog {
     [publish],
   );
 
-  /** Paint one segment locally and stream it to the player screen. Uses refs only. */
+  /** Paint one segment in the DM window only. Uses refs only. */
   const paint = useCallback((mode: FogMode, from: Point, to: Point, radius: number) => {
     const ctx = canvasRef.current?.getContext('2d');
-    if (!ctx) return;
-    const stroke = { mode, from, to, radius };
-    drawStroke(ctx, stroke, mediaRef.current, DM_FOG_COLOR);
-    window.electronAPI?.sendFogStroke(stroke);
+    if (ctx) drawStroke(ctx, { mode, from, to, radius }, mediaRef.current, DM_FOG_COLOR);
   }, []);
 
   const beginStroke = useCallback(

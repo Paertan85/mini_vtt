@@ -32,6 +32,16 @@ export interface MapState {
   handoutRotation: number;
   /** When true the player screen shows nothing but black */
   blackout: boolean;
+  /** Aura circles, drawn under the fog */
+  circles: AuraDisc[];
+}
+
+/** A circle as the player screen draws it: map pixels, already converted from feet. */
+export interface AuraDisc {
+  x: number;
+  y: number;
+  radius: number;
+  kind: EffectKind;
 }
 
 /** The per-map view settings that are saved and restored. */
@@ -42,6 +52,31 @@ export interface MapView {
   rotation: number;
   mirrorHorizontal: boolean;
   mirrorVertical: boolean;
+  /** Aura circles placed on this map */
+  circles: AuraCircle[];
+}
+
+/**
+ * The map image's own grid, measured by the DM. All values are in map natural
+ * pixels (unrotated), so the calibration survives rotation and mirroring.
+ */
+export interface MapGrid {
+  /** Width of one grid square */
+  cell: number;
+  /** Position of a grid line, in 0..cell */
+  offsetX: number;
+  offsetY: number;
+  /** Feet one square stands for, usually 5 */
+  feetPerCell: number;
+}
+
+/** A movable circle (aura or spell area), in map natural pixels and feet. */
+export interface AuraCircle {
+  id: string;
+  x: number;
+  y: number;
+  radiusFt: number;
+  kind: EffectKind;
 }
 
 /**
@@ -62,6 +97,9 @@ export interface MapEntryMeta {
   mirrorVertical: boolean;
   /** Whether a fog mask has been saved for this map */
   hasFog: boolean;
+  /** The map's measured grid, or null until it is calibrated */
+  grid: MapGrid | null;
+  circles: AuraCircle[];
   /** Epoch ms when the map was added */
   addedAt: number;
 }
@@ -85,6 +123,8 @@ export interface LibrarySettings {
   gridSize: number;
   /** Custom map order; maps not listed are shown newest first above it */
   mapOrder?: string[];
+  /** Whether the Effects tool and circles appear in the toolbar */
+  showEffectTools: boolean;
 }
 
 /** The library plus settings, as returned on startup. */

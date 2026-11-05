@@ -7,9 +7,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Maximize2, Minimize2, X } from 'lucide-react';
-import type { FogStroke, MapState } from '../types/map';
-import { drawSnapshot, drawStroke, fillMask, fogMaskSize, loadImage } from '../lib/fog';
+import type { MapState } from '../types/map';
+import { drawSnapshot, fillMask, fogMaskSize, loadImage } from '../lib/fog';
 import { EFFECT_OPACITY, showLayer } from '../lib/effects';
+import { AuraDiscs } from './AuraDiscs';
 import type { Size } from '../lib/geometry';
 
 const PLAYER_FOG_COLOR = '#000000';
@@ -27,6 +28,7 @@ const INITIAL_STATE: MapState = {
   handoutUrl: null,
   handoutRotation: 0,
   blackout: false,
+  circles: [],
 };
 
 export function PlayerScreen() {
@@ -48,10 +50,8 @@ export function PlayerScreen() {
   const latestFogRef = useRef<string | null>(null);
   const currentMediaUrlRef = useRef<string | null>(null);
   // Snapshots decode asynchronously. Each gets a sequence number so a stale one
-  // that finishes late is ignored, and strokes that arrive while one decodes
-  // are replayed on top of it (IPC is ordered, so they are newer).
+  // that finishes late is ignored.
   const snapshotSeqRef = useRef(0);
-  const strokesDuringDecodeRef = useRef<FogStroke[] | null>(null);
   // Painted effects: the latest layer for the current map (null: none)
   const effectsCanvasRef = useRef<HTMLCanvasElement>(null);
   const latestEffectsRef = useRef<string | null>(null);
@@ -64,25 +64,16 @@ export function PlayerScreen() {
     return canvas && canvas.width > 0 ? canvas.getContext('2d') : null;
   };
 
-  const paintStroke = (stroke: FogStroke) => {
-    const ctx = fogContext();
-    if (ctx && mediaSizeRef.current) drawStroke(ctx, stroke, mediaSizeRef.current, PLAYER_FOG_COLOR);
-  };
-
+  // The DM's whole stroke arrives as one snapshot, so a room is revealed at once
   const applySnapshot = async (dataUrl: string) => {
     if (!fogContext()) return;
     const seq = ++snapshotSeqRef.current;
-    strokesDuringDecodeRef.current = [];
     try {
       const image = await loadImage(dataUrl);
       const ctx = fogContext();
-      if (seq !== snapshotSeqRef.current || !ctx) return;
-      drawSnapshot(ctx, image, PLAYER_FOG_COLOR);
-      const replay = strokesDuringDecodeRef.current ?? [];
-      strokesDuringDecodeRef.current = null;
-      replay.forEach(paintStroke);
+      if (seq === snapshotSeqRef.current && ctx) drawSnapshot(ctx, image, PLAYER_FOG_COLOR);
     } catch {
-      if (seq === snapshotSeqRef.current) strokesDuringDecodeRef.current = null;
+      // A damaged snapshot: keep showing the previous fog
     }
   };
 
@@ -164,13 +155,8 @@ export function PlayerScreen() {
     })();
     const unsubscribe = [
       api?.onMapState(receiveState),
-      api?.onFogStroke((stroke) => {
-        paintStroke(stroke);
-        strokesDuringDecodeRef.current?.push(stroke);
-      }),
       api?.onFogReset(() => {
         snapshotSeqRef.current += 1;
-        strokesDuringDecodeRef.current = null;
         latestFogRef.current = null;
         const ctx = fogContext();
         if (ctx) fillMask(ctx, PLAYER_FOG_COLOR);
@@ -326,7 +312,7 @@ export function PlayerScreen() {
                 style={mediaSize ? { width: mediaSize.w, height: mediaSize.h } : undefined}
               />
             )}
-            {/* Draw order: map, effects, fog, so effects never show through unrevealed areas */}
+            {/* Draw order: map, effects, circles, fog, so neither shows through unrevealed areas */}
             <canvas
               ref={effectsCanvasRef}
               // 0×0 until a layer arrives (a bare canvas would allocate 300×150)
@@ -335,6 +321,7 @@ export function PlayerScreen() {
               className="pointer-events-none absolute inset-0 h-full w-full"
               style={{ opacity: EFFECT_OPACITY }}
             />
+            <AuraDiscs discs={state.circles} media={mediaSize} />
             <canvas ref={fogCanvasRef} className="pointer-events-none absolute inset-0 h-full w-full" />
           </div>
         </div>

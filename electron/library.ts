@@ -7,9 +7,11 @@ import type {
   LibrarySettings,
   LibrarySnapshot,
   MapEntryMeta,
+  MapGrid,
   MapView,
   ProjectImportSummary,
 } from '../src/types/map';
+import { normalizeCircles, normalizeGrid } from '../src/lib/grid';
 
 // ─── On-disk map library ──────────────────────────────────────────────────────
 //
@@ -124,6 +126,8 @@ async function readIndex(): Promise<IndexShape> {
             rotation: normalizedRotation % 90 === 0 ? normalizedRotation : 0,
             mirrorHorizontal: m.mirrorHorizontal === true,
             mirrorVertical: m.mirrorVertical === true,
+            grid: normalizeGrid(m.grid),
+            circles: normalizeCircles(m.circles),
           };
         }),
     };
@@ -202,6 +206,7 @@ function normalizeSettings(stored: unknown): LibrarySettings {
     currentMapId,
     playerScreenDiagonal: toPositiveNumber(raw.playerScreenDiagonal ?? raw.playerViewDiagonal),
     gridSize: toPositiveNumber(raw.gridSize) ?? DEFAULT_SETTINGS.gridSize,
+    showEffectTools: raw.showEffectTools !== false,
     ...(mapOrder ? { mapOrder } : {}),
   };
 }
@@ -210,6 +215,7 @@ const DEFAULT_SETTINGS: LibrarySettings = {
   currentMapId: null,
   playerScreenDiagonal: null,
   gridSize: 1,
+  showEffectTools: true,
 };
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -388,6 +394,8 @@ export async function addMap(sourcePath: string): Promise<AddMapResult | null> {
     mirrorHorizontal: false,
     mirrorVertical: false,
     hasFog: false,
+    grid: null,
+    circles: [],
     addedAt: Date.now(),
   };
   await mutateIndex((index) => {
@@ -519,6 +527,20 @@ export async function saveMapView(id: string, view: MapView): Promise<boolean> {
     map.rotation = normalizeRotation(rotation);
     map.mirrorHorizontal = mirrorHorizontal === true;
     map.mirrorVertical = mirrorVertical === true;
+    if (Array.isArray(view.circles)) map.circles = normalizeCircles(view.circles);
+    return true;
+  });
+}
+
+/** Save a map's measured grid; null removes the calibration. */
+export async function saveMapGrid(id: string, grid: MapGrid | null): Promise<boolean> {
+  if (!SAFE_ID.test(id)) return false;
+  const clean = grid === null ? null : normalizeGrid(grid);
+  if (grid !== null && !clean) return false;
+  return mutateIndex((index) => {
+    const map = index.maps.find((m) => m.id === id);
+    if (!map) return false;
+    map.grid = clean;
     return true;
   });
 }
@@ -569,6 +591,7 @@ export async function saveSettings(patch: Partial<LibrarySettings>): Promise<boo
     else if (toPositiveNumber(diagonal) !== null) clean.playerScreenDiagonal = diagonal;
   }
   if (toPositiveNumber(patch.gridSize) !== null) clean.gridSize = patch.gridSize;
+  if (typeof patch.showEffectTools === 'boolean') clean.showEffectTools = patch.showEffectTools;
   if (Object.keys(clean).length === 0) return false;
   await mutateIndex((index) => {
     index.settings = { ...index.settings, ...clean };
@@ -620,6 +643,8 @@ interface ProjectMapRecord {
   rotation: number;
   mirrorHorizontal: boolean;
   mirrorVertical: boolean;
+  grid?: MapGrid | null;
+  circles?: MapEntryMeta['circles'];
   media: BlobRef;
   thumb?: BlobRef;
   fog?: BlobRef;
@@ -746,6 +771,8 @@ export async function exportProject(destPath: string): Promise<{ maps: number; h
       rotation: map.rotation,
       mirrorHorizontal: map.mirrorHorizontal,
       mirrorVertical: map.mirrorVertical,
+      grid: map.grid,
+      circles: map.circles,
       media,
       ...(thumb ? { thumb } : {}),
       ...(fog ? { fog } : {}),
@@ -942,6 +969,9 @@ export async function importProject(sourcePath: string): Promise<ProjectImportSu
         mirrorHorizontal: record.mirrorHorizontal === true,
         mirrorVertical: record.mirrorVertical === true,
         hasFog: !!fog,
+        // Optional fields: files from before calibration simply have none
+        grid: normalizeGrid(record.grid),
+        circles: normalizeCircles(record.circles),
         addedAt: now,
       });
     }

@@ -8,6 +8,15 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- Aura circles: soft discs sized in feet for auras and spell areas (Effects
+  tool, then Circle). Drag the centre dot to move it freely (Alt snaps to
+  square centres), scroll over it to resize in 5 ft steps (Shift: 1
+  ft), duplicate, recolour or delete. The DM sees the radius; players see
+  only the disc, under the fog. Saved per map and in project files.
+- Measure map grid (Settings): click two corners of a grid square, or of a
+  block of squares, and check the previewed grid. Stored per map, so feet
+  match each map's own scale.
+- Settings → Show effect tools hides the Effects tool and circles.
 - Effects tool (E): paint fire, poison or magic onto a map with soft
   edges; the right button erases, Clear removes them all, and Ctrl+Z undoes
   them separately from fog. Effects are drawn under the fog, saved per map,
@@ -31,6 +40,9 @@ All notable changes to this project are documented here. The format is based on
 
 ### Changed
 
+- Players see fog changes when the DM releases the mouse, not while the brush
+  moves, so a room is revealed all at once. A dragged circle likewise appears
+  where it is dropped. This also removes the per-move fog messages.
 - New look: warm stone colours, gold for the active tool, crimson for what
   players can see, a teal player frame and indigo fog on the DM side. IBM
   Plex Sans and Cinzel are bundled, so the app stays fully offline.

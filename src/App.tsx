@@ -4,13 +4,16 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
+  AuraCircle,
   EffectKind,
   HandoutMeta,
   ImportResult,
   MapEntryMeta,
+  MapGrid,
   MapPan,
   MapView,
   MediaType,
+  Point,
 } from './types/map';
 import { MapLibraryPanel, type OrientationChange } from './components/MapLibraryPanel';
 import { MapStage, type Tool } from './components/MapStage';
@@ -19,10 +22,21 @@ import { PlayerSetupDialog, ShortcutsDialog, screenDimensions } from './componen
 import { useFog } from './hooks/useFog';
 import { useEffectLayer } from './hooks/useEffectLayer';
 import { clamp, clampZoom, orientedSize, type Size } from './lib/geometry';
+import {
+  DEFAULT_FEET_PER_CELL,
+  MAX_CIRCLES,
+  clampRadius,
+  gridFromCorners,
+  newCircleId,
+  toDiscs,
+} from './lib/grid';
+import { GridCalibrationBar, type Calibration } from './components/GridCalibrationBar';
 import { Button } from './ui/controls';
 import { NotificationHost, confirmAction, notify } from './ui/notify';
 
 const VIEW_SAVE_DELAY_MS = 400;
+/** Radius of a new circle: Spirit Guardians and most auras */
+const DEFAULT_CIRCLE_FT = 15;
 
 /** Pan and fog to apply once the map being loaded has finished loading. */
 interface PendingRestore {
@@ -69,6 +83,15 @@ export function App() {
   const fog = useFog();
   const effects = useEffectLayer();
   const [effectKind, setEffectKind] = useState<EffectKind>('fire');
+  const [showEffectTools, setShowEffectTools] = useState(true);
+
+  // ─── Grid and circles (per map) ─────────────────────────────────────────────
+  const [grid, setGrid] = useState<MapGrid | null>(null);
+  const [circles, setCircles] = useState<AuraCircle[]>([]);
+  // While the DM drags a circle, players keep seeing it where it was
+  const [playerCircles, setPlayerCircles] = useState<AuraCircle[] | null>(null);
+  const [selectedCircleId, setSelectedCircleId] = useState<string | null>(null);
+  const [calibration, setCalibration] = useState<Calibration | null>(null);
 
   // ─── Player screen ──────────────────────────────────────────────────────────
   const [playerOpen, setPlayerOpen] = useState(false);
@@ -121,6 +144,30 @@ export function App() {
   );
 
   const frameSize = viewportSize ? { w: viewportSize.w / zoom, h: viewportSize.h / zoom } : null;
+
+  // ─── Circles ────────────────────────────────────────────────────────────────
+  //
+  // Dragging and wheel-resizing update the ref on every event; React renders
+  // (and the player screen is updated) at most once per animation frame.
+
+  const circlesRef = useRef<AuraCircle[]>([]);
+  const circlesFrameRequest = useRef<number | null>(null);
+
+  const updateCircles = useCallback((change: (current: AuraCircle[]) => AuraCircle[]) => {
+    circlesRef.current = change(circlesRef.current);
+    if (circlesFrameRequest.current === null) {
+      circlesFrameRequest.current = requestAnimationFrame(() => {
+        circlesFrameRequest.current = null;
+        setCircles(circlesRef.current);
+      });
+    }
+  }, []);
+
+  const replaceCircles = (next: AuraCircle[]) => {
+    circlesRef.current = next;
+    setCircles(next);
+    setPlayerCircles(null);
+  };
 
   const constrainPan = useCallback(
     (next: MapPan): MapPan => {
@@ -176,14 +223,14 @@ export function App() {
 
   useEffect(() => {
     if (!currentMapId || restoringRef.current) return;
-    const view: MapView = { zoom, pan, rotation, mirrorHorizontal, mirrorVertical };
+    const view: MapView = { zoom, pan, rotation, mirrorHorizontal, mirrorVertical, circles };
     if (pendingViewSave.current) window.clearTimeout(pendingViewSave.current.timer);
     const timer = window.setTimeout(() => {
       pendingViewSave.current = null;
       saveView(currentMapId, view);
     }, VIEW_SAVE_DELAY_MS);
     pendingViewSave.current = { id: currentMapId, view, timer };
-  }, [currentMapId, zoom, pan, rotation, mirrorHorizontal, mirrorVertical, saveView]);
+  }, [currentMapId, zoom, pan, rotation, mirrorHorizontal, mirrorVertical, circles, saveView]);
 
   useEffect(() => {
     window.addEventListener('beforeunload', flushViewSave);
@@ -228,6 +275,10 @@ export function App() {
       setRotation(meta.rotation);
       setMirrorHorizontal(meta.mirrorHorizontal);
       setMirrorVertical(meta.mirrorVertical);
+      setGrid(meta.grid);
+      replaceCircles(meta.circles);
+      setSelectedCircleId(null);
+      setCalibration(null);
       setMediaUrl(url);
     },
     [api, flushViewSave],
@@ -268,6 +319,7 @@ export function App() {
       if (snapshot) {
         setScreenDiagonal(snapshot.settings.playerScreenDiagonal);
         setGridSize(snapshot.settings.gridSize);
+        setShowEffectTools(snapshot.settings.showEffectTools);
         const last = snapshot.maps.find((entry) => entry.id === snapshot.settings.currentMapId);
         if (last) await loadMap(last);
       }
@@ -357,6 +409,10 @@ export function App() {
       applyPan(null, null);
       api?.sendFogReset();
       effects.release();
+      setGrid(null);
+      replaceCircles([]);
+      setSelectedCircleId(null);
+      setCalibration(null);
     }
   };
 
@@ -482,8 +538,22 @@ export function App() {
       handoutUrl: activeHandout?.url ?? null,
       handoutRotation: activeHandout?.rotation ?? 0,
       blackout,
+      circles: toDiscs(playerCircles ?? circles, grid),
     });
-  }, [api, mediaUrl, mediaType, zoom, rotation, mirrorHorizontal, mirrorVertical, activeHandout, blackout]);
+  }, [
+    api,
+    mediaUrl,
+    mediaType,
+    zoom,
+    rotation,
+    mirrorHorizontal,
+    mirrorVertical,
+    activeHandout,
+    blackout,
+    circles,
+    playerCircles,
+    grid,
+  ]);
 
   const handleOpenPlayer = async () => {
     await api?.openPlayerWindow();
@@ -524,6 +594,159 @@ export function App() {
     if (confirmed) fog.revealAll();
   };
 
+  // ─── Grid calibration ───────────────────────────────────────────────────────
+
+  const startCalibration = () => {
+    if (!mediaUrl) return;
+    setSelectedCircleId(null);
+    setCalibration({ points: [], squares: '1', feet: String(grid?.feetPerCell ?? DEFAULT_FEET_PER_CELL) });
+  };
+
+  const calibrationPreview = calibration
+    ? calibration.points.length === 2
+      ? gridFromCorners(
+          calibration.points[0],
+          calibration.points[1],
+          parseFloat(calibration.squares),
+          parseFloat(calibration.feet),
+        )
+      : null
+    : null;
+
+  const handleCalibrationPoint = (point: Point) =>
+    setCalibration((current) =>
+      current
+        ? { ...current, points: current.points.length >= 2 ? [point] : [...current.points, point] }
+        : current,
+    );
+
+  const saveGrid = async (next: MapGrid | null) => {
+    if (!currentMapId) return;
+    if (!(await api?.saveMapGrid(currentMapId, next))) {
+      notify('Couldn’t save the grid.', 'error');
+      return;
+    }
+    setGrid(next);
+    setMaps((entries) =>
+      entries.map((entry) => (entry.id === currentMapId ? { ...entry, grid: next } : entry)),
+    );
+    setCalibration(null);
+    notify(next ? 'Grid saved for this map' : 'Grid removed from this map');
+  };
+
+  // ─── Circle actions ─────────────────────────────────────────────────────────
+
+  /** A point in rotated-map coordinates (like the pan) → map natural pixels. */
+  const orientedToMap = (point: Point, media: Size): Point => {
+    const oriented = orientedSize(media, rotation);
+    let x = point.x - oriented.w / 2;
+    let y = point.y - oriented.h / 2;
+    if (rotation === 90) [x, y] = [y, -x];
+    else if (rotation === 180) [x, y] = [-x, -y];
+    else if (rotation === 270) [x, y] = [-y, x];
+    if (mirrorHorizontal) x = -x;
+    if (mirrorVertical) y = -y;
+    return { x: x + media.w / 2, y: y + media.h / 2 };
+  };
+
+  const handleAddCircle = () => {
+    if (!mediaSize) return;
+    if (!grid) {
+      notify('Measure the map’s grid first, so circles can be sized in feet.');
+      startCalibration();
+      return;
+    }
+    if (circlesRef.current.length >= MAX_CIRCLES) {
+      notify(`A map can have at most ${MAX_CIRCLES} circles.`, 'error');
+      return;
+    }
+    // In the middle of what the players see, or of the map
+    const center =
+      pan && frameSize
+        ? orientedToMap({ x: pan.x + frameSize.w / 2, y: pan.y + frameSize.h / 2 }, mediaSize)
+        : { x: mediaSize.w / 2, y: mediaSize.h / 2 };
+    const circle: AuraCircle = {
+      id: newCircleId(),
+      ...center,
+      radiusFt: DEFAULT_CIRCLE_FT,
+      kind: effectKind,
+    };
+    replaceCircles([...circlesRef.current, circle]);
+    setSelectedCircleId(circle.id);
+  };
+
+  // Players see the circle jump to where it is dropped, not slide across the map
+  const handleCircleDrag = useCallback((dragging: boolean) => {
+    if (dragging) {
+      setPlayerCircles(circlesRef.current);
+      return;
+    }
+    // Render the drop position now rather than on the pending frame
+    if (circlesFrameRequest.current !== null) {
+      cancelAnimationFrame(circlesFrameRequest.current);
+      circlesFrameRequest.current = null;
+    }
+    setCircles(circlesRef.current);
+    setPlayerCircles(null);
+  }, []);
+
+  const handleMoveCircle = useCallback(
+    (id: string, center: Point) =>
+      updateCircles((current) =>
+        current.map((circle) => (circle.id === id ? { ...circle, ...center } : circle)),
+      ),
+    [updateCircles],
+  );
+
+  const handleResizeCircle = useCallback(
+    (id: string, notches: number, fine: boolean) => {
+      const step = fine ? 1 : 5;
+      updateCircles((current) =>
+        current.map((circle) => {
+          if (circle.id !== id) return circle;
+          // Grow or shrink to the next multiple of the step, one step per notch
+          let radius = circle.radiusFt;
+          for (let i = 0; i < Math.abs(notches); i++) {
+            radius =
+              notches > 0 ? Math.floor(radius / step) * step + step : Math.ceil(radius / step) * step - step;
+          }
+          return { ...circle, radiusFt: clampRadius(Math.max(step, radius)) };
+        }),
+      );
+    },
+    [updateCircles],
+  );
+
+  const handleDuplicateCircle = (id: string) => {
+    const source = circlesRef.current.find((circle) => circle.id === id);
+    if (!source || !grid) return;
+    if (circlesRef.current.length >= MAX_CIRCLES) {
+      notify(`A map can have at most ${MAX_CIRCLES} circles.`, 'error');
+      return;
+    }
+    const copy = { ...source, id: newCircleId(), x: source.x + grid.cell };
+    replaceCircles([...circlesRef.current, copy]);
+    setSelectedCircleId(copy.id);
+  };
+
+  const handleDeleteCircle = useCallback((id: string) => {
+    replaceCircles(circlesRef.current.filter((circle) => circle.id !== id));
+    setSelectedCircleId((selected) => (selected === id ? null : selected));
+  }, []);
+
+  const handleRecolorCircle = (id: string, kind: EffectKind) =>
+    replaceCircles(circlesRef.current.map((circle) => (circle.id === id ? { ...circle, kind } : circle)));
+
+  const handleToggleEffectTools = () => {
+    const next = !showEffectTools;
+    setShowEffectTools(next);
+    if (!next) {
+      setSelectedCircleId(null);
+      setTool((current) => (current === 'effect' ? 'frame' : current));
+    }
+    void api?.saveSettings({ showEffectTools: next });
+  };
+
   // ─── Keyboard ───────────────────────────────────────────────────────────────
 
   const resizeBrush = useCallback(
@@ -533,15 +756,40 @@ export function App() {
 
   // Undo and redo apply to the layer of the active tool
   const history = tool === 'effect' ? effects : fog;
-  const shortcutState = useRef({ hasMap: false, history });
-  shortcutState.current = { hasMap: !!mediaUrl, history };
+  const shortcutState = useRef({
+    hasMap: false,
+    history,
+    showEffectTools,
+    selectedCircleId,
+    calibrating: false,
+    deleteCircle: handleDeleteCircle,
+  });
+  shortcutState.current = {
+    hasMap: !!mediaUrl,
+    history,
+    showEffectTools,
+    selectedCircleId,
+    calibrating: !!calibration,
+    deleteCircle: handleDeleteCircle,
+  };
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Shift') setShiftHeld(true);
       if (isTypingTarget(event.target) || document.querySelector('[role="dialog"]')) return;
-      const { hasMap, history: currentHistory } = shortcutState.current;
+      const current = shortcutState.current;
+      const { hasMap, history: currentHistory } = current;
       const key = event.key.toLowerCase();
+      if (event.key === 'Escape') {
+        if (current.calibrating) setCalibration(null);
+        else setSelectedCircleId(null);
+        return;
+      }
+      if ((event.key === 'Delete' || event.key === 'Backspace') && current.selectedCircleId) {
+        event.preventDefault();
+        current.deleteCircle(current.selectedCircleId);
+        return;
+      }
       if (event.ctrlKey || event.metaKey) {
         if (key === 'z' && !event.shiftKey) currentHistory.undo();
         else if (key === 'y' || (key === 'z' && event.shiftKey)) currentHistory.redo();
@@ -555,7 +803,7 @@ export function App() {
         setSpaceHeld(true);
       } else if (key === 'v') setTool('frame');
       else if (key === 'f' && hasMap) setTool('fog');
-      else if (key === 'e' && hasMap) setTool('effect');
+      else if (key === 'e' && hasMap && current.showEffectTools) setTool('effect');
       else if (key === 'b') setBlackout((value) => !value);
     };
     const onKeyUp = (event: KeyboardEvent) => {
@@ -625,6 +873,10 @@ export function App() {
           onEffectKindChange={setEffectKind}
           canClearEffects={!effects.isEmpty}
           onClearEffects={effects.clear}
+          onAddCircle={handleAddCircle}
+          showEffectTools={showEffectTools}
+          onToggleEffectTools={handleToggleEffectTools}
+          onCalibrateGrid={startCalibration}
           onRevealAll={handleRevealAll}
           onCoverAll={fog.coverAll}
           zoom={zoom}
@@ -660,6 +912,18 @@ export function App() {
           </div>
         )}
 
+        {calibration && (
+          <GridCalibrationBar
+            calibration={calibration}
+            preview={calibrationPreview}
+            hasGrid={!!grid}
+            onChange={setCalibration}
+            onSave={() => calibrationPreview && void saveGrid(calibrationPreview)}
+            onRemove={() => void saveGrid(null)}
+            onCancel={() => setCalibration(null)}
+          />
+        )}
+
         <MapStage
           mediaUrl={mediaUrl}
           mediaType={mediaType}
@@ -683,6 +947,25 @@ export function App() {
           constrainPan={constrainPan}
           onPanChange={(next) => applyPan(next, frameSize)}
           onZoomWheel={(factor) => setZoom((current) => clampZoom(current * factor))}
+          grid={grid}
+          gridPreview={calibrationPreview}
+          circles={circles}
+          selectedCircleId={selectedCircleId}
+          circlesInteractive={
+            showEffectTools &&
+            !calibration &&
+            !shiftHeld &&
+            (spaceHeld || tool === 'frame' || tool === 'effect')
+          }
+          onSelectCircle={setSelectedCircleId}
+          onCircleDrag={handleCircleDrag}
+          onMoveCircle={handleMoveCircle}
+          onResizeCircle={handleResizeCircle}
+          onDuplicateCircle={handleDuplicateCircle}
+          onDeleteCircle={handleDeleteCircle}
+          onRecolorCircle={handleRecolorCircle}
+          calibrationPoints={calibration?.points ?? null}
+          onCalibrationPoint={handleCalibrationPoint}
         />
       </div>
 

@@ -5,7 +5,7 @@
 //   right   player screen status, blackout, and the settings menu
 
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Minus, Plus, Redo2, Settings, Undo2 } from 'lucide-react';
+import { ChevronDown, CircleDashed, Minus, Plus, Redo2, Settings, Undo2 } from 'lucide-react';
 import { Button, ButtonGroup, Divider, inputClass } from '../ui/controls';
 import { Menu } from '../ui/Menu';
 import { clampZoom, MAX_ZOOM, MIN_ZOOM, stepZoom } from '../lib/geometry';
@@ -31,6 +31,12 @@ interface ToolbarProps {
   onEffectKindChange: (kind: EffectKind) => void;
   canClearEffects: boolean;
   onClearEffects: () => void;
+  /** Adds an aura circle (asks for the grid first if the map has none) */
+  onAddCircle: () => void;
+  /** Whether the Effects tool and circles are offered at all */
+  showEffectTools: boolean;
+  onToggleEffectTools: () => void;
+  onCalibrateGrid: () => void;
   onRevealAll: () => void;
   onCoverAll: () => void;
 
@@ -75,15 +81,17 @@ export function Toolbar(props: ToolbarProps) {
         >
           Fog
         </Button>
-        <Button
-          tone={tool === 'effect' ? 'active' : 'default'}
-          aria-pressed={tool === 'effect'}
-          onClick={() => props.onToolChange('effect')}
-          disabled={!hasMap}
-          title="Paint effects such as fire or poison (E): Left Mouse button paints, Right mouse button erases"
-        >
-          Effects
-        </Button>
+        {props.showEffectTools && (
+          <Button
+            tone={tool === 'effect' ? 'active' : 'default'}
+            aria-pressed={tool === 'effect'}
+            onClick={() => props.onToolChange('effect')}
+            disabled={!hasMap}
+            title="Paint effects such as fire or poison and place aura circles (E): Left Mouse button paints, Right mouse button erases"
+          >
+            Effects
+          </Button>
+        )}
       </ButtonGroup>
 
       <label
@@ -148,6 +156,13 @@ export function Toolbar(props: ToolbarProps) {
           >
             Clear
           </Button>
+          <Button
+            onClick={props.onAddCircle}
+            title="Add a circle for an aura or spell area, sized in feet. Drag its centre dot to move it; mouse wheel over it resizes."
+          >
+            <CircleDashed className="h-4 w-4" />
+            Circle
+          </Button>
         </>
       ) : (
         <Menu
@@ -205,6 +220,8 @@ export function Toolbar(props: ToolbarProps) {
         items={[
           { label: 'Player screen setup…', onSelect: props.onOpenPlayerSetup },
           { label: 'Keyboard shortcuts…', onSelect: props.onOpenShortcuts },
+          { label: 'Measure map grid…', onSelect: props.onCalibrateGrid, disabled: !hasMap, separated: true },
+          { label: 'Show effect tools', onSelect: props.onToggleEffectTools, checked: props.showEffectTools },
           { label: 'Export project…', onSelect: props.onExportProject, separated: true },
           { label: 'Import project…', onSelect: props.onImportProject },
           { label: 'Open library folder', onSelect: props.onRevealLibraryFolder },

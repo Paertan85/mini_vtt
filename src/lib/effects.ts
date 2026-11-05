@@ -30,6 +30,16 @@ export const EFFECT_STYLES: Record<EffectKind, EffectStyle> = {
 
 export const EFFECT_KINDS = Object.keys(EFFECT_STYLES) as EffectKind[];
 
+/** Largest edge blur, in layer pixels (about a tenth of a typical square). */
+const MAX_EDGE_SOFTNESS = 3;
+
+/**
+ * Blur for a brush of `radius` layer pixels. Kept narrow, so the paint stays
+ * solid up to where it was painted and it's clear which squares it covers;
+ * the edge is only softened enough not to look pixelated.
+ */
+export const edgeSoftness = (radius: number) => Math.max(0.5, Math.min(MAX_EDGE_SOFTNESS, radius * 0.1));
+
 /** Layer resolution for a map of the given size. */
 export function effectMaskSize(media: Size): { width: number; height: number } {
   const scale = Math.min(1, MAX_EFFECT_EDGE / Math.max(media.w, media.h));

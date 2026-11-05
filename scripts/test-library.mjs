@@ -43,6 +43,7 @@ app.whenReady().then(async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'minivtt-test-'));
   app.setPath('userData', tmp);
   const lib = await import('../dist-electron/library.test.mjs');
+  const gridLib = await import('../dist-electron/grid.test.mjs');
   const fixtures = path.join(tmp, 'fixtures');
   await fs.mkdir(fixtures, { recursive: true });
   const fixture = async (name, bytes) => {
@@ -243,6 +244,62 @@ app.whenReady().then(async () => {
     const letter = await lib.addHandout(await fixture('letter2.png', makePng({ width: 120, height: 60 })));
     await lib.rotateHandout(letter.id, 90);
     await lib.saveSettings({ playerScreenDiagonal: 43, gridSize: 2.5 });
+    // ── Grid calibration and circles ─────────────────────────────────────────
+    const measured = gridLib.gridFromCorners({ x: 110, y: 60 }, { x: 410, y: 360 }, 3, 5);
+    check(
+      'a grid is measured from two diagonal corners',
+      measured?.cell === 100 && measured.offsetX === 10 && measured.offsetY === 60,
+      JSON.stringify(measured),
+    );
+    check(
+      'a grid is measured from corners along one line',
+      gridLib.gridFromCorners({ x: 0, y: 5 }, { x: 250, y: 8 }, 5, 5)?.cell === 50,
+    );
+    check(
+      'snapping lands on the centre of the square',
+      JSON.stringify(gridLib.snapToCell({ x: 130, y: 99 }, measured)) === JSON.stringify({ x: 160, y: 110 }),
+    );
+    check('feet convert to pixels', gridLib.feetToPixels(15, measured) === 300);
+    check('a zero-size grid is rejected', gridLib.normalizeGrid({ cell: 0, feetPerCell: 5 }) === null);
+
+    check('a new map has no grid or circles', c.entry.grid === null && c.entry.circles.length === 0);
+    check('saveMapGrid stores the grid', (await lib.saveMapGrid(c.entry.id, measured)) === true);
+    check(
+      'saveMapGrid rejects an invalid grid',
+      (await lib.saveMapGrid(c.entry.id, { cell: -4, offsetX: 0, offsetY: 0, feetPerCell: 5 })) === false,
+    );
+    const goodCircle = { id: 'c1', x: 160, y: 110, radiusFt: 15, kind: 'magic' };
+    await lib.saveMapView(c.entry.id, {
+      zoom: 1,
+      pan: null,
+      rotation: 0,
+      mirrorHorizontal: false,
+      mirrorVertical: false,
+      circles: [
+        goodCircle,
+        { id: 'c1', x: 1, y: 1, radiusFt: 5, kind: 'fire' }, // duplicate id
+        { id: '../x', x: 1, y: 1, radiusFt: 5, kind: 'fire' }, // unsafe id
+        { id: 'c2', x: 1, y: 1, radiusFt: 5, kind: 'lava' }, // unknown kind
+        { id: 'c3', x: 1, y: 1, radiusFt: 9999, kind: 'poison' }, // clamped
+      ],
+    });
+    const calibrated = (await lib.loadSnapshot()).maps.find((m) => m.id === c.entry.id);
+    check('the grid persists', calibrated.grid?.cell === 100, JSON.stringify(calibrated.grid));
+    check(
+      'circles persist, invalid ones are dropped and radii clamped',
+      calibrated.circles.length === 2 &&
+        calibrated.circles[0].id === 'c1' &&
+        calibrated.circles[1].radiusFt === gridLib.MAX_RADIUS_FT,
+      JSON.stringify(calibrated.circles),
+    );
+    check(
+      'effect tools are shown by default and can be hidden',
+      (await lib.loadSnapshot()).settings.showEffectTools === true &&
+        (await lib.saveSettings({ showEffectTools: false })) === true &&
+        (await lib.loadSnapshot()).settings.showEffectTools === false,
+    );
+    await lib.saveSettings({ showEffectTools: true });
+
     // Effects: optional per-map layer, saved as PNG, removed again with null
     const effectsUrl = `data:image/png;base64,${makePng({ width: 32, height: 32, rgb: [255, 100, 20] }).toString('base64')}`;
     check('a map starts without effects', (await lib.loadMapEffects(c.entry.id)) === null);
@@ -304,6 +361,11 @@ app.whenReady().then(async () => {
     check(
       'effects travel with the project',
       (await lib.loadMapEffects(second.id)) === effectsUrl && (await lib.loadMapEffects(first.id)) === null,
+    );
+    check(
+      'grid and circles travel with the project',
+      second.grid?.cell === 100 && second.circles.length === 2 && first.grid === null,
+      JSON.stringify({ grid: second.grid, circles: second.circles.length }),
     );
     check('map media resolves', !!(await lib.resolveMapMediaPath(second.id)));
     check('map thumbnail is kept', !!(await lib.loadMapThumb(second.id)));
