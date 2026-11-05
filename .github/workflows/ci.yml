@@ -27,14 +27,14 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # The version to release when run by hand with a tag; otherwise what was pushed
           ref: ${{ inputs.release_tag }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - run: npm ci
@@ -63,7 +63,7 @@ jobs:
 
       - name: Upload the AppImage
         if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mini-vtt-linux
           path: release/*.AppImage
@@ -72,13 +72,13 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.release_tag }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - run: npm ci
@@ -94,14 +94,17 @@ jobs:
 
       # GitHub's Windows machines run as administrator, so electron-builder can
       # unpack its own tools and put the icon on the app's exe itself (local
-      # builds without Developer Mode rely on scripts/patch-icon.cjs instead)
+      # builds without Developer Mode rely on scripts/patch-icon.cjs instead).
+      # Bash, not the default PowerShell: PowerShell splits the -c.win... option
+      # at its first dot.
       - name: Build the installer and portable exe (unsigned)
         if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+        shell: bash
         run: npx electron-builder --win --publish never -c.win.signAndEditExecutable=true
 
       - name: Upload them
         if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mini-vtt-windows
           path: release/*.exe
@@ -112,13 +115,13 @@ jobs:
   mac:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.release_tag }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - run: npm ci
@@ -140,7 +143,7 @@ jobs:
 
       - name: Upload the .dmg
         if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mini-vtt-mac
           path: release/*.dmg
@@ -156,11 +159,11 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.release_tag }}
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: installers
           merge-multiple: true

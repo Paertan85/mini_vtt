@@ -31,7 +31,12 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const results = [];
 const check = (name, pass, detail = '') => {
   results.push(pass);
-  console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`);
+  const line = `${name}${detail ? ` — ${detail}` : ''}`;
+  console.log(`${pass ? 'PASS' : 'FAIL'}  ${line}`);
+  // On GitHub, a failed check is also named in the run's summary
+  if (!pass && process.env.GITHUB_ACTIONS) {
+    console.log(`::error title=App test failed::${line.replace(/%/g, '%25').replace(/\r?\n/g, '%0A')}`);
+  }
 };
 
 /** A solid grey RGB PNG, built by hand so seeding can run before `ready`. */

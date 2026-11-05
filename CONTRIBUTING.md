@@ -15,7 +15,7 @@ planned or listed as an idea, or have been decided against, with the reason.
 
 ## Development setup
 
-You'll need Node.js 20 or newer.
+You'll need Node.js 22 or newer.
 
 ```bash
 npm install

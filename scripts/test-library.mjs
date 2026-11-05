@@ -15,7 +15,12 @@ import os from 'node:os';
 const results = [];
 const check = (name, pass, detail = '') => {
   results.push({ name, pass, detail });
-  console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`);
+  const line = `${name}${detail ? ` — ${detail}` : ''}`;
+  console.log(`${pass ? 'PASS' : 'FAIL'}  ${line}`);
+  // On GitHub, a failed check is also named in the run's summary
+  if (!pass && process.env.GITHUB_ACTIONS) {
+    console.log(`::error title=Library test failed::${line.replace(/%/g, '%25').replace(/\r?\n/g, '%0A')}`);
+  }
 };
 
 const exists = (p) =>
