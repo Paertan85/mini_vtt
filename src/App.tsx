@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
+  AreaShape,
   AuraCircle,
   EffectKind,
   HandoutMeta,
@@ -23,11 +24,14 @@ import { useFog } from './hooks/useFog';
 import { useEffectLayer } from './hooks/useEffectLayer';
 import { clamp, clampZoom, orientedSize, stepZoom, type Size } from './lib/geometry';
 import {
-  DEFAULT_FEET_PER_CELL,
-  MAX_CIRCLES,
   clampRadius,
+  DEFAULT_AREA_FT,
+  DEFAULT_FEET_PER_CELL,
+  DEFAULT_LINE_WIDTH_FT,
   gridFromCorners,
+  MAX_CIRCLES,
   newCircleId,
+  pixelsToFeet,
   toDiscs,
 } from './lib/grid';
 import { GridCalibrationBar, type Calibration } from './components/GridCalibrationBar';
@@ -36,7 +40,6 @@ import { NotificationHost, confirmAction, notify } from './ui/notify';
 
 const VIEW_SAVE_DELAY_MS = 400;
 /** Radius of a new circle: Spirit Guardians and most auras */
-const DEFAULT_CIRCLE_FT = 15;
 
 /** Pan and fog to apply once the map being loaded has finished loading. */
 interface PendingRestore {
@@ -657,17 +660,19 @@ export function App() {
     return { x: offset.x + media.w / 2, y: offset.y + media.h / 2 };
   };
 
-  const handleAddCircle = () => {
+  const handleAddCircle = (shape: AreaShape) => {
     if (!mediaSize) return;
     if (!grid) {
-      notify('Measure the map’s grid first, so circles can be sized in feet.');
+      notify('Measure the map’s grid first, so areas can be sized in feet.');
       startCalibration();
       return;
     }
     if (circlesRef.current.length >= MAX_CIRCLES) {
-      notify(`A map can have at most ${MAX_CIRCLES} circles.`, 'error');
+      notify(`A map can have at most ${MAX_CIRCLES} areas.`, 'error');
       return;
     }
+    // Cones and lines start pointing right on screen, whatever the map's orientation
+    const right = screenToMapDirection({ x: 1, y: 0 });
     // In the middle of what the players see, or of the map
     const center =
       pan && frameSize
@@ -676,8 +681,11 @@ export function App() {
     const circle: AuraCircle = {
       id: newCircleId(),
       ...center,
-      radiusFt: DEFAULT_CIRCLE_FT,
+      radiusFt: DEFAULT_AREA_FT[shape],
       kind: effectKind,
+      shape,
+      angle: ((Math.atan2(right.y, right.x) * 180) / Math.PI + 360) % 360,
+      widthFt: DEFAULT_LINE_WIDTH_FT,
     };
     replaceCircles([...circlesRef.current, circle]);
     setSelectedCircleId(circle.id);
@@ -706,23 +714,59 @@ export function App() {
     [updateCircles],
   );
 
+  /** The wheel: a line's width, any other template's size, in 5 ft steps. */
   const handleResizeCircle = useCallback(
     (id: string, notches: number) => {
       const step = 5;
+      // Grow or shrink to the next multiple of the step, one step per notch
+      const stepped = (value: number) => {
+        for (let i = 0; i < Math.abs(notches); i++) {
+          value =
+            notches > 0 ? Math.floor(value / step) * step + step : Math.ceil(value / step) * step - step;
+        }
+        return clampRadius(Math.max(step, value));
+      };
       updateCircles((current) =>
         current.map((circle) => {
           if (circle.id !== id) return circle;
-          // Grow or shrink to the next multiple of the step, one step per notch
-          let radius = circle.radiusFt;
-          for (let i = 0; i < Math.abs(notches); i++) {
-            radius =
-              notches > 0 ? Math.floor(radius / step) * step + step : Math.ceil(radius / step) * step - step;
-          }
-          return { ...circle, radiusFt: clampRadius(Math.max(step, radius)) };
+          return circle.shape === 'line'
+            ? { ...circle, widthFt: stepped(circle.widthFt) }
+            : { ...circle, radiusFt: stepped(circle.radiusFt) };
         }),
       );
     },
     [updateCircles],
+  );
+
+  const handleSetCircleWidth = useCallback(
+    (id: string, widthFt: number) =>
+      updateCircles((current) =>
+        current.map((circle) =>
+          circle.id === id ? { ...circle, widthFt: clampRadius(Math.round(widthFt)) } : circle,
+        ),
+      ),
+    [updateCircles],
+  );
+
+  /** Cones and lines: point the template at `point`; its length follows, in 5 ft steps. */
+  const handleAimCircle = useCallback(
+    (id: string, point: Point) => {
+      if (!grid) return;
+      updateCircles((current) =>
+        current.map((circle) => {
+          if (circle.id !== id) return circle;
+          const dx = point.x - circle.x;
+          const dy = point.y - circle.y;
+          const feet = pixelsToFeet(Math.hypot(dx, dy), grid);
+          return {
+            ...circle,
+            angle: ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360,
+            radiusFt: clampRadius(Math.max(5, Math.round(feet / 5) * 5)),
+          };
+        }),
+      );
+    },
+    [grid, updateCircles],
   );
 
   const handleDuplicateCircle = (id: string) => {
@@ -1075,6 +1119,8 @@ export function App() {
           onMoveCircle={handleMoveCircle}
           onResizeCircle={handleResizeCircle}
           onSetCircleRadius={handleSetCircleRadius}
+          onSetCircleWidth={handleSetCircleWidth}
+          onAimCircle={handleAimCircle}
           onDuplicateCircle={handleDuplicateCircle}
           onCopyCircleInPlace={handleCopyCircleInPlace}
           onDeleteCircle={handleDeleteCircle}

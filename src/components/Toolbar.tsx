@@ -20,7 +20,8 @@ import { Button, ButtonGroup, Divider, inputClass } from '../ui/controls';
 import { Menu } from '../ui/Menu';
 import { clampZoom, MAX_ZOOM, MIN_ZOOM, stepZoom } from '../lib/geometry';
 import type { Tool } from './MapStage';
-import type { EffectKind } from '../types/map';
+import type { AreaShape, EffectKind } from '../types/map';
+import { AREA_LABELS, AREA_SHAPES } from '../lib/grid';
 import { EFFECT_KINDS, EFFECT_STYLES } from '../lib/effects';
 
 export const MIN_BRUSH = 10;
@@ -42,7 +43,7 @@ interface ToolbarProps {
   canClearEffects: boolean;
   onClearEffects: () => void;
   /** Adds an aura circle (asks for the grid first if the map has none) */
-  onAddCircle: () => void;
+  onAddCircle: (shape: AreaShape) => void;
   /** Whether the Effects tool and circles are offered at all */
   showEffectTools: boolean;
   onToggleEffectTools: () => void;
@@ -186,13 +187,22 @@ export function Toolbar(props: ToolbarProps) {
           >
             Clear
           </Button>
-          <Button
-            onClick={props.onAddCircle}
-            title="Add a circle for an aura or spell area, sized in feet. Drag its centre dot to move it; mouse wheel over it resizes, or type the radius."
-          >
-            <CircleDashed className="h-4 w-4" />
-            Circle
-          </Button>
+          <Menu
+            items={AREA_SHAPES.map((shape) => ({
+              label: AREA_LABELS[shape],
+              onSelect: () => props.onAddCircle(shape),
+            }))}
+            trigger={(trigger) => (
+              <Button
+                {...trigger}
+                title="Add a spell area sized in feet: circle, square, cone or line. Drag its dot to move it; the mouse wheel over it resizes it, or type the size."
+              >
+                <CircleDashed className="h-4 w-4" />
+                Area
+                <ChevronDown className="h-3.5 w-3.5 text-muted" />
+              </Button>
+            )}
+          />
         </>
       ) : (
         <>

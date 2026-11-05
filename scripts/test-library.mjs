@@ -262,6 +262,76 @@ app.whenReady().then(async () => {
     check('feet convert to pixels', gridLib.feetToPixels(15, measured) === 300);
     check('a zero-size grid is rejected', gridLib.normalizeGrid({ cell: 0, feetPerCell: 5 }) === null);
 
+    // Area templates: old circles load unchanged, shapes have the D&D outlines
+    const [old, cone] = gridLib.normalizeCircles([
+      { id: 'old', x: 1, y: 2, radiusFt: 15, kind: 'fire' },
+      { id: 'cone', x: 0, y: 0, radiusFt: 15, kind: 'magic', shape: 'cone', angle: -90, widthFt: 0.2 },
+    ]);
+    check(
+      'templates saved before shapes are circles',
+      old.shape === 'circle' && old.angle === 0 && old.widthFt === 5,
+      JSON.stringify(old),
+    );
+    check('angles are wrapped into 0..360', cone.shape === 'cone' && cone.angle === 270);
+    check(
+      'an unknown shape falls back to a circle',
+      gridLib.normalizeCircles([{ id: 'x', x: 0, y: 0, radiusFt: 5, kind: 'fire', shape: 'star' }])[0]
+        .shape === 'circle',
+    );
+    const disc = (shape, extra = {}) => ({
+      x: 0,
+      y: 0,
+      radius: 10,
+      kind: 'fire',
+      shape,
+      angle: 0,
+      width: 2,
+      ...extra,
+    });
+    check(
+      'a cone is as wide at its end as it is long',
+      JSON.stringify(gridLib.areaOutline(disc('cone'))) ===
+        JSON.stringify([
+          { x: 0, y: 0 },
+          { x: 10, y: 5 },
+          { x: 10, y: -5 },
+        ]),
+      JSON.stringify(gridLib.areaOutline(disc('cone'))),
+    );
+    check(
+      'a line is centred on its direction',
+      JSON.stringify(gridLib.areaOutline(disc('line'))) ===
+        JSON.stringify([
+          { x: 0, y: 1 },
+          { x: 10, y: 1 },
+          { x: 10, y: -1 },
+          { x: 0, y: -1 },
+        ]),
+    );
+    check(
+      'points inside a cone are found, outside are not',
+      gridLib.areaContains(disc('cone'), { x: 8, y: 3 }, 0) &&
+        !gridLib.areaContains(disc('cone'), { x: 2, y: 3 }, 0),
+    );
+    const square = (radiusFt) => ({
+      id: 's',
+      x: 0,
+      y: 0,
+      radiusFt,
+      kind: 'fire',
+      shape: 'square',
+      angle: 0,
+      widthFt: 5,
+    });
+    check(
+      'a 10 ft square snaps to a grid corner, a 15 ft one to a square centre',
+      JSON.stringify(gridLib.snapArea({ x: 130, y: 99 }, square(10), measured)) ===
+        JSON.stringify({ x: 110, y: 60 }) &&
+        JSON.stringify(gridLib.snapArea({ x: 130, y: 99 }, square(15), measured)) ===
+          JSON.stringify({ x: 160, y: 110 }),
+      JSON.stringify(gridLib.snapArea({ x: 130, y: 99 }, square(10), measured)),
+    );
+
     check('a new map has no grid or circles', c.entry.grid === null && c.entry.circles.length === 0);
     check('saveMapGrid stores the grid', (await lib.saveMapGrid(c.entry.id, measured)) === true);
     check(

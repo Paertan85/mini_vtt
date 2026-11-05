@@ -19,7 +19,7 @@ It's built to stay out of the way on modest hardware: no accounts, no server, no
 
 - **Fog of war.** Select the Fog tool and paint: the left mouse button reveals, the right button covers. Undo and redo any change, or reveal or cover the whole map at once. The DM sees fog as an indigo tint; players see solid black.
 - **Painted effects.** The Effects tool paints fire, poison or magic onto the map with soft edges, for burning terrain, poison clouds or spell areas. Right-click erases, **Clear** removes them all. Effects and circles sit under the fog, so they never give away unexplored areas, and poison is hatched so it stays distinct from fire for colour-blind players. A map that never uses effects costs nothing extra, and **Settings → Show effect tools** hides them entirely.
-- **Aura circles.** Place a soft circle for Spirit Guardians or any spell area, sized in feet. Drag its centre dot to move it anywhere (hold Alt to snap it to a square's centre), scroll over it to resize in 5 ft steps, and duplicate or delete it with one click. The DM sees the radius; players only see the soft disc. Measure the map's grid once (**Settings → Measure map grid…**: click two corners of a square) so feet match the map.
+- **Spell areas.** Place a circle (Spirit Guardians, Fireball), square (cube), cone or line/wall, sized in feet. Drag its dot to move it (hold Ctrl to snap it to the grid, Alt to leave a copy), turn the mouse wheel over it to resize it in 5 ft steps (a line's width), or type the size. Cones and lines have a handle at their tip: drag it to aim and set the length. The DM sees the size; players only see the area. Measure the map's grid once (**Settings → Measure map grid…**: click two corners of a square) so feet match the map.
 - **Player view framing.** A teal frame on the DM window shows exactly what the player screen shows. Drag it to pan and Ctrl+scroll to zoom.
 - **True-scale grid.** Enter the player screen's diagonal and your grid size, and the frame shows a grid that matches the physical screen, so 1-inch minis line up with the map.
 - **Blackout.** One key hides everything on the player screen while you set up the next scene.
@@ -70,10 +70,11 @@ Everything is saved as you go. Double-click another map in the library to switch
 | Reveal / cover fog                  | Fog tool, then drag with the Left Mouse button / Right mouse button                                                 |
 | Reveal / cover a whole room         | Fog tool, **Shape** (or L), then draw around it with the Left / Right mouse button; the inside is filled on release |
 | Paint / erase effects               | Effects tool, pick a colour, then drag with the Left Mouse button / Right mouse button                              |
-| Add an aura circle                  | Effects tool, then **Circle**                                                                                       |
-| Move a circle                       | Drag its centre dot (Ctrl: snap to square centres, Alt: leave a copy), or arrow keys (one square; Shift: 1 ft)      |
-| Resize a circle                     | Mouse wheel over it (5 ft steps), or type the radius in its toolbar                                                 |
-| Duplicate / delete a circle         | Ctrl+D / Del, or the buttons in its toolbar                                                                         |
+| Add a spell area                    | Effects tool, then **Area** → Circle, Square, Cone or Line                                                          |
+| Move an area                        | Drag its dot (Ctrl: snap to the grid, Alt: leave a copy), or arrow keys (one square; Shift: 1 ft)                   |
+| Resize an area                      | Mouse wheel over it (5 ft steps; a line's width), or type the size in its toolbar                                   |
+| Aim a cone or line                  | Drag the handle at its tip; the length follows in 5 ft steps                                                        |
+| Duplicate / delete an area          | Ctrl+D / Del, or the buttons in its toolbar                                                                         |
 | Paint fog with any tool             | Hold Shift and use either mouse button                                                                              |
 | Brush size                          | Mouse wheel in the Fog or Effects tool (or while holding Shift), or [ and ]                                         |
 | Undo / redo                         | Ctrl+Z / Ctrl+Y or Ctrl+Shift+Z (effects in the Effects tool, otherwise fog)                                        |

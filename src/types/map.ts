@@ -36,12 +36,18 @@ export interface MapState {
   circles: AuraDisc[];
 }
 
-/** A circle as the player screen draws it: map pixels, already converted from feet. */
+/** An area template as the player screen draws it: map pixels, already converted from feet. */
 export interface AuraDisc {
   x: number;
   y: number;
+  /** Circle radius, square side, cone or line length */
   radius: number;
   kind: EffectKind;
+  shape: AreaShape;
+  /** Degrees, map space (0 points along +x); cones and lines */
+  angle: number;
+  /** Line width */
+  width: number;
 }
 
 /** The per-map view settings that are saved and restored. */
@@ -71,12 +77,25 @@ export interface MapGrid {
 }
 
 /** A movable circle (aura or spell area), in map natural pixels and feet. */
+/** The shapes of spell areas: sphere/emanation, cube, cone and line/wall. */
+export type AreaShape = 'circle' | 'square' | 'cone' | 'line';
+
+/**
+ * An area template on the map (named for the circle, the first shape). The
+ * point is the centre of a circle or square, and the origin of a cone or line.
+ */
 export interface AuraCircle {
   id: string;
   x: number;
   y: number;
+  /** Circle radius, square side, cone or line length, in feet */
   radiusFt: number;
   kind: EffectKind;
+  shape: AreaShape;
+  /** Degrees, map space (0 points along +x); cones and lines */
+  angle: number;
+  /** Line width in feet */
+  widthFt: number;
 }
 
 /**

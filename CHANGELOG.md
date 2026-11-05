@@ -26,6 +26,12 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- Spell areas: besides circles, the Effects tool's **Area** menu places
+  squares (cubes), cones and lines/walls, sized in feet. Drag the handle at
+  a cone's or line's tip to aim it and set its length (5 ft steps); the
+  mouse wheel over a line sets its width. Ctrl snaps each shape to the grid
+  the way it is usually placed. Existing circles and project files load
+  unchanged.
 - Fog shapes: in the Fog tool, switch to Shape (or press L) and draw around
   a room; everything inside is revealed (left button) or covered (right
   button) when you let go. The outline closes itself, and one undo removes

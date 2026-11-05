@@ -22,7 +22,15 @@ import type { AuraCircle, EffectKind, MapGrid, MapPan, MediaType, Point } from '
 import type { Fog } from '../hooks/useFog';
 import type { EffectLayer } from '../hooks/useEffectLayer';
 import { EFFECT_KINDS, EFFECT_OPACITY, EFFECT_STYLES } from '../lib/effects';
-import { feetToPixels, snapToCell, toDiscs } from '../lib/grid';
+import {
+  AREA_LABELS,
+  areaContains,
+  areaOutline,
+  areaTip,
+  feetToPixels,
+  snapArea,
+  toDiscs,
+} from '../lib/grid';
 import { AuraDiscs } from './AuraDiscs';
 import { orientedSize, type Size } from '../lib/geometry';
 
@@ -75,8 +83,12 @@ interface MapStageProps {
   onMoveCircle: (id: string, center: Point) => void;
   /** Wheel notches: positive grows, 5 ft per notch */
   onResizeCircle: (id: string, notches: number) => void;
-  /** A radius typed into the circle's toolbar */
+  /** A size typed into the template's toolbar: radius, side or length */
   onSetCircleRadius: (id: string, radiusFt: number) => void;
+  /** A line width typed into its toolbar */
+  onSetCircleWidth: (id: string, widthFt: number) => void;
+  /** Cones and lines: the aim handle was dragged to `point` (direction and length) */
+  onAimCircle: (id: string, point: Point) => void;
   onDuplicateCircle: (id: string) => void;
   /** Alt + drag: leave a copy where the circle was */
   onCopyCircleInPlace: (id: string) => void;
@@ -154,7 +166,7 @@ export function MapStage(props: MapStageProps) {
   const surfaceRef = useRef<HTMLDivElement>(null);
   const cursorRef = useRef<HTMLDivElement>(null);
   const frameDragRef = useRef<{ start: Point; startPan: MapPan } | null>(null);
-  const circleDragRef = useRef<{ id: string; pointerId: number } | null>(null);
+  const circleDragRef = useRef<{ id: string; pointerId: number; aim: boolean } | null>(null);
   const wheelRemainderRef = useRef(0);
   const brushWheelRef = useRef(0);
   const viewDragRef = useRef<{ start: Point; startView: ViewZoom; pointerId: number } | null>(null);
@@ -269,8 +281,8 @@ export function MapStage(props: MapStageProps) {
   };
   const shownView = clampView(view);
 
-  const geometry = useRef({ mapToSurface, displayScale, clampView });
-  geometry.current = { mapToSurface, displayScale, clampView };
+  const geometry = useRef({ mapToSurface, toMapPoint, displayScale, clampView });
+  geometry.current = { mapToSurface, toMapPoint, displayScale, clampView };
 
   // ─── Brush cursor (moved directly, without re-rendering) ──────────────────
 
@@ -389,15 +401,10 @@ export function MapStage(props: MapStageProps) {
         : undefined;
       const surface = surfaceRef.current;
       if (selected && current.grid && surface) {
-        const { mapToSurface: toSurface, displayScale: scale } = geometry.current;
-        const rect = surface.getBoundingClientRect();
-        const center = toSurface(selected);
-        const reach = Math.max(MIN_WHEEL_TARGET, feetToPixels(selected.radiusFt, current.grid) * scale);
-        const distance = Math.hypot(
-          event.clientX - rect.left - center.x,
-          event.clientY - rect.top - center.y,
-        );
-        if (distance <= reach) {
+        const { toMapPoint: toMap, displayScale: scale } = geometry.current;
+        const pointer = toMap(event.clientX, event.clientY);
+        const [disc] = toDiscs([selected], current.grid);
+        if (pointer && areaContains(disc, pointer, MIN_WHEEL_TARGET / scale)) {
           event.preventDefault();
           const notches = notchesFrom(wheelRemainderRef);
           if (notches !== 0) current.onResizeCircle(selected.id, notches);
@@ -486,16 +493,16 @@ export function MapStage(props: MapStageProps) {
     frameDragRef.current = null;
   };
 
-  // ─── Circles: drag the centre dot to move ──────────────────────────────────
+  // ─── Templates: drag the dot to move, the aim handle to point and stretch ──
 
-  const handleCirclePointerDown = (event: React.PointerEvent<HTMLElement>, id: string) => {
+  const handleCirclePointerDown = (event: React.PointerEvent<HTMLElement>, id: string, aim = false) => {
     if (event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
-    circleDragRef.current = { id, pointerId: event.pointerId };
+    circleDragRef.current = { id, pointerId: event.pointerId, aim };
     wheelRemainderRef.current = 0;
-    if (event.altKey) props.onCopyCircleInPlace(id);
+    if (event.altKey && !aim) props.onCopyCircleInPlace(id);
     props.onSelectCircle(id);
     props.onCircleDrag(true);
   };
@@ -505,7 +512,12 @@ export function MapStage(props: MapStageProps) {
     if (!drag || drag.pointerId !== event.pointerId) return;
     const point = toMapPoint(event.clientX, event.clientY);
     if (!point) return;
-    props.onMoveCircle(drag.id, grid && event.ctrlKey ? snapToCell(point, grid) : point);
+    if (drag.aim) {
+      props.onAimCircle(drag.id, point);
+      return;
+    }
+    const area = circles.find((circle) => circle.id === drag.id);
+    props.onMoveCircle(drag.id, grid && area && event.ctrlKey ? snapArea(point, area, grid) : point);
   };
 
   const endCircleDrag = () => {
@@ -683,13 +695,53 @@ export function MapStage(props: MapStageProps) {
 
           {circlesInteractive &&
             grid &&
-            circles.map((circle) => {
+            circles.map((circle, index) => {
               const center = mapToSurface(circle);
               const selected = circle.id === selectedCircleId;
               const diameter = feetToPixels(circle.radiusFt, grid) * 2 * displayScale;
+              const outline = areaOutline(discs[index]);
+              const aims = circle.shape === 'cone' || circle.shape === 'line';
+              const tip = aims ? mapToSurface(areaTip(discs[index])) : null;
+              const label = AREA_LABELS[circle.shape];
+              const sizeText =
+                circle.shape === 'line'
+                  ? `${circle.radiusFt} × ${circle.widthFt} ft`
+                  : `${circle.radiusFt} ft`;
+              const sizeName =
+                circle.shape === 'circle' ? 'Radius' : circle.shape === 'square' ? 'Side' : 'Length';
               return (
                 <div key={circle.id} data-circle-control="">
-                  {selected && (
+                  {selected && outline && (
+                    <svg
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-0 z-20 h-full w-full overflow-visible"
+                    >
+                      <polygon
+                        points={outline
+                          .map(mapToSurface)
+                          .map((point) => `${point.x},${point.y}`)
+                          .join(' ')}
+                        className="fill-none stroke-gold"
+                        strokeWidth={2}
+                        strokeDasharray="6 4"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  )}
+                  {tip && (
+                    <button
+                      type="button"
+                      aria-label={`Aim the ${label.toLowerCase()}`}
+                      title="Drag to aim and set the length (5 ft steps)"
+                      className="absolute z-30 h-3.5 w-3.5 rotate-45 cursor-crosshair border-2 border-gold bg-ground"
+                      style={{ left: tip.x - 7, top: tip.y - 7 }}
+                      onPointerDown={(event) => handleCirclePointerDown(event, circle.id, true)}
+                      onPointerMove={handleCirclePointerMove}
+                      onPointerUp={endCircleDrag}
+                      onPointerCancel={endCircleDrag}
+                    />
+                  )}
+                  {selected && !outline && (
                     <div
                       aria-hidden="true"
                       className="pointer-events-none absolute z-20 rounded-full border-2 border-dashed border-gold"
@@ -703,8 +755,10 @@ export function MapStage(props: MapStageProps) {
                   )}
                   <button
                     type="button"
-                    aria-label={`Circle, ${circle.radiusFt} ft`}
-                    title="Drag to move (Ctrl: snap to square centres, Alt: leave a copy). Mouse wheel over the circle resizes it; arrow keys nudge it."
+                    aria-label={`${label}, ${sizeText}`}
+                    title={`Drag to move (Ctrl: snap to the grid, Alt: leave a copy). Mouse wheel over it changes the ${
+                      circle.shape === 'line' ? 'width' : 'size'
+                    }; arrow keys nudge it.`}
                     className={`absolute z-30 h-4 w-4 cursor-move rounded-full border-2 ${
                       selected ? 'border-ground bg-gold' : 'border-gold'
                     }`}
@@ -722,19 +776,20 @@ export function MapStage(props: MapStageProps) {
                     className="pointer-events-none absolute z-30 -translate-x-1/2 whitespace-nowrap rounded bg-ground/85 px-1.5 text-[11px] font-medium tabular-nums text-ink"
                     style={{ left: center.x, top: center.y + 10 }}
                   >
-                    {circle.radiusFt} ft
+                    {sizeText}
                   </div>
                   {selected && (
                     <div
                       role="toolbar"
-                      aria-label="Selected circle"
+                      aria-label={`Selected ${label.toLowerCase()}`}
                       className="absolute z-30 flex -translate-x-1/2 items-center gap-0.5 rounded border border-line bg-panel p-0.5"
                       style={{ left: center.x, top: center.y + 30 }}
                     >
                       <label className="flex items-center gap-1 px-1 text-[11px] text-muted">
                         <input
                           type="number"
-                          aria-label="Radius in feet"
+                          aria-label={`${sizeName} in feet`}
+                          title={`${sizeName} in feet`}
                           min={1}
                           max={500}
                           step={1}
@@ -748,6 +803,26 @@ export function MapStage(props: MapStageProps) {
                         />
                         ft
                       </label>
+                      {circle.shape === 'line' && (
+                        <label className="flex items-center gap-1 px-1 text-[11px] text-muted">
+                          wide
+                          <input
+                            type="number"
+                            aria-label="Width in feet"
+                            title="Width in feet"
+                            min={1}
+                            max={500}
+                            step={1}
+                            value={circle.widthFt}
+                            onChange={(event) => {
+                              const value = event.currentTarget.valueAsNumber;
+                              if (Number.isFinite(value) && value > 0)
+                                props.onSetCircleWidth(circle.id, value);
+                            }}
+                            className="w-12 rounded border border-line bg-ground px-1 py-0.5 text-right text-[12px] tabular-nums text-ink"
+                          />
+                        </label>
+                      )}
                       {EFFECT_KINDS.map((kind) => (
                         <button
                           key={kind}
@@ -763,7 +838,7 @@ export function MapStage(props: MapStageProps) {
                       <button
                         type="button"
                         title="Duplicate"
-                        aria-label="Duplicate circle"
+                        aria-label={`Duplicate ${label.toLowerCase()}`}
                         onClick={() => props.onDuplicateCircle(circle.id)}
                         className="flex h-6 w-6 items-center justify-center rounded text-muted hover:bg-raised hover:text-ink"
                       >
@@ -772,7 +847,7 @@ export function MapStage(props: MapStageProps) {
                       <button
                         type="button"
                         title="Delete (Del)"
-                        aria-label="Delete circle"
+                        aria-label={`Delete ${label.toLowerCase()}`}
                         onClick={() => props.onDeleteCircle(circle.id)}
                         className="flex h-6 w-6 items-center justify-center rounded text-muted hover:bg-raised hover:text-crimson-bright"
                       >

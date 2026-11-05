@@ -1,18 +1,21 @@
-// Soft aura discs (e.g. Spirit Guardians), drawn the same way in both windows.
+// Area templates (circles, squares, cones, lines), drawn the same way in both
+// windows.
 //
-// A static SVG in map coordinates, placed inside the rotated map container:
-// a radial gradient gives the soft edge, so there is no filter and no work
-// per frame. Nothing is mounted when the map has no circles. Poison gets the
-// same dark hatch as painted poison, so it doesn't rely on hue alone.
+// A static SVG in map coordinates, placed inside the rotated map container.
+// A circle uses a radial gradient for a thin soft rim; the other shapes are
+// plain polygons with a slightly stronger edge. There is no filter and no work
+// per frame, and nothing is mounted when the map has no templates. Poison gets
+// the same dark hatch as painted poison, so it doesn't rely on hue alone.
 
 import type { AuraDisc } from '../types/map';
 import type { Size } from '../lib/geometry';
 import { EFFECT_KINDS, EFFECT_STYLES } from '../lib/effects';
+import { areaOutline } from '../lib/grid';
 
-/** Fill strength of the disc body; the rim fades to nothing. */
+/** Fill strength of a template's body. */
 const DISC_OPACITY = 0.4;
-/** Where the rim starts fading, as a share of the radius: a thin soft edge, so
- * the disc stays solid over every square it covers. */
+/** Where a circle's rim starts fading, as a share of the radius: a thin soft
+ * edge, so the disc stays solid over every square it covers. */
 const RIM_START = 0.94;
 
 export function AuraDiscs({ discs, media }: { discs: AuraDisc[]; media: Size | null }) {
@@ -32,7 +35,7 @@ export function AuraDiscs({ discs, media }: { discs: AuraDisc[]; media: Size | n
             <stop offset="1" stopColor={EFFECT_STYLES[kind].color} stopOpacity={0} />
           </radialGradient>
         ))}
-        {/* Fades the hatch with the same soft rim as the disc */}
+        {/* Fades a circle's hatch with the same soft rim as the disc */}
         <radialGradient id="aura-fade">
           <stop offset={RIM_START} stopColor="#fff" />
           <stop offset="1" stopColor="#000" />
@@ -42,31 +45,52 @@ export function AuraDiscs({ discs, media }: { discs: AuraDisc[]; media: Size | n
         </mask>
       </defs>
       {discs.map((disc, index) => {
-        const hatch = EFFECT_STYLES[disc.kind].hatch;
-        // Stripes scale with the disc, so they read the same at any size
+        const style = EFFECT_STYLES[disc.kind];
+        // Stripes scale with the template, so they read the same at any size
         const stripe = Math.max(4, disc.radius / 8);
+        const outline = areaOutline(disc);
+        const points = outline?.map((point) => `${point.x},${point.y}`).join(' ');
+        const hatchFill = `url(#aura-hatch-${index})`;
         return (
           <g key={index}>
-            <circle cx={disc.x} cy={disc.y} r={disc.radius} fill={`url(#aura-${disc.kind})`} />
-            {hatch && (
+            {style.hatch && (
+              <pattern
+                id={`aura-hatch-${index}`}
+                width={stripe * 2}
+                height={stripe * 2}
+                patternUnits="userSpaceOnUse"
+                patternTransform="rotate(45)"
+              >
+                <rect width={stripe * 0.6} height={stripe * 2} fill={style.hatch} />
+              </pattern>
+            )}
+            {points ? (
               <>
-                <pattern
-                  id={`aura-hatch-${index}`}
-                  width={stripe * 2}
-                  height={stripe * 2}
-                  patternUnits="userSpaceOnUse"
-                  patternTransform="rotate(45)"
-                >
-                  <rect width={stripe * 0.6} height={stripe * 2} fill={hatch} />
-                </pattern>
-                <circle
-                  cx={disc.x}
-                  cy={disc.y}
-                  r={disc.radius}
-                  fill={`url(#aura-hatch-${index})`}
-                  mask="url(#aura-fade-mask)"
-                  opacity={DISC_OPACITY}
+                <polygon
+                  points={points}
+                  fill={style.color}
+                  fillOpacity={DISC_OPACITY}
+                  stroke={style.color}
+                  strokeOpacity={0.8}
+                  strokeWidth={2}
+                  strokeLinejoin="round"
+                  vectorEffect="non-scaling-stroke"
                 />
+                {style.hatch && <polygon points={points} fill={hatchFill} opacity={DISC_OPACITY} />}
+              </>
+            ) : (
+              <>
+                <circle cx={disc.x} cy={disc.y} r={disc.radius} fill={`url(#aura-${disc.kind})`} />
+                {style.hatch && (
+                  <circle
+                    cx={disc.x}
+                    cy={disc.y}
+                    r={disc.radius}
+                    fill={hatchFill}
+                    mask="url(#aura-fade-mask)"
+                    opacity={DISC_OPACITY}
+                  />
+                )}
               </>
             )}
           </g>

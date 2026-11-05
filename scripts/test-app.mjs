@@ -129,6 +129,11 @@ app.whenReady().then(async () => {
     js(
       `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === ${JSON.stringify(text)}).click()`,
     );
+  const addArea = async (label) => {
+    await clickText('Area');
+    await sleep(100);
+    await clickText(label);
+  };
   const playerButton = `[...document.querySelectorAll('button')].find((b) => /^(Open|Bring) the player window/.test(b.title))`;
   const press = (key, init = {}) =>
     js(
@@ -406,7 +411,7 @@ app.whenReady().then(async () => {
     // Circles: "Circle" without a grid starts measuring; two clicks and Save
     // store the grid, then a circle can be placed, resized and deleted
     const alpha = () => readIndex().maps.find((m) => m.id === 'm_alpha');
-    await clickText('Circle');
+    await addArea('Circle');
     await sleep(300);
     check(
       'adding a circle without a grid starts measuring',
@@ -420,7 +425,7 @@ app.whenReady().then(async () => {
     await clickText('Save grid');
     await sleep(500);
     check('measuring saves the grid', alpha().grid?.cell > 0, JSON.stringify(alpha().grid));
-    await clickText('Circle');
+    await addArea('Circle');
     await sleep(900);
     check(
       'a 15 ft circle is added and saved',
@@ -520,6 +525,56 @@ app.whenReady().then(async () => {
       'the player screen drops it',
       (await js(`document.querySelectorAll('svg circle').length`, player)) === 0,
     );
+
+    // Cones aim and stretch with the handle at their tip; a line's width follows the wheel
+    await addArea('Cone');
+    await sleep(900);
+    const cone = alpha().circles[0];
+    check(
+      'a 15 ft cone is added, pointing right',
+      cone?.shape === 'cone' && cone.radiusFt === 15 && cone.angle === 0,
+      JSON.stringify(cone),
+    );
+    check('players see the cone', (await js(`document.querySelectorAll('svg polygon').length`, player)) >= 1);
+    const aimFrom = await centerOf('button[aria-label="Aim the cone"]');
+    const coneDot = await centerOf('button[aria-label^="Cone,"]');
+    mouse('mouseDown', aimFrom.x, aimFrom.y);
+    for (let i = 1; i <= 5; i++) {
+      // Swing the tip to straight below the origin, twice as far away
+      const t = i / 5;
+      mouse(
+        'mouseMove',
+        aimFrom.x + (coneDot.x - aimFrom.x) * t,
+        aimFrom.y + (coneDot.y + 2 * (aimFrom.x - coneDot.x) - aimFrom.y) * t,
+      );
+      await sleep(30);
+    }
+    mouse('mouseUp', coneDot.x, coneDot.y + 2 * (aimFrom.x - coneDot.x));
+    await sleep(900);
+    const aimed = alpha().circles[0];
+    check('dragging the tip aims the cone', Math.abs(aimed.angle - 90) < 1, `${aimed.angle}°`);
+    check('and sets its length in 5 ft steps', aimed.radiusFt === 30, `${aimed.radiusFt} ft`);
+    await press('Delete');
+    await sleep(300);
+    await addArea('Line');
+    await sleep(600);
+    const lineDot = await centerOf('button[aria-label^="Line,"]');
+    await js(`document.querySelector('canvas[aria-label="Fog of war"]').dispatchEvent(new WheelEvent('wheel',
+      { deltaY: -100, clientX: ${lineDot.x + 20}, clientY: ${lineDot.y}, bubbles: true, cancelable: true }))`);
+    await sleep(900);
+    const line = alpha().circles[0];
+    check(
+      'the wheel over a line widens it',
+      line?.shape === 'line' && line.widthFt === 10 && line.radiusFt === 30,
+      JSON.stringify(line),
+    );
+    check(
+      'the DM sees the line size',
+      (await js(`document.querySelector('button[aria-label^="Line,"]').getAttribute('aria-label')`)) ===
+        'Line, 30 × 10 ft',
+    );
+    await press('Delete');
+    await sleep(600);
     await press('v');
 
     // Blackout reaches the player screen
