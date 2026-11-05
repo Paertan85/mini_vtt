@@ -6,7 +6,6 @@ Have an idea? Open an [issue](https://github.com/Paertan85/mini_vtt/issues).
 
 ## Next
 
-- **Release 1.2.0** with spell areas, fog shapes, the new controls, and the macOS and Linux builds.
 - **Touch on the Steam Deck.** Try the Linux build on a Deck, then tune it if needed: a finger dragged over the map may scroll the page instead of painting.
 
 ## Ideas
