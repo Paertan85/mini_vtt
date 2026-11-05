@@ -16,6 +16,7 @@
 - Map loading in the DM window goes through `loadMap()` in `src/App.tsx`, so every per-map setting is restored in one place. Fog changes go through `useFog`, which sends one snapshot per change; the main process relays and saves it.
 - The `ElectronAPI` type is derived from `electron/preload.ts`; add bridge calls there, never in a separate declaration. IPC channels are named `domain:action`, with the same name on both legs of a relay.
 - Validate everything that arrives over IPC in the main process; the renderer is sandboxed and has no Node access.
+- Only change the version when making a release, following "Releasing" in `CONTRIBUTING.md`. Pushing the version tag makes CI draft the GitHub release.
 
 ## Art
 

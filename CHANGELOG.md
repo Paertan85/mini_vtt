@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format is based on
 
 ## Unreleased
 
+### Added
+
+- Releases build themselves: pushing a version tag tests the app on
+  Windows, macOS and Linux and drafts a GitHub release with the installers
+  for all three, using the changelog as its notes. CI now tests on Windows
+  too.
+
 ## 1.2.0 - 2026-11-05
 
 ### Changed

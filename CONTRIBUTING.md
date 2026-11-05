@@ -54,6 +54,25 @@ A few guidelines:
   user-visible behaviour in `scripts/test-app.mjs` where practical.
 - **Update the changelog** under "Unreleased" for anything user-facing.
 
+## Releasing
+
+The version only changes when a release is made: minor for new features
+(1.2.0), patch for a release with fixes only (1.2.1).
+
+1. In `CHANGELOG.md`, add a heading `## X.Y.Z - YYYY-MM-DD` right under
+   "Unreleased", so everything listed so far belongs to the release.
+2. Set the version: `npm version X.Y.Z --no-git-tag-version`.
+3. Commit as "Release X.Y.Z" and tag it: `git tag -a vX.Y.Z -m "Mini VTT X.Y.Z"`.
+4. Push both: `git push --follow-tags`. CI tests the tag on Windows, macOS
+   and Linux, builds the installers, and drafts a GitHub release with them,
+   using the changelog's section as its notes.
+5. On GitHub, open **Releases**, check the draft and click **Publish
+   release**.
+
+If a release's build fails or needs redoing, run the **CI** workflow by hand
+(Actions → CI → Run workflow) with the tag filled in. It builds that version
+again and replaces the draft's files, keeping its text.
+
 ## License
 
 By contributing, you agree that your contributions will be licensed under the

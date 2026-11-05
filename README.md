@@ -57,7 +57,7 @@ npm run dist:mac   # macOS .dmg (arm64 and x64); run this on a Mac
 npm run dist:linux # Linux AppImage (x64); run this on Linux
 ```
 
-Without a Mac or Linux machine, run the **CI** workflow by hand on GitHub (Actions → CI → Run workflow): it tests the app on both and attaches the `.dmg` and the AppImage to the run. Version tags build them too.
+Without a Mac or Linux machine, run the **CI** workflow by hand on GitHub (Actions → CI → Run workflow): it tests the app on Windows, macOS and Linux and attaches the installers for all three to the run. Pushing a version tag does the same and also drafts a GitHub release with them; see [Releasing](CONTRIBUTING.md#releasing).
 
 ## Running a session
 

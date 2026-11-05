@@ -1,18 +1,36 @@
 name: CI
 
+# Every push and pull request is tested on Linux, Windows and macOS. Pushing a
+# version tag (v1.2.0) also builds the installers and drafts a GitHub release
+# with them; it is published by hand on the Releases page.
+
 on:
   push:
     branches: [main]
     tags: ['v*']
   pull_request:
-  # Run by hand (Actions → CI → Run workflow) to get macOS and Linux builds to try
+  # Run by hand (Actions → CI → Run workflow) to get installers to try. With a
+  # version tag filled in, it builds that version and drafts its release, as
+  # pushing the tag does (for a tag pushed before this workflow could).
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Version tag to draft a release for, such as v1.2.0 (empty: only build installers)'
+        required: false
+        default: ''
+
+# Read-only, except for the release job
+permissions:
+  contents: read
 
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The version to release when run by hand with a tag; otherwise what was pushed
+          ref: ${{ inputs.release_tag }}
 
       - uses: actions/setup-node@v4
         with:
@@ -51,12 +69,52 @@ jobs:
           path: release/*.AppImage
           if-no-files-found: error
 
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Library tests
+        run: npm test
+
+      - name: App smoke test
+        run: npm run test:app
+
+      # GitHub's Windows machines run as administrator, so electron-builder can
+      # unpack its own tools and put the icon on the app's exe itself (local
+      # builds without Developer Mode rely on scripts/patch-icon.cjs instead)
+      - name: Build the installer and portable exe (unsigned)
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+        run: npx electron-builder --win --publish never -c.win.signAndEditExecutable=true
+
+      - name: Upload them
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: mini-vtt-windows
+          path: release/*.exe
+          if-no-files-found: error
+
   # The same tests on a Mac, since there is none to test on by hand. The .dmg
   # is only built for version tags and manual runs, to save macOS minutes.
   mac:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag }}
 
       - uses: actions/setup-node@v4
         with:
@@ -87,3 +145,42 @@ jobs:
           name: mini-vtt-mac
           path: release/*.dmg
           if-no-files-found: error
+
+  # A version tag (pushed, or given when run by hand): once every platform's
+  # tests have passed, draft the release with all the installers and that
+  # version's section of the changelog as its notes
+  release:
+    if: inputs.release_tag != '' || startsWith(github.ref, 'refs/tags/v')
+    needs: [check, windows, mac]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: installers
+          merge-multiple: true
+
+      - name: Draft the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          # The changelog's section for this version, without its heading
+          awk -v heading="## $version" '
+            index($0, heading) == 1 { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            # Run again: replace the files, keep the text as it was edited
+            gh release upload "$TAG" installers/* --clobber
+          else
+            gh release create "$TAG" installers/* --draft --verify-tag \
+              --title "Mini VTT $version" --notes-file notes.md
+          fi
