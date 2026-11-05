@@ -181,6 +181,27 @@ app.whenReady().then(async () => {
       (await js(`${playerButton}.textContent`)).includes('live'),
     );
 
+    // The maps and handouts panel hides with its button and returns with Ctrl+B
+    const panelShown = () =>
+      js(`getComputedStyle(document.getElementById('library-panel')).display !== 'none'`);
+    const mapWidth = () => js(`document.querySelector('main').getBoundingClientRect().width`);
+    const widthWithPanel = await mapWidth();
+    await js(`document.querySelector('[aria-controls="library-panel"]').click()`);
+    await sleep(600);
+    check('the panel button hides the maps and handouts', (await panelShown()) === false);
+    check(
+      'the map gets the room',
+      (await mapWidth()) > widthWithPanel,
+      `${widthWithPanel} → ${await mapWidth()}`,
+    );
+    check('hiding the panel is remembered', readIndex().settings.showLibrary === false);
+    await press('b', { ctrlKey: true });
+    await sleep(600);
+    check(
+      'Ctrl+B shows the panel again',
+      (await panelShown()) === true && readIndex().settings.showLibrary === true,
+    );
+
     // Frame tool (default): dragging the frame saves the pan
     const frame = await centerOf('[aria-label="Player view"]');
     check('player frame is shown', !!frame);
@@ -254,6 +275,62 @@ app.whenReady().then(async () => {
     await sleep(300);
     check('the zoom badge fits the map again', (await fogRect()).w === fitRect.w);
 
+    // Fog tool: Ctrl + wheel (and pinch) zooms the DM view, the plain wheel
+    // sets the brush size, [ and ] too, + and − zoom the player view
+    const brush = () => js(`Number(document.querySelector('input[type="range"]').value)`);
+    const wheelAt = (point, init) =>
+      js(`document.querySelector('canvas[aria-label="Fog of war"]').dispatchEvent(new WheelEvent('wheel',
+        { clientX: ${point.x}, clientY: ${point.y}, bubbles: true, cancelable: true, ...${JSON.stringify(init)} }))`);
+    const brushBefore = await brush();
+    await wheelAt(pointer, { deltaY: -400, ctrlKey: true });
+    await sleep(300);
+    check('Ctrl + wheel zooms the DM view', (await fogRect()).w > fitRect.w * 1.5);
+    check('Ctrl + wheel leaves the brush alone', (await brush()) === brushBefore);
+    await press('0', { ctrlKey: true });
+    await sleep(300);
+    check('Ctrl+0 fits the map', (await fogRect()).w === fitRect.w);
+    await wheelAt(pointer, { deltaY: -100 });
+    await sleep(200);
+    check(
+      'the plain wheel grows the brush',
+      (await brush()) > brushBefore,
+      `${brushBefore} → ${await brush()}`,
+    );
+    await press('[');
+    await sleep(200);
+    check('[ shrinks the brush', (await brush()) === brushBefore);
+    await press('+');
+    await sleep(200);
+    check('+ zooms the player view', (await zoomText()) !== playerZoomBefore);
+    await press('-');
+    await sleep(200);
+    check('− zooms it back', (await zoomText()) === playerZoomBefore);
+
+    // Space + drag pans a zoomed DM view
+    await wheelAt(pointer, { deltaY: -400, ctrlKey: true });
+    await sleep(300);
+    const zoomedStart = await fogRect();
+    await js(`window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }))`);
+    await sleep(100);
+    await drag(pointer, 80, 0);
+    await js(`window.dispatchEvent(new KeyboardEvent('keyup', { key: ' ' }))`);
+    await sleep(300);
+    check('Space + drag pans the zoomed view', Math.abs((await fogRect()).x - zoomedStart.x - 80) < 2);
+    await press('0', { ctrlKey: true });
+    await sleep(300);
+
+    // Frame tool: the wheel over the player frame zooms the player view
+    await press('v');
+    await sleep(100);
+    const frameCenter = await centerOf('[aria-label="Player view"]');
+    await wheelAt(frameCenter, { deltaY: -100 });
+    await sleep(200);
+    check('the wheel over the frame zooms the player view', (await zoomText()) !== playerZoomBefore);
+    await press('-');
+    await sleep(900);
+    await press('f');
+    await sleep(100);
+
     // Effects tool: nothing is allocated until the first stroke; painting saves
     // a layer and shows it on the player screen, undo frees it again
     const effectsFile = path.join(libraryDir, 'm_alpha', 'effects.png');
@@ -318,6 +395,62 @@ app.whenReady().then(async () => {
       (await js(`document.querySelector('button[aria-label^="Circle,"]').getAttribute('aria-label')`)) ===
         'Circle, 20 ft',
     );
+    // Typing a radius, arrow nudges, Ctrl+D and Alt + drag
+    await js(`(() => {
+      const input = document.querySelector('input[aria-label="Radius in feet"]');
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, '17');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`);
+    await sleep(900);
+    check('a typed radius is applied', alpha().circles[0]?.radiusFt === 17);
+    const cell = alpha().grid.cell;
+    const beforeNudge = alpha().circles[0];
+    await press('ArrowRight');
+    await sleep(900);
+    check(
+      'an arrow key moves the circle one square',
+      Math.abs(alpha().circles[0].x - beforeNudge.x - cell) < 0.01 && alpha().circles[0].y === beforeNudge.y,
+    );
+    await press('d', { ctrlKey: true });
+    await sleep(900);
+    check('Ctrl+D duplicates the circle', alpha().circles.length === 2);
+    await press('Delete');
+    await sleep(900);
+    const altFrom = await centerOf('button[aria-label^="Circle,"]');
+    main.webContents.sendInputEvent({
+      type: 'mouseDown',
+      x: Math.round(altFrom.x),
+      y: Math.round(altFrom.y),
+      button: 'left',
+      clickCount: 1,
+      modifiers: ['alt', 'leftButtonDown'],
+    });
+    for (let i = 1; i <= 4; i++) {
+      main.webContents.sendInputEvent({
+        type: 'mouseMove',
+        x: Math.round(altFrom.x + i * 30),
+        y: Math.round(altFrom.y),
+        button: 'left',
+        modifiers: ['alt', 'leftButtonDown'],
+      });
+      await sleep(30);
+    }
+    main.webContents.sendInputEvent({
+      type: 'mouseUp',
+      x: Math.round(altFrom.x + 120),
+      y: Math.round(altFrom.y),
+      button: 'left',
+      clickCount: 1,
+    });
+    await sleep(900);
+    check(
+      'Alt + drag leaves a copy behind',
+      alpha().circles.length === 2 && alpha().circles.some((c) => c.x === beforeNudge.x + cell),
+      JSON.stringify(alpha().circles),
+    );
+    await press('Delete');
+    await sleep(900);
+
     // A dragged circle stays put for players until it is dropped
     const playerCircleX = () => js(`document.querySelector('svg circle').getAttribute('cx')`, player);
     const circleXBefore = await playerCircleX();

@@ -64,25 +64,30 @@ Everything is saved as you go. Double-click another map in the library to switch
 
 ### Controls
 
-| Action                              | How                                                                                         |
-| ----------------------------------- | ------------------------------------------------------------------------------------------- |
-| Frame / Fog / Effects tool          | V / F / E                                                                                   |
-| Reveal / cover fog                  | Fog tool, then drag with the Left Mouse button / Right mouse button                         |
-| Paint / erase effects               | Effects tool, pick a colour, then drag with the Left Mouse button / Right mouse button      |
-| Add an aura circle                  | Effects tool, then **Circle**                                                               |
-| Move / resize a circle              | Drag its centre dot (Alt: snap to square centres) / mouse wheel over it (Shift: 1 ft steps) |
-| Delete a circle                     | Select it, then Del or its delete button                                                    |
-| Paint fog with any tool             | Hold Shift and use either mouse button                                                      |
-| Move the player view while painting | Hold Space and drag the frame                                                               |
-| Brush size                          | Ctrl + mouse wheel with the Fog or Effects tool                                             |
-| Undo / redo                         | Ctrl+Z / Ctrl+Y or Ctrl+Shift+Z (effects in the Effects tool, otherwise fog)                |
-| Zoom the player view                | Ctrl + mouse wheel with the Frame tool, or the − and + buttons                              |
-| Zoom / pan your own view            | Alt + mouse wheel in any tool / drag with the middle mouse button (players are unaffected)  |
-| Blackout the player screen          | B                                                                                           |
-| Load a map / show a handout         | Double-click it in the library                                                              |
-| Rename, rotate, mirror or remove    | The ⋯ menu on the map or handout                                                            |
-| Handout zoom and pan                | Ctrl + wheel and arrow keys on the player screen (Shift for bigger steps); Esc closes       |
-| Player screen fullscreen            | F11 or the corner button                                                                    |
+| Action                              | How                                                                                                            |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Frame / Fog / Effects tool          | V / F / E                                                                                                      |
+| Reveal / cover fog                  | Fog tool, then drag with the Left Mouse button / Right mouse button                                            |
+| Paint / erase effects               | Effects tool, pick a colour, then drag with the Left Mouse button / Right mouse button                         |
+| Add an aura circle                  | Effects tool, then **Circle**                                                                                  |
+| Move a circle                       | Drag its centre dot (Ctrl: snap to square centres, Alt: leave a copy), or arrow keys (one square; Shift: 1 ft) |
+| Resize a circle                     | Mouse wheel over it (5 ft steps), or type the radius in its toolbar                                            |
+| Duplicate / delete a circle         | Ctrl+D / Del, or the buttons in its toolbar                                                                    |
+| Paint fog with any tool             | Hold Shift and use either mouse button                                                                         |
+| Brush size                          | Mouse wheel in the Fog or Effects tool (or while holding Shift), or [ and ]                                    |
+| Undo / redo                         | Ctrl+Z / Ctrl+Y or Ctrl+Shift+Z (effects in the Effects tool, otherwise fog)                                   |
+| Zoom your own view                  | Ctrl or Alt + mouse wheel, or pinch, in any tool; Ctrl+= / Ctrl+− / Ctrl+0 fits (players are unaffected)       |
+| Pan your zoomed view                | Space + drag, or drag with the middle mouse button                                                             |
+| Move the player view while painting | Space + drag the frame (when not zoomed in)                                                                    |
+| Zoom the player view                | + and − keys, the toolbar buttons, or mouse wheel over the frame in the Frame tool                             |
+| Blackout the player screen          | B                                                                                                              |
+| Load a map / show a handout         | Double-click it in the library (a selected map: Enter)                                                         |
+| Add maps                            | Ctrl+O, **Add maps…**, or drop files on the library                                                            |
+| Hide / show maps and handouts       | The panel button at the left of the toolbar, or Ctrl+B (more room for the map)                                 |
+| Rename, rotate, mirror or remove    | The ⋯ menu on the map or handout                                                                               |
+| Handout zoom and pan                | Ctrl + wheel and arrow keys on the player screen (Shift for bigger steps); Esc closes                          |
+| Player screen fullscreen            | F11 or the corner button                                                                                       |
+| Show all shortcuts                  | ?                                                                                                              |
 
 All shortcuts are also listed under **Settings → Keyboard shortcuts…**.
 

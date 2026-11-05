@@ -6,6 +6,30 @@ All notable changes to this project are documented here. The format is based on
 
 ## Unreleased
 
+### Changed
+
+- Controls follow common conventions:
+  - Ctrl + mouse wheel (and touchpad pinch) zooms your own view, like Alt +
+    wheel; Ctrl+= / Ctrl+− zoom it and Ctrl+0 fits the map. These keys no
+    longer zoom the whole app, player screen included.
+  - The plain mouse wheel sets the brush size in the Fog and Effects tools
+    and while Shift is held; [ and ] do too.
+  - The player view zooms with + and −, or the mouse wheel over the player
+    frame in the Frame tool.
+  - Space + drag pans your zoomed view (it still moves the player frame
+    when you are not zoomed in).
+  - Circles: Ctrl while dragging snaps to square centres (was Alt), Alt +
+    drag leaves a copy, Ctrl+D duplicates, arrow keys nudge one square
+    (Shift: 1 ft), and the radius can be typed in the circle's toolbar.
+    Shift + wheel no longer sets 1 ft steps.
+- The brush goes from 10 to 600 in steps of 10 (was up to 300, in steps of 5).
+
+### Added
+
+- ? shows the shortcuts, Enter loads the selected map, Ctrl+O adds maps.
+- A button at the left of the toolbar (or Ctrl+B) hides the maps and
+  handouts panel to give the map more room. The choice is remembered.
+
 ## 1.1.0 - 2026-11-05
 
 ### Added

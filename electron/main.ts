@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, protocol, net } from 'electron';
+import { app, BrowserWindow, Menu, ipcMain, dialog, shell, protocol, net } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -434,6 +434,24 @@ app.on('before-quit', (event) => {
 });
 
 app.whenReady().then(() => {
+  // The menu bar is never shown; the menu only provides these shortcuts. It
+  // leaves out Electron's page zoom (Ctrl+= / Ctrl+- / Ctrl+0): that zooms
+  // every window, the player screen too, and the DM window uses those keys to
+  // zoom its own view of the map.
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      {
+        label: 'Mini VTT',
+        submenu: [
+          { role: 'reload' },
+          { role: 'toggleDevTools' },
+          { role: 'togglefullscreen' },
+          { role: 'quit' },
+        ],
+      },
+      { role: 'editMenu' },
+    ]),
+  );
   protocol.handle('map-media', async (request) => {
     const id = new URL(request.url).hostname;
     const mediaPath = library.isHandoutId(id)

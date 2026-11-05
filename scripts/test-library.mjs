@@ -299,6 +299,13 @@ app.whenReady().then(async () => {
         (await lib.loadSnapshot()).settings.showEffectTools === false,
     );
     await lib.saveSettings({ showEffectTools: true });
+    check(
+      'the library panel is shown by default and can be hidden',
+      (await lib.loadSnapshot()).settings.showLibrary === true &&
+        (await lib.saveSettings({ showLibrary: false })) === true &&
+        (await lib.loadSnapshot()).settings.showLibrary === false,
+    );
+    await lib.saveSettings({ showLibrary: true });
 
     // Effects: optional per-map layer, saved as PNG, removed again with null
     const effectsUrl = `data:image/png;base64,${makePng({ width: 32, height: 32, rgb: [255, 100, 20] }).toString('base64')}`;

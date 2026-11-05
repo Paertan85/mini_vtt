@@ -16,12 +16,12 @@ import type {
   Point,
 } from './types/map';
 import { MapLibraryPanel, type OrientationChange } from './components/MapLibraryPanel';
-import { MapStage, type Tool } from './components/MapStage';
+import { MapStage, type Tool, type ViewControls } from './components/MapStage';
 import { BRUSH_STEP, MAX_BRUSH, MIN_BRUSH, Toolbar } from './components/Toolbar';
 import { PlayerSetupDialog, ShortcutsDialog, screenDimensions } from './components/Dialogs';
 import { useFog } from './hooks/useFog';
 import { useEffectLayer } from './hooks/useEffectLayer';
-import { clamp, clampZoom, orientedSize, type Size } from './lib/geometry';
+import { clamp, clampZoom, orientedSize, stepZoom, type Size } from './lib/geometry';
 import {
   DEFAULT_FEET_PER_CELL,
   MAX_CIRCLES,
@@ -84,6 +84,7 @@ export function App() {
   const effects = useEffectLayer();
   const [effectKind, setEffectKind] = useState<EffectKind>('fire');
   const [showEffectTools, setShowEffectTools] = useState(true);
+  const [showLibrary, setShowLibrary] = useState(true);
 
   // ─── Grid and circles (per map) ─────────────────────────────────────────────
   const [grid, setGrid] = useState<MapGrid | null>(null);
@@ -320,6 +321,7 @@ export function App() {
         setScreenDiagonal(snapshot.settings.playerScreenDiagonal);
         setGridSize(snapshot.settings.gridSize);
         setShowEffectTools(snapshot.settings.showEffectTools);
+        setShowLibrary(snapshot.settings.showLibrary);
         const last = snapshot.maps.find((entry) => entry.id === snapshot.settings.currentMapId);
         if (last) await loadMap(last);
       }
@@ -637,16 +639,20 @@ export function App() {
   // ─── Circle actions ─────────────────────────────────────────────────────────
 
   /** A point in rotated-map coordinates (like the pan) → map natural pixels. */
-  const orientedToMap = (point: Point, media: Size): Point => {
-    const oriented = orientedSize(media, rotation);
-    let x = point.x - oriented.w / 2;
-    let y = point.y - oriented.h / 2;
+  /** A direction on screen → the same direction on the map, undoing rotation and mirroring. */
+  const screenToMapDirection = ({ x, y }: Point): Point => {
     if (rotation === 90) [x, y] = [y, -x];
     else if (rotation === 180) [x, y] = [-x, -y];
     else if (rotation === 270) [x, y] = [-y, x];
     if (mirrorHorizontal) x = -x;
     if (mirrorVertical) y = -y;
-    return { x: x + media.w / 2, y: y + media.h / 2 };
+    return { x, y };
+  };
+
+  const orientedToMap = (point: Point, media: Size): Point => {
+    const oriented = orientedSize(media, rotation);
+    const offset = screenToMapDirection({ x: point.x - oriented.w / 2, y: point.y - oriented.h / 2 });
+    return { x: offset.x + media.w / 2, y: offset.y + media.h / 2 };
   };
 
   const handleAddCircle = () => {
@@ -699,8 +705,8 @@ export function App() {
   );
 
   const handleResizeCircle = useCallback(
-    (id: string, notches: number, fine: boolean) => {
-      const step = fine ? 1 : 5;
+    (id: string, notches: number) => {
+      const step = 5;
       updateCircles((current) =>
         current.map((circle) => {
           if (circle.id !== id) return circle;
@@ -729,6 +735,35 @@ export function App() {
     setSelectedCircleId(copy.id);
   };
 
+  const handleSetCircleRadius = useCallback(
+    (id: string, radiusFt: number) =>
+      updateCircles((current) =>
+        current.map((circle) =>
+          circle.id === id ? { ...circle, radiusFt: clampRadius(Math.round(radiusFt)) } : circle,
+        ),
+      ),
+    [updateCircles],
+  );
+
+  /** Alt + drag: a copy stays where the circle was, the original moves. */
+  const handleCopyCircleInPlace = (id: string) => {
+    const source = circlesRef.current.find((circle) => circle.id === id);
+    if (!source || circlesRef.current.length >= MAX_CIRCLES) return;
+    replaceCircles([...circlesRef.current, { ...source, id: newCircleId() }]);
+  };
+
+  /** Arrow keys: one square, or 1 ft with Shift, in the direction shown on screen. */
+  const handleNudgeCircle = (id: string, direction: Point, fine: boolean) => {
+    if (!grid) return;
+    const step = fine ? grid.cell / grid.feetPerCell : grid.cell;
+    const move = screenToMapDirection(direction);
+    updateCircles((current) =>
+      current.map((circle) =>
+        circle.id === id ? { ...circle, x: circle.x + move.x * step, y: circle.y + move.y * step } : circle,
+      ),
+    );
+  };
+
   const handleDeleteCircle = useCallback((id: string) => {
     replaceCircles(circlesRef.current.filter((circle) => circle.id !== id));
     setSelectedCircleId((selected) => (selected === id ? null : selected));
@@ -736,6 +771,13 @@ export function App() {
 
   const handleRecolorCircle = (id: string, kind: EffectKind) =>
     replaceCircles(circlesRef.current.map((circle) => (circle.id === id ? { ...circle, kind } : circle)));
+
+  const handleToggleLibrary = useCallback(() => {
+    setShowLibrary((shown) => {
+      void window.electronAPI?.saveSettings({ showLibrary: !shown });
+      return !shown;
+    });
+  }, []);
 
   const handleToggleEffectTools = () => {
     const next = !showEffectTools;
@@ -763,6 +805,12 @@ export function App() {
     selectedCircleId,
     calibrating: false,
     deleteCircle: handleDeleteCircle,
+    duplicateCircle: (_id: string) => {},
+    nudgeCircle: (_id: string, _direction: Point, _fine: boolean) => {},
+    selectedMapId: null as string | null,
+    loadMap: (_id: string) => {},
+    addMaps: () => {},
+    toggleLibrary: () => {},
   });
   shortcutState.current = {
     hasMap: !!mediaUrl,
@@ -771,7 +819,14 @@ export function App() {
     selectedCircleId,
     calibrating: !!calibration,
     deleteCircle: handleDeleteCircle,
+    duplicateCircle: handleDuplicateCircle,
+    nudgeCircle: handleNudgeCircle,
+    selectedMapId,
+    loadMap: handleLoadMap,
+    addMaps: () => void handleAddMaps(),
+    toggleLibrary: handleToggleLibrary,
   };
+  const viewControls = useRef<ViewControls | null>(null);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -790,15 +845,50 @@ export function App() {
         current.deleteCircle(current.selectedCircleId);
         return;
       }
+      // Before the modifier checks: on Nordic keyboards [ and ] are typed with AltGr (Ctrl+Alt)
+      if ((event.key === '[' || event.key === ']') && hasMap) {
+        event.preventDefault();
+        resizeBrush(event.key === ']' ? 1 : -1);
+        return;
+      }
       if (event.ctrlKey || event.metaKey) {
         if (key === 'z' && !event.shiftKey) currentHistory.undo();
         else if (key === 'y' || (key === 'z' && event.shiftKey)) currentHistory.redo();
+        // Your own view, like a browser or Photoshop; the player view is untouched
+        else if (key === '=' || key === '+') viewControls.current?.zoomBy(1.25);
+        else if (key === '-' || key === '_') viewControls.current?.zoomBy(0.8);
+        else if (key === '0') viewControls.current?.fit();
+        else if (key === 'd' && current.selectedCircleId) current.duplicateCircle(current.selectedCircleId);
+        else if (key === 'o') current.addMaps();
+        else if (key === 'b')
+          current.toggleLibrary(); // the sidebar toggle in editors and file browsers
         else return;
         event.preventDefault();
         return;
       }
       if (event.altKey) return;
-      if (event.key === ' ') {
+      const arrows: Record<string, Point> = {
+        ArrowLeft: { x: -1, y: 0 },
+        ArrowRight: { x: 1, y: 0 },
+        ArrowUp: { x: 0, y: -1 },
+        ArrowDown: { x: 0, y: 1 },
+      };
+      if (arrows[event.key] && current.selectedCircleId) {
+        event.preventDefault();
+        current.nudgeCircle(current.selectedCircleId, arrows[event.key], event.shiftKey);
+        return;
+      }
+      if (event.key === 'Enter' && current.selectedMapId) {
+        // A focused button handles Enter itself
+        if (event.target instanceof HTMLButtonElement) return;
+        event.preventDefault();
+        current.loadMap(current.selectedMapId);
+        return;
+      }
+      if (event.key === '?') setDialog('shortcuts');
+      else if ((event.key === '+' || event.key === '=') && hasMap) setZoom((zoom) => stepZoom(zoom, 1));
+      else if (event.key === '-' && hasMap) setZoom((zoom) => stepZoom(zoom, -1));
+      else if (event.key === ' ') {
         event.preventDefault();
         setSpaceHeld(true);
       } else if (key === 'v') setTool('frame');
@@ -856,6 +946,7 @@ export function App() {
         onRemoveHandout={handleRemoveHandout}
         onAddHandouts={handleAddHandouts}
         onDropHandouts={(files) => handleDropFiles(files, 'handout')}
+        hidden={!showLibrary}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -875,6 +966,8 @@ export function App() {
           onClearEffects={effects.clear}
           onAddCircle={handleAddCircle}
           showEffectTools={showEffectTools}
+          showLibrary={showLibrary}
+          onToggleLibrary={handleToggleLibrary}
           onToggleEffectTools={handleToggleEffectTools}
           onCalibrateGrid={startCalibration}
           onRevealAll={handleRevealAll}
@@ -948,6 +1041,7 @@ export function App() {
           effectKind={effectKind}
           tool={spaceHeld ? 'frame' : tool}
           shiftHeld={shiftHeld}
+          spaceHeld={spaceHeld}
           brushSize={brushSize}
           onBrushResize={resizeBrush}
           pan={pan}
@@ -971,11 +1065,14 @@ export function App() {
           onCircleDrag={handleCircleDrag}
           onMoveCircle={handleMoveCircle}
           onResizeCircle={handleResizeCircle}
+          onSetCircleRadius={handleSetCircleRadius}
           onDuplicateCircle={handleDuplicateCircle}
+          onCopyCircleInPlace={handleCopyCircleInPlace}
           onDeleteCircle={handleDeleteCircle}
           onRecolorCircle={handleRecolorCircle}
           calibrationPoints={calibration?.points ?? null}
           onCalibrationPoint={handleCalibrationPoint}
+          viewControls={viewControls}
         />
       </div>
 

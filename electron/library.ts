@@ -207,6 +207,7 @@ function normalizeSettings(stored: unknown): LibrarySettings {
     playerScreenDiagonal: toPositiveNumber(raw.playerScreenDiagonal ?? raw.playerViewDiagonal),
     gridSize: toPositiveNumber(raw.gridSize) ?? DEFAULT_SETTINGS.gridSize,
     showEffectTools: raw.showEffectTools !== false,
+    showLibrary: raw.showLibrary !== false,
     ...(mapOrder ? { mapOrder } : {}),
   };
 }
@@ -216,6 +217,7 @@ const DEFAULT_SETTINGS: LibrarySettings = {
   playerScreenDiagonal: null,
   gridSize: 1,
   showEffectTools: true,
+  showLibrary: true,
 };
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -592,6 +594,7 @@ export async function saveSettings(patch: Partial<LibrarySettings>): Promise<boo
   }
   if (toPositiveNumber(patch.gridSize) !== null) clean.gridSize = patch.gridSize;
   if (typeof patch.showEffectTools === 'boolean') clean.showEffectTools = patch.showEffectTools;
+  if (typeof patch.showLibrary === 'boolean') clean.showLibrary = patch.showLibrary;
   if (Object.keys(clean).length === 0) return false;
   await mutateIndex((index) => {
     index.settings = { ...index.settings, ...clean };

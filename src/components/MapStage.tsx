@@ -3,14 +3,18 @@
 // Mouse:  fog tool      left button reveals, right button covers
 //         effects tool  left button paints the chosen effect, right button erases
 //         frame tool    drag the frame to move the player view
-//         any tool      Shift + left/right paints fog, Ctrl + wheel zooms the
-//                       player view (Frame tool) or resizes the brush (Fog and
-//                       Effects tools)
-//         any tool      Alt + wheel zooms the DM view around the pointer (players
-//                       are unaffected); middle-button drag pans it
-//         circles       (Frame and Effects tools) drag the centre dot to move,
-//                       freely (Alt: snap to square centres); wheel over the
-//                       selected circle resizes it, 5 ft per notch (Shift: 1 ft)
+//         any tool      Shift + left/right paints fog
+//
+// Wheel:  Ctrl or Alt   zooms the DM view around the pointer (touchpad pinch
+//                       too); players are unaffected
+//         plain         resizes what you work with: the selected circle under
+//                       the pointer (5 ft per notch), else the brush (Fog and
+//                       Effects tools, or while Shift is held), else the player
+//                       view when over the frame (Frame tool)
+//
+// Panning a zoomed DM view: middle-button drag, or Space + drag.
+// Circles (Frame and Effects tools): drag the centre dot to move (Ctrl: snap
+// to square centres; Alt: leave a copy behind).
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Copy, Trash2 } from 'lucide-react';
@@ -40,6 +44,8 @@ interface MapStageProps {
   effectKind: EffectKind;
   tool: Tool;
   shiftHeld: boolean;
+  /** Space + drag pans a zoomed DM view (otherwise it moves the player frame) */
+  spaceHeld: boolean;
   brushSize: number;
   onBrushResize: (direction: 1 | -1) => void;
 
@@ -65,15 +71,28 @@ interface MapStageProps {
   /** A circle drag started (true) or ended (false); players only see where it lands. */
   onCircleDrag: (dragging: boolean) => void;
   onMoveCircle: (id: string, center: Point) => void;
-  /** Wheel notches: positive grows; `fine` steps 1 ft instead of 5 */
-  onResizeCircle: (id: string, notches: number, fine: boolean) => void;
+  /** Wheel notches: positive grows, 5 ft per notch */
+  onResizeCircle: (id: string, notches: number) => void;
+  /** A radius typed into the circle's toolbar */
+  onSetCircleRadius: (id: string, radiusFt: number) => void;
   onDuplicateCircle: (id: string) => void;
+  /** Alt + drag: leave a copy where the circle was */
+  onCopyCircleInPlace: (id: string) => void;
   onDeleteCircle: (id: string) => void;
   onRecolorCircle: (id: string, kind: EffectKind) => void;
 
   /** Corners clicked so far while calibrating the grid; null when not calibrating */
   calibrationPoints: Point[] | null;
   onCalibrationPoint: (point: Point) => void;
+
+  /** Filled in by the stage, so keyboard shortcuts can zoom the DM view */
+  viewControls: React.MutableRefObject<ViewControls | null>;
+}
+
+export interface ViewControls {
+  /** Zoom the DM view around the middle of the stage */
+  zoomBy: (factor: number) => void;
+  fit: () => void;
 }
 
 const STAGE_PADDING = 24;
@@ -114,6 +133,7 @@ export function MapStage(props: MapStageProps) {
     effectKind,
     tool,
     shiftHeld,
+    spaceHeld,
     brushSize,
     pan,
     viewportSize,
@@ -133,6 +153,7 @@ export function MapStage(props: MapStageProps) {
   const frameDragRef = useRef<{ start: Point; startPan: MapPan } | null>(null);
   const circleDragRef = useRef<{ id: string; pointerId: number } | null>(null);
   const wheelRemainderRef = useRef(0);
+  const brushWheelRef = useRef(0);
   const viewDragRef = useRef<{ start: Point; startView: ViewZoom; pointerId: number } | null>(null);
   const [available, setAvailable] = useState<Size>({ w: 0, h: 0 });
   // DM-only zoom and pan; the player screen never sees it
@@ -275,7 +296,27 @@ export function MapStage(props: MapStageProps) {
     effects.endStroke();
   };
 
-  // ─── Wheel: zoom and brush size (native, so preventDefault works) ─────────
+  // ─── DM view zoom ──────────────────────────────────────────────────────────
+
+  /** Zoom by `factor`, keeping the point at (fromCenterX, fromCenterY) — screen px from the stage centre — in place. */
+  const zoomViewAt = (fromCenterX: number, fromCenterY: number, factor: number) =>
+    setView((previous) => {
+      const { clampView: clamp } = geometry.current;
+      const start = clamp(previous);
+      const zoom = Math.max(1, Math.min(MAX_VIEW_ZOOM, start.zoom * factor));
+      const grow = zoom / start.zoom;
+      return clamp({
+        zoom,
+        x: fromCenterX - (fromCenterX - start.x) * grow,
+        y: fromCenterY - (fromCenterY - start.y) * grow,
+      });
+    });
+  props.viewControls.current = {
+    zoomBy: (factor) => zoomViewAt(0, 0, factor),
+    fit: () => setView(FIT_VIEW),
+  };
+
+  // ─── Wheel: zoom, circle, brush and player view (native, so preventDefault works)
 
   useEffect(() => {
     const container = containerRef.current;
@@ -283,28 +324,27 @@ export function MapStage(props: MapStageProps) {
     const onWheel = (event: WheelEvent) => {
       const current = latest.current;
       if (!current.mediaUrl) return;
-      // Alt + wheel zooms the DM view, in any tool, keeping the spot under the pointer
-      if (event.altKey) {
+      // Ctrl or Alt + wheel zooms the DM view in any tool, keeping the spot
+      // under the pointer. A touchpad pinch arrives as Ctrl + wheel.
+      if (event.ctrlKey || event.altKey) {
         event.preventDefault();
         const rect = container.getBoundingClientRect();
-        const fromCenterX = event.clientX - rect.left - rect.width / 2;
-        const fromCenterY = event.clientY - rect.top - rect.height / 2;
-        const factor = Math.exp(-wheelPixels(event) * 0.002);
         hideCursor(); // it would sit off the pointer until the next move
-        setView((previous) => {
-          const { clampView: clamp } = geometry.current;
-          const start = clamp(previous);
-          const zoom = Math.max(1, Math.min(MAX_VIEW_ZOOM, start.zoom * factor));
-          const grow = zoom / start.zoom;
-          return clamp({
-            zoom,
-            x: fromCenterX - (fromCenterX - start.x) * grow,
-            y: fromCenterY - (fromCenterY - start.y) * grow,
-          });
-        });
+        zoomViewAt(
+          event.clientX - rect.left - rect.width / 2,
+          event.clientY - rect.top - rect.height / 2,
+          Math.exp(-wheelPixels(event) * 0.002),
+        );
         return;
       }
-      // The wheel over the selected circle resizes it, with or without Ctrl
+      /** Whole notches so far; trackpads send many small deltas */
+      const notchesFrom = (remainder: React.MutableRefObject<number>) => {
+        const total = remainder.current - wheelPixels(event);
+        const notches = Math.trunc(total / WHEEL_NOTCH);
+        remainder.current = total - notches * WHEEL_NOTCH;
+        return notches;
+      };
+      // The wheel over the selected circle resizes it
       const selected = current.circlesInteractive
         ? current.circles.find((circle) => circle.id === current.selectedCircleId)
         : undefined;
@@ -320,32 +360,44 @@ export function MapStage(props: MapStageProps) {
         );
         if (distance <= reach) {
           event.preventDefault();
-          // Shift turns vertical scrolling horizontal in Chromium, so read both axes
-          const total = wheelRemainderRef.current - wheelPixels(event);
-          const notches = Math.trunc(total / WHEEL_NOTCH);
-          wheelRemainderRef.current = total - notches * WHEEL_NOTCH;
-          if (notches !== 0) current.onResizeCircle(selected.id, notches, event.shiftKey);
+          const notches = notchesFrom(wheelRemainderRef);
+          if (notches !== 0) current.onResizeCircle(selected.id, notches);
           return;
         }
       }
-      if (event.ctrlKey && (current.tool === 'fog' || current.tool === 'effect')) {
+      // Painting tools (or Shift, which paints fog from any tool): brush size.
+      // Shift turns vertical scrolling horizontal in Chromium; wheelPixels reads both axes.
+      if (current.tool === 'fog' || current.tool === 'effect' || event.shiftKey || current.shiftHeld) {
         event.preventDefault();
-        current.onBrushResize(Math.sign(event.deltaY || event.deltaX) > 0 ? -1 : 1);
-      } else if (event.ctrlKey) {
-        event.preventDefault();
-        const delta = event.deltaY || event.deltaX;
-        current.onZoomWheel(Math.exp(-delta * 0.001));
+        const notches = notchesFrom(brushWheelRef);
+        for (let i = 0; i < Math.abs(notches); i++) current.onBrushResize(notches > 0 ? 1 : -1);
+        return;
+      }
+      // Frame tool, pointer over the player frame: the player view zoom
+      const { pan: framePan, viewportSize: viewport, zoom: playerZoom } = current;
+      if (framePan && viewport && surface) {
+        const { displayScale: scale } = geometry.current;
+        const rect = surface.getBoundingClientRect();
+        const x = (event.clientX - rect.left) / scale - framePan.x;
+        const y = (event.clientY - rect.top) / scale - framePan.y;
+        if (x >= 0 && y >= 0 && x <= viewport.w / playerZoom && y <= viewport.h / playerZoom) {
+          event.preventDefault();
+          current.onZoomWheel(Math.exp(-wheelPixels(event) * 0.001));
+        }
       }
     };
     container.addEventListener('wheel', onWheel, { passive: false });
     return () => container.removeEventListener('wheel', onWheel);
   }, []);
 
-  // ─── DM view: middle-button drag pans a zoomed map ─────────────────────────
+  // ─── DM view: middle-button drag (or Space + drag) pans a zoomed map ───────
 
+  /** Runs in the capture phase, so a pan never also paints or drags the frame. */
   const handleViewPointerDown = (event: React.PointerEvent<HTMLElement>) => {
-    if (event.button !== 1 || shownView.zoom <= 1) return;
+    const pans = event.button === 1 || (event.button === 0 && spaceHeld);
+    if (!pans || shownView.zoom <= 1) return;
     event.preventDefault();
+    event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
     viewDragRef.current = {
       start: { x: event.clientX, y: event.clientY },
@@ -404,6 +456,7 @@ export function MapStage(props: MapStageProps) {
     event.currentTarget.setPointerCapture(event.pointerId);
     circleDragRef.current = { id, pointerId: event.pointerId };
     wheelRemainderRef.current = 0;
+    if (event.altKey) props.onCopyCircleInPlace(id);
     props.onSelectCircle(id);
     props.onCircleDrag(true);
   };
@@ -413,7 +466,7 @@ export function MapStage(props: MapStageProps) {
     if (!drag || drag.pointerId !== event.pointerId) return;
     const point = toMapPoint(event.clientX, event.clientY);
     if (!point) return;
-    props.onMoveCircle(drag.id, grid && event.altKey ? snapToCell(point, grid) : point);
+    props.onMoveCircle(drag.id, grid && event.ctrlKey ? snapToCell(point, grid) : point);
   };
 
   const endCircleDrag = () => {
@@ -447,7 +500,7 @@ export function MapStage(props: MapStageProps) {
       ref={containerRef}
       className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden"
       style={{ padding: STAGE_PADDING }}
-      onPointerDown={handleViewPointerDown}
+      onPointerDownCapture={handleViewPointerDown}
       onPointerMove={handleViewPointerMove}
       onPointerUp={endViewDrag}
       onPointerCancel={endViewDrag}
@@ -592,7 +645,7 @@ export function MapStage(props: MapStageProps) {
                   <button
                     type="button"
                     aria-label={`Circle, ${circle.radiusFt} ft`}
-                    title="Drag to move (Alt: snap to square centres). Mouse wheel over the circle resizes it (Shift: 1 ft steps)."
+                    title="Drag to move (Ctrl: snap to square centres, Alt: leave a copy). Mouse wheel over the circle resizes it; arrow keys nudge it."
                     className={`absolute z-30 h-4 w-4 cursor-move rounded-full border-2 ${
                       selected ? 'border-ground bg-gold' : 'border-gold'
                     }`}
@@ -619,6 +672,23 @@ export function MapStage(props: MapStageProps) {
                       className="absolute z-30 flex -translate-x-1/2 items-center gap-0.5 rounded border border-line bg-panel p-0.5"
                       style={{ left: center.x, top: center.y + 30 }}
                     >
+                      <label className="flex items-center gap-1 px-1 text-[11px] text-muted">
+                        <input
+                          type="number"
+                          aria-label="Radius in feet"
+                          min={1}
+                          max={500}
+                          step={1}
+                          value={circle.radiusFt}
+                          onChange={(event) => {
+                            const value = event.currentTarget.valueAsNumber;
+                            if (Number.isFinite(value) && value > 0)
+                              props.onSetCircleRadius(circle.id, value);
+                          }}
+                          className="w-12 rounded border border-line bg-ground px-1 py-0.5 text-right text-[12px] tabular-nums text-ink"
+                        />
+                        ft
+                      </label>
                       {EFFECT_KINDS.map((kind) => (
                         <button
                           key={kind}

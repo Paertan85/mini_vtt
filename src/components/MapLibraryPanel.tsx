@@ -37,6 +37,8 @@ interface MapLibraryPanelProps {
   onRemoveHandout: (id: string) => void;
   onAddHandouts: () => void;
   onDropHandouts: (files: File[]) => void;
+  /** Hidden panels keep their state (such as the open tab) */
+  hidden: boolean;
 }
 
 type Tab = 'maps' | 'handouts';
@@ -49,7 +51,10 @@ export function MapLibraryPanel(props: MapLibraryPanelProps) {
   const hasFiles = (event: React.DragEvent) => event.dataTransfer.types.includes('Files');
 
   return (
-    <aside className="flex min-h-0 w-72 shrink-0 flex-col border-r border-line bg-panel">
+    <aside
+      id="library-panel"
+      className={`${props.hidden ? 'hidden' : 'flex'} min-h-0 w-72 shrink-0 flex-col border-r border-line bg-panel`}
+    >
       <div className="flex h-12 shrink-0 items-center border-b border-line px-4">
         <h1 className="font-display text-[17px] font-semibold tracking-wider text-ink">Mini VTT</h1>
       </div>

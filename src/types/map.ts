@@ -125,6 +125,8 @@ export interface LibrarySettings {
   mapOrder?: string[];
   /** Whether the Effects tool and circles appear in the toolbar */
   showEffectTools: boolean;
+  /** Whether the map and handout library panel is shown */
+  showLibrary: boolean;
 }
 
 /** The library plus settings, as returned on startup. */

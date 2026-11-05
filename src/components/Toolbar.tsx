@@ -5,7 +5,17 @@
 //   right   player screen status, blackout, and the settings menu
 
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, CircleDashed, Minus, Plus, Redo2, Settings, Undo2 } from 'lucide-react';
+import {
+  ChevronDown,
+  CircleDashed,
+  Minus,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Plus,
+  Redo2,
+  Settings,
+  Undo2,
+} from 'lucide-react';
 import { Button, ButtonGroup, Divider, inputClass } from '../ui/controls';
 import { Menu } from '../ui/Menu';
 import { clampZoom, MAX_ZOOM, MIN_ZOOM, stepZoom } from '../lib/geometry';
@@ -14,8 +24,8 @@ import type { EffectKind } from '../types/map';
 import { EFFECT_KINDS, EFFECT_STYLES } from '../lib/effects';
 
 export const MIN_BRUSH = 10;
-export const MAX_BRUSH = 300;
-export const BRUSH_STEP = 5;
+export const MAX_BRUSH = 600;
+export const BRUSH_STEP = 10;
 
 interface ToolbarProps {
   hasMap: boolean;
@@ -58,6 +68,8 @@ interface ToolbarProps {
   onReload: () => void;
   onToggleDevTools: () => void;
   onQuit: () => void;
+  showLibrary: boolean;
+  onToggleLibrary: () => void;
 }
 
 export function Toolbar(props: ToolbarProps) {
@@ -66,6 +78,18 @@ export function Toolbar(props: ToolbarProps) {
 
   return (
     <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-2 border-b border-line bg-panel px-3 py-2">
+      <Button
+        square
+        tone="quiet"
+        aria-controls="library-panel"
+        aria-expanded={props.showLibrary}
+        aria-label={props.showLibrary ? 'Hide maps and handouts' : 'Show maps and handouts'}
+        title={props.showLibrary ? 'Hide maps and handouts (Ctrl+B)' : 'Show maps and handouts (Ctrl+B)'}
+        onClick={props.onToggleLibrary}
+      >
+        {props.showLibrary ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
+      </Button>
+
       {/* Tools and fog */}
       <ButtonGroup label="Tool">
         <Button
@@ -100,7 +124,7 @@ export function Toolbar(props: ToolbarProps) {
 
       <label
         className="flex items-center gap-2 pl-1 text-[13px] text-muted"
-        title="Brush size: Ctrl + mouse wheel in the Fog and Effects tools"
+        title="Brush size: mouse wheel in the Fog and Effects tools (or while holding Shift), or [ and ]"
       >
         Brush
         <input
@@ -162,7 +186,7 @@ export function Toolbar(props: ToolbarProps) {
           </Button>
           <Button
             onClick={props.onAddCircle}
-            title="Add a circle for an aura or spell area, sized in feet. Drag its centre dot to move it; mouse wheel over it resizes."
+            title="Add a circle for an aura or spell area, sized in feet. Drag its centre dot to move it; mouse wheel over it resizes, or type the radius."
           >
             <CircleDashed className="h-4 w-4" />
             Circle
@@ -268,7 +292,10 @@ function ZoomControl({
   };
 
   return (
-    <div className="flex items-center gap-2" title="Player view zoom (Ctrl + mouse wheel)">
+    <div
+      className="flex items-center gap-2"
+      title="Player view zoom: + and − keys, or mouse wheel over the player frame in the Frame tool"
+    >
       <span className="text-[13px] text-muted">Zoom</span>
       <ButtonGroup label="Player view zoom">
         <Button square onClick={() => onChange(stepZoom(zoom, -1))} disabled={disabled} aria-label="Zoom out">
