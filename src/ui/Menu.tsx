@@ -1,7 +1,9 @@
 // A small dropdown menu. It is positioned with `fixed`, so it is never clipped
-// by a scrolling panel, and closes on outside click, Escape or after a choice.
+// by a scrolling panel, and closes on outside click, Escape or after a choice
+// (see useAnchoredPopup).
 
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
+import { useAnchoredPopup } from './popup';
 
 export interface MenuItem {
   label: string;
@@ -30,52 +32,11 @@ interface MenuProps {
 
 export function Menu({ items, align = 'left', trigger }: MenuProps) {
   const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const close = useCallback(() => setOpen(false), []);
-
-  useLayoutEffect(() => {
-    if (!open || !triggerRef.current || !menuRef.current) return;
-    const anchor = triggerRef.current.getBoundingClientRect();
-    const menu = menuRef.current.getBoundingClientRect();
-    const left = align === 'right' ? anchor.right - menu.width : anchor.left;
-    const below = anchor.bottom + 4;
-    const top = below + menu.height > window.innerHeight - 8 ? anchor.top - menu.height - 4 : below;
-    setPosition({
-      top: Math.max(8, top),
-      left: Math.min(Math.max(8, left), window.innerWidth - menu.width - 8),
-    });
-  }, [open, align]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (!menuRef.current?.contains(target) && !triggerRef.current?.contains(target)) close();
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.stopPropagation();
-        close();
-        triggerRef.current?.focus();
-      }
-    };
-    window.addEventListener('pointerdown', onPointerDown, true);
-    window.addEventListener('keydown', onKeyDown, true);
-    window.addEventListener('blur', close);
-    return () => {
-      window.removeEventListener('pointerdown', onPointerDown, true);
-      window.removeEventListener('keydown', onKeyDown, true);
-      window.removeEventListener('blur', close);
-    };
-  }, [open, close]);
-
-  useEffect(() => {
-    if (open) menuRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
-    else setPosition(null);
-  }, [open]);
+  const position = useAnchoredPopup(open, close, triggerRef, menuRef, align);
 
   return (
     <>

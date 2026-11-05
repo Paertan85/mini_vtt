@@ -239,6 +239,29 @@ app.whenReady().then(async () => {
     await sleep(600);
     check('pre-1.1 settings are migrated', readIndex().settings.playerScreenDiagonal === 27);
 
+    // True scale before the player screen is open: a note right beneath the
+    // button says so, with a button that opens it
+    await clickText('True scale');
+    await sleep(200);
+    const trueScaleNote = await js(`(() => {
+      const note = document.querySelector('[role="dialog"][aria-label="True scale"]');
+      const button = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'True scale');
+      if (!note) return null;
+      const n = note.getBoundingClientRect(), b = button.getBoundingClientRect();
+      return { below: n.top >= b.bottom && n.top - b.bottom < 12 && n.left < b.right && n.right > b.left, text: note.textContent };
+    })()`);
+    check(
+      'True scale without the player screen shows a note right beneath it',
+      !!trueScaleNote?.below && trueScaleNote.text.includes('Open player screen'),
+      JSON.stringify(trueScaleNote),
+    );
+    await press('Escape');
+    await sleep(100);
+    check(
+      'Escape closes the note',
+      (await js(`!!document.querySelector('[role="dialog"][aria-label="True scale"]')`)) === false,
+    );
+
     await js(`${playerButton}.click()`);
     await sleep(1500);
     await js(`${playerButton}.click()`);
@@ -508,9 +531,23 @@ app.whenReady().then(async () => {
     // store the grid, then a circle can be placed, resized and deleted
     const alpha = () => readIndex().maps.find((m) => m.id === 'm_alpha');
     await addArea('Circle');
+    await sleep(200);
+    const shapeNote = await js(`(() => {
+      const note = document.querySelector('[role="dialog"][aria-label="Add a shape"]');
+      const button = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Circle');
+      if (!note) return null;
+      const n = note.getBoundingClientRect(), b = button.getBoundingClientRect();
+      return { below: n.top >= b.bottom && n.top - b.bottom < 12 && n.left < b.right && n.right > b.left, text: note.textContent };
+    })()`);
+    check(
+      'a shape on a map without a grid: a note right beneath its button says so',
+      !!shapeNote?.below && shapeNote.text.includes('Measure grid'),
+      JSON.stringify(shapeNote),
+    );
+    await clickText('Measure grid');
     await sleep(300);
     check(
-      'adding a circle without a grid starts measuring',
+      'its Measure grid button starts measuring',
       (await js(`!!document.querySelector('[aria-label="Grid calibration"]')`)) === true,
     );
     for (const point of [canvas, { x: canvas.x + 60, y: canvas.y + 60 }]) {
@@ -518,13 +555,31 @@ app.whenReady().then(async () => {
       mouse('mouseUp', point.x, point.y);
       await sleep(150);
     }
-    await clickText('Save grid');
-    await sleep(500);
-    check('measuring saves the grid', alpha().grid?.cell > 0, JSON.stringify(alpha().grid));
-    await addArea('Circle');
+    // Pressed with the mouse, so its message shows right beneath it
+    const saveButton = await js(`(() => {
+      const r = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Save grid').getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2, left: r.left, bottom: r.bottom };
+    })()`);
+    mouse('mouseDown', saveButton.x, saveButton.y);
+    mouse('mouseUp', saveButton.x, saveButton.y);
     await sleep(900);
+    check('measuring saves the grid', alpha().grid?.cell > 0, JSON.stringify(alpha().grid));
+    const savedToast = await js(`(() => {
+      const toast = [...document.querySelectorAll('[role="status"] > div')].find((t) => t.textContent === 'Grid saved for this map');
+      if (!toast) return null;
+      const r = toast.getBoundingClientRect();
+      return { top: r.top, left: r.left, right: r.right };
+    })()`);
     check(
-      'a 15 ft circle is added and saved',
+      'a message shows right beneath the button that was pressed',
+      !!savedToast &&
+        Math.abs(savedToast.top - (saveButton.bottom + 6)) < 3 &&
+        savedToast.left <= saveButton.left + 1 &&
+        savedToast.right > saveButton.left,
+      JSON.stringify({ toast: savedToast, button: saveButton }),
+    );
+    check(
+      'saving the grid adds the 15 ft circle that was asked for',
       alpha().circles.length === 1 && alpha().circles[0].radiusFt === 15,
       JSON.stringify(alpha().circles),
     );
@@ -744,18 +799,6 @@ app.whenReady().then(async () => {
     await loadMap('Beta');
     await sleep(1200);
     check("switching maps applies that map's zoom", (await zoomText()) === '100', `${await zoomText()}%`);
-    const trueScaleButton = `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'True scale')`;
-    check(
-      'True scale waits for the map’s grid, and says so',
-      (await js(`${trueScaleButton}.disabled && /grid/.test(${trueScaleButton}.title)`)) === true,
-      await js(`${trueScaleButton}.title`),
-    );
-    await loadMap('Alpha');
-    await sleep(1200);
-    check('switching back restores the latest zoom', (await zoomText()) === '150', `${await zoomText()}%`);
-    const diskZoom = readIndex().maps.find((m) => m.id === 'm_alpha').zoom;
-    check('the change was flushed to disk on switch', Math.abs(diskZoom - 1.5) < 0.01, String(diskZoom));
-
     // True scale: the map's squares come out at the set grid size on the
     // player screen (27 inches diagonal, 1-inch squares here)
     const screen = await js(
@@ -763,8 +806,50 @@ app.whenReady().then(async () => {
       player,
     );
     const aspect = screen.w / screen.h;
-    const screenInches = (27 * aspect) / Math.sqrt(aspect * aspect + 1);
-    const trueZoom = screen.w / screenInches / readIndex().maps.find((m) => m.id === 'm_alpha').grid.cell;
+    const pixelsPerInch = screen.w / ((27 * aspect) / Math.sqrt(aspect * aspect + 1));
+    const trueScaleButton = `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'True scale')`;
+    check(
+      'True scale is ready once the screen size is set',
+      (await js(`${trueScaleButton}.disabled`)) === false,
+    );
+    // Beta has no grid: the note beneath True scale offers to measure it,
+    // and true scale follows the save
+    await clickText('True scale');
+    await sleep(200);
+    check(
+      'on a map without a grid, the note beneath True scale says so',
+      (
+        await js(`document.querySelector('[role="dialog"][aria-label="True scale"]')?.textContent ?? ''`)
+      ).includes('Measure grid'),
+    );
+    await clickText('Measure grid');
+    await sleep(300);
+    check(
+      'its Measure grid button starts measuring',
+      (await js(`!!document.querySelector('[aria-label="Grid calibration"]')`)) === true,
+    );
+    const betaCentre = await centerOf('canvas[aria-label="Fog of war"]');
+    for (const point of [betaCentre, { x: betaCentre.x + 60, y: betaCentre.y + 60 }]) {
+      mouse('mouseDown', point.x, point.y);
+      mouse('mouseUp', point.x, point.y);
+      await sleep(150);
+    }
+    await clickText('Save grid');
+    await sleep(900);
+    const beta = readIndex().maps.find((m) => m.id === 'm_beta');
+    check(
+      'and zooms to true scale once the grid is saved',
+      !!beta.grid && Math.abs(beta.zoom / (pixelsPerInch / beta.grid.cell) - 1) < 1e-6,
+      JSON.stringify({ zoom: beta.zoom, grid: beta.grid }),
+    );
+    await loadMap('Alpha');
+    await sleep(1200);
+    check('switching back restores the latest zoom', (await zoomText()) === '150', `${await zoomText()}%`);
+    const diskZoom = readIndex().maps.find((m) => m.id === 'm_alpha').zoom;
+    check('the change was flushed to disk on switch', Math.abs(diskZoom - 1.5) < 0.01, String(diskZoom));
+
+    // True scale on a map with a grid applies straight away
+    const trueZoom = pixelsPerInch / readIndex().maps.find((m) => m.id === 'm_alpha').grid.cell;
     await clickText('True scale');
     await sleep(900);
     const scaledZoom = readIndex().maps.find((m) => m.id === 'm_alpha').zoom;

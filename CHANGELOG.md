@@ -11,9 +11,11 @@ All notable changes to this project are documented here. The format is based on
 - **True scale**, next to Fit 16:9, zooms the player view so the map's own
   squares come out at the grid square size from Player screen setup: on a
   43-inch screen set to 1-inch squares, each square of the map is an inch
-  across, so miniatures fit it. It needs the screen size, the map's grid
-  (Measure map grid) and the player screen open, and its tooltip says
-  which is missing. It is highlighted while the view is at true scale.
+  across, so miniatures fit it. Without the screen size, or with the
+  player screen closed, a click says so right beneath the button, with a
+  button that opens Player screen setup or the player screen. On a map
+  without a grid it has you measure one first and applies when you save
+  it. It is highlighted while the view is at true scale.
 - Releases build themselves: pushing a version tag tests the app on
   Windows, macOS and Linux and drafts a GitHub release with the installers
   for all three, using the changelog as its notes. CI now tests on Windows
@@ -36,6 +38,14 @@ All notable changes to this project are documented here. The format is based on
 
 ### Changed
 
+- Messages show right beneath the button you pressed (Save grid, Export
+  project, Add maps, Remove and the rest) instead of in the bottom right
+  corner. Only those with nothing to point at, such as a keyboard
+  shortcut's or a note when a map loads on its own, still use the corner.
+  When a shape or True scale needs something first (the map's grid, the
+  screen size or the player screen), a note beneath its button says so,
+  with a button that does it, and the shape or True scale follows once
+  the grid is saved.
 - Spell areas have their own Shapes tool (S), with a button for each
   shape. The mouse pointer stays visible while placing them (the Effects
   tool hid it behind the brush), and picking a colour there also recolours

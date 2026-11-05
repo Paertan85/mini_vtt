@@ -5,7 +5,7 @@
 //   centre  player view zoom and 16:9 fit
 //   right   player screen status, blackout, and the settings menu
 
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import {
   ChevronDown,
   Minus,
@@ -18,10 +18,11 @@ import {
 } from 'lucide-react';
 import { Button, ButtonGroup, Divider, inputClass } from '../ui/controls';
 import { Menu } from '../ui/Menu';
+import { Popover } from '../ui/Popover';
 import { clampZoom, MAX_ZOOM, MIN_ZOOM, stepZoom } from '../lib/geometry';
 import type { Tool } from './MapStage';
 import type { AreaShape, EffectKind } from '../types/map';
-import { AREA_LABELS, AREA_SHAPES, DEFAULT_AREA_FT } from '../lib/grid';
+import { AREA_LABELS, AREA_SHAPES, DEFAULT_AREA_FT, MAX_CIRCLES } from '../lib/grid';
 import { EFFECT_KINDS, EFFECT_STYLES } from '../lib/effects';
 import { keyLabel } from '../lib/platform';
 
@@ -44,8 +45,10 @@ interface ToolbarProps {
   onEffectKindChange: (kind: EffectKind) => void;
   canClearEffects: boolean;
   onClearEffects: () => void;
-  /** Adds a spell area (asks for the grid first if the map has none) */
+  /** Adds a spell area, or starts measuring the grid when the map has none (it follows the save) */
   onAddCircle: (shape: AreaShape) => void;
+  /** What adding a shape needs first: the map's grid, or room (a full map); explained beneath the button */
+  shapesNeed: ShapesNeed | null;
   /** Whether the Effects and Shapes tools and the spell areas are offered at all */
   showEffectTools: boolean;
   onToggleEffectTools: () => void;
@@ -59,8 +62,12 @@ interface ToolbarProps {
   onToggleFit16by9: () => void;
   /** Whether the player view is at true scale: the map's squares the size set in Player screen setup */
   atTrueScale: boolean;
-  /** Why true scale isn't possible yet, or null when it is */
-  trueScaleBlocker: string | null;
+  /**
+   * What True scale needs first: the screen size, the player screen open (to
+   * know its pixels), or the map's grid. A click explains it beneath the button.
+   */
+  trueScaleNeeds: TrueScaleNeed | null;
+  /** Applies true scale, or starts measuring the grid when that is what it needs */
   onTrueScale: () => void;
 
   playerOpen: boolean;
@@ -82,11 +89,47 @@ interface ToolbarProps {
   onToggleLibrary: () => void;
 }
 
+export type TrueScaleNeed = 'setup' | 'player' | 'grid';
+export type ShapesNeed = 'grid' | 'full';
+
+/** What the note beneath True scale says, and its button, for each thing it needs. */
+const TRUE_SCALE_NOTES: Record<TrueScaleNeed, { text: string; action: string }> = {
+  setup: {
+    text: 'True scale needs the player screen’s size, to work out how big a square is on it.',
+    action: 'Player screen setup…',
+  },
+  player: {
+    text: 'True scale needs the player screen open, to know its size in pixels.',
+    action: 'Open player screen',
+  },
+  grid: {
+    text: 'True scale needs this map’s grid, to know how big its squares are. Click two corners of a square and save it, and True scale follows.',
+    action: 'Measure grid',
+  },
+};
+
 // Memoized: the DM window re-renders on every frame of a drag, and the toolbar
 // never depends on that
 export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
-  const { hasMap, tool, zoom } = props;
+  const { hasMap, tool, zoom, trueScaleNeeds } = props;
   const layerName = tool === 'effect' ? 'effects' : 'fog';
+
+  // The note beneath True scale saying what it still needs
+  const trueScaleRef = useRef<HTMLButtonElement>(null);
+  const [trueScaleNote, setTrueScaleNote] = useState(false);
+  const closeTrueScaleNote = useCallback(() => setTrueScaleNote(false), []);
+  useEffect(() => {
+    if (!trueScaleNeeds) setTrueScaleNote(false);
+  }, [trueScaleNeeds]);
+
+  // The note beneath a shape button, when shapes can't be added yet
+  const { shapesNeed } = props;
+  const shapeAnchorRef = useRef<HTMLButtonElement | null>(null);
+  const [shapeNote, setShapeNote] = useState<AreaShape | null>(null);
+  const closeShapeNote = useCallback(() => setShapeNote(null), []);
+  useEffect(() => {
+    if (!shapesNeed) setShapeNote(null);
+  }, [shapesNeed]);
 
   return (
     <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-2 border-b border-line bg-panel px-3 py-2">
@@ -213,13 +256,51 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
             {AREA_SHAPES.map((shape) => (
               <Button
                 key={shape}
-                onClick={() => props.onAddCircle(shape)}
+                aria-haspopup={shapesNeed ? 'dialog' : undefined}
+                aria-expanded={shapesNeed ? shapeNote === shape : undefined}
+                onClick={(event) => {
+                  if (!shapesNeed) {
+                    props.onAddCircle(shape);
+                    return;
+                  }
+                  shapeAnchorRef.current = event.currentTarget;
+                  setShapeNote((open) => (open === shape ? null : shape));
+                }}
                 title={`Add a ${DEFAULT_AREA_FT[shape]} ft ${AREA_LABELS[shape].toLowerCase()} in the middle of the player view. Drag its dot to move it; the mouse wheel over it resizes it, or type the size.`}
               >
                 {AREA_LABELS[shape]}
               </Button>
             ))}
           </ButtonGroup>
+          <Popover
+            open={shapeNote !== null && shapesNeed !== null}
+            onClose={closeShapeNote}
+            anchorRef={shapeAnchorRef}
+            label="Add a shape"
+          >
+            {shapeNote && shapesNeed === 'grid' && (
+              <>
+                <p>
+                  Shapes are sized in feet, so this map needs its grid first. Click two corners of a square
+                  and save it, and the {AREA_LABELS[shapeNote].toLowerCase()} is added.
+                </p>
+                <div className="mt-3 flex justify-end">
+                  <Button
+                    tone="active"
+                    onClick={() => {
+                      setShapeNote(null);
+                      props.onAddCircle(shapeNote);
+                    }}
+                  >
+                    Measure grid
+                  </Button>
+                </div>
+              </>
+            )}
+            {shapesNeed === 'full' && (
+              <p>A map can have at most {MAX_CIRCLES} shapes. Delete one to add another.</p>
+            )}
+          </Popover>
         </>
       )}
       {(tool === 'view' || tool === 'fog') && (
@@ -273,17 +354,42 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         Fit 16:9
       </Button>
       <Button
+        ref={trueScaleRef}
         tone={props.atTrueScale ? 'active' : 'default'}
         aria-pressed={props.atTrueScale}
-        onClick={props.onTrueScale}
-        disabled={!hasMap || props.trueScaleBlocker !== null}
-        title={
-          props.trueScaleBlocker ??
-          'Zoom the player view so the map’s squares are the grid square size from Player screen setup, for miniatures'
-        }
+        aria-haspopup={trueScaleNeeds ? 'dialog' : undefined}
+        aria-expanded={trueScaleNeeds ? trueScaleNote : undefined}
+        onClick={() => (trueScaleNeeds ? setTrueScaleNote((shown) => !shown) : props.onTrueScale())}
+        disabled={!hasMap}
+        title="Zoom the player view so the map’s squares are the grid square size from Player screen setup, for miniatures. A map without a grid gets it measured first."
       >
         True scale
       </Button>
+      <Popover
+        open={trueScaleNote && trueScaleNeeds !== null}
+        onClose={closeTrueScaleNote}
+        anchorRef={trueScaleRef}
+        label="True scale"
+      >
+        {trueScaleNeeds && (
+          <>
+            <p>{TRUE_SCALE_NOTES[trueScaleNeeds].text}</p>
+            <div className="mt-3 flex justify-end">
+              <Button
+                tone="active"
+                onClick={() => {
+                  setTrueScaleNote(false);
+                  if (trueScaleNeeds === 'setup') props.onOpenPlayerSetup();
+                  else if (trueScaleNeeds === 'player') props.onOpenPlayer();
+                  else props.onTrueScale();
+                }}
+              >
+                {TRUE_SCALE_NOTES[trueScaleNeeds].action}
+              </Button>
+            </div>
+          </>
+        )}
+      </Popover>
 
       <div className="flex-1" />
 

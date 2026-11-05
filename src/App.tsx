@@ -18,7 +18,14 @@ import type {
 } from './types/map';
 import { MapLibraryPanel, forgetThumb, type OrientationChange } from './components/MapLibraryPanel';
 import { MapStage, type Tool, type ViewControls } from './components/MapStage';
-import { BRUSH_STEP, MAX_BRUSH, MIN_BRUSH, Toolbar } from './components/Toolbar';
+import {
+  BRUSH_STEP,
+  MAX_BRUSH,
+  MIN_BRUSH,
+  Toolbar,
+  type ShapesNeed,
+  type TrueScaleNeed,
+} from './components/Toolbar';
 import { PlayerSetupDialog, ShortcutsDialog, screenDimensions } from './components/Dialogs';
 import { useFog } from './hooks/useFog';
 import { useHandlers } from './hooks/useHandlers';
@@ -39,7 +46,7 @@ import {
 } from './lib/grid';
 import { GridCalibrationBar, type Calibration } from './components/GridCalibrationBar';
 import { Button } from './ui/controls';
-import { NotificationHost, confirmAction, notify } from './ui/notify';
+import { NotificationHost, confirmAction, notify, pressedControl, type Anchor } from './ui/notify';
 
 const VIEW_SAVE_DELAY_MS = 400;
 /** A square turned within this many degrees of the grid settles onto it. */
@@ -80,7 +87,7 @@ async function adviseOnVideo(mapId: string, name: string, size: Size) {
       `It will use a lot of CPU and may stutter on the player screen; a copy at ${smaller.w} × ${smaller.h} ` +
       'plays much more smoothly.',
     'info',
-    15000,
+    { durationMs: 15000 },
   );
 }
 
@@ -387,18 +394,21 @@ export function App() {
     })();
   }, [reloadLibrary, loadMap]);
 
-  const reportImport = (result: ImportResult, kind: 'map' | 'handout') => {
-    if (result.added > 0) notify(`${plural(result.added, kind)} added`);
+  // Actions that wait for a file dialog or a confirmation take the pressed
+  // button at their start, so their messages still show beneath it
+  const reportImport = (result: ImportResult, kind: 'map' | 'handout', anchor: Anchor | null) => {
+    if (result.added > 0) notify(`${plural(result.added, kind)} added`, 'info', { anchor });
     if (result.skipped.length > 0) {
       const what = kind === 'map' ? 'an image or WebM video' : 'an image';
-      notify(`Skipped ${result.skipped.join(', ')}: not ${what} Mini VTT can open.`, 'error');
+      notify(`Skipped ${result.skipped.join(', ')}: not ${what} Mini VTT can open.`, 'error', { anchor });
     }
   };
 
   const handleAddMaps = async () => {
+    const anchor = pressedControl();
     const result = await api?.importMapsFromDialog();
     if (!result) return;
-    reportImport(result, 'map');
+    reportImport(result, 'map', anchor);
     await reloadLibrary();
     if (result.firstMap) await loadMap(result.firstMap, { centerFrame: true });
   };
@@ -408,7 +418,8 @@ export function App() {
     const paths = api.getDroppedFilePaths(files).filter(Boolean);
     if (paths.length === 0) return;
     const result = kind === 'map' ? await api.importMaps(paths) : await api.importHandouts(paths);
-    reportImport(result, kind);
+    // Dropped files have no button to point at
+    reportImport(result, kind, null);
     await reloadLibrary();
   };
 
@@ -461,6 +472,7 @@ export function App() {
   const handleRemoveMap = async (id: string) => {
     const meta = maps.find((entry) => entry.id === id);
     if (!meta) return;
+    const anchor = pressedControl();
     const confirmed = await confirmAction({
       title: 'Remove map',
       message: `Remove “${meta.name}” from the library? Its fog and framing are deleted too. The original file isn’t affected.`,
@@ -483,6 +495,7 @@ export function App() {
       notify(
         `Couldn’t remove “${meta.name}”: its file is in use. If another program has it open, close it and try again.`,
         'error',
+        { anchor },
       );
       const stillThere = snapshot?.maps.find((entry) => entry.id === id);
       if (wasLoaded && stillThere) await loadMap(stillThere);
@@ -497,28 +510,34 @@ export function App() {
   // ─── Project files ──────────────────────────────────────────────────────────
 
   const handleExportProject = async () => {
+    const anchor = pressedControl();
     // Save the latest fog and framing first, so the file has them
     await settleSaves();
     const result = await api?.exportProject();
     if (!result) return;
     if (!result.ok) {
-      notify(result.error, 'error');
+      notify(result.error, 'error', { anchor });
       return;
     }
     notify(
       `Exported ${plural(result.maps, 'map')} and ${plural(result.handouts, 'handout')} to “${result.fileName}”`,
+      'info',
+      { anchor },
     );
   };
 
   const handleImportProject = async () => {
+    const anchor = pressedControl();
     const result = await api?.importProject();
     if (!result) return;
     if (!result.ok) {
-      notify(result.error, 'error');
+      notify(result.error, 'error', { anchor });
       return;
     }
     notify(
       `Imported ${plural(result.maps, 'map')} and ${plural(result.handouts, 'handout')} from “${result.fileName}”`,
+      'info',
+      { anchor },
     );
     // What didn't come across, e.g. from a newer version or a fork of Mini VTT
     const leftOut = [
@@ -533,7 +552,7 @@ export function App() {
       result.effectsLeftOut > 0 &&
         `The painted effects of ${plural(result.effectsLeftOut, 'map')} couldn’t be read.`,
     ].filter(Boolean);
-    if (leftOut.length > 0) notify(leftOut.join(' '), 'error');
+    if (leftOut.length > 0) notify(leftOut.join(' '), 'error', { anchor });
     const snapshot = await reloadLibrary();
     if (snapshot && result.settingsApplied) {
       setScreenDiagonal(snapshot.settings.playerScreenDiagonal);
@@ -546,9 +565,10 @@ export function App() {
   // ─── Handouts ───────────────────────────────────────────────────────────────
 
   const handleAddHandouts = async () => {
+    const anchor = pressedControl();
     const result = await api?.importHandoutsFromDialog();
     if (!result) return;
-    reportImport(result, 'handout');
+    reportImport(result, 'handout', anchor);
     await reloadLibrary();
   };
 
@@ -583,6 +603,7 @@ export function App() {
   const handleRemoveHandout = async (id: string) => {
     const handout = handouts.find((entry) => entry.id === id);
     if (!handout) return;
+    const anchor = pressedControl();
     const confirmed = await confirmAction({
       title: 'Remove handout',
       message: `Remove “${handout.name}” from the library? The original file isn’t affected.`,
@@ -594,6 +615,7 @@ export function App() {
       notify(
         `Couldn’t remove “${handout.name}”. If another program has its file open, close it and try again.`,
         'error',
+        { anchor },
       );
       return;
     }
@@ -676,29 +698,46 @@ export function App() {
   // at the grid square size of Player screen setup on the player screen, so
   // miniatures fit them. Like the frame's grid, it takes the player window to
   // fill the screen.
-  const trueScaleZoom =
-    screenDiagonal && viewportSize && grid
-      ? (gridSize * viewportSize.w) / (screenDimensions(screenDiagonal, viewportSize).width * grid.cell)
+  const trueScaleFor = (mapGrid: MapGrid | null) =>
+    screenDiagonal && viewportSize && mapGrid
+      ? (gridSize * viewportSize.w) / (screenDimensions(screenDiagonal, viewportSize).width * mapGrid.cell)
       : null;
-  const trueScaleBlocker = !screenDiagonal
-    ? 'True scale needs the player screen’s size: Settings → Player screen setup…'
+  const trueScaleZoom = trueScaleFor(grid);
+  // What it needs first, explained beneath the button on a click; a missing
+  // grid is measured on the click instead
+  const trueScaleNeeds: TrueScaleNeed | null = !screenDiagonal
+    ? 'setup'
     : !viewportSize
-      ? 'True scale needs the player screen open, to know its size in pixels'
+      ? 'player'
       : !grid
-        ? 'True scale needs this map’s grid: Settings → Measure map grid…'
+        ? 'grid'
         : null;
   const atTrueScale = trueScaleZoom !== null && Math.abs(zoom / trueScaleZoom - 1) < 1e-3;
+  // What to do once the grid being measured is saved: True scale, or add the
+  // shape that was asked for. Forgotten when measuring ends without a save.
+  const afterGridRef = useRef<'trueScale' | AreaShape | null>(null);
+  useEffect(() => {
+    if (!calibration) afterGridRef.current = null;
+  }, [calibration]);
 
-  const handleTrueScale = () => {
-    if (trueScaleZoom === null) return;
-    const next = clampZoom(trueScaleZoom);
+  const applyTrueScale = (target: number) => {
+    const next = clampZoom(target);
     setZoom(next);
-    if (next !== trueScaleZoom) {
+    if (next !== target) {
       notify(
-        `True scale would need ${Math.round(trueScaleZoom * 100)}% zoom for this map, but the player view goes from ${Math.round(MIN_ZOOM * 100)}% to ${Math.round(MAX_ZOOM * 100)}%. It is zoomed as close as it can be.`,
+        `True scale would need ${Math.round(target * 100)}% zoom for this map, but the player view goes from ${Math.round(MIN_ZOOM * 100)}% to ${Math.round(MAX_ZOOM * 100)}%. It is zoomed as close as it can be.`,
         'error',
       );
     }
+  };
+
+  // The note beneath the button explains what is missing; for the grid, its
+  // button comes here to start measuring, and true scale follows the save
+  const handleTrueScale = () => {
+    if (trueScaleNeeds === 'grid') {
+      startCalibration();
+      afterGridRef.current = 'trueScale';
+    } else if (!trueScaleNeeds && trueScaleZoom !== null) applyTrueScale(trueScaleZoom);
   };
 
   const handleSavePlayerSetup = (diagonal: number | null, grid: number, rotation: number) => {
@@ -754,8 +793,13 @@ export function App() {
     setMaps((entries) =>
       entries.map((entry) => (entry.id === currentMapId ? { ...entry, grid: next } : entry)),
     );
+    const after = next ? afterGridRef.current : null;
     setCalibration(null);
     notify(next ? 'Grid saved for this map' : 'Grid removed from this map');
+    if (after === 'trueScale') {
+      const target = trueScaleFor(next);
+      if (target !== null) applyTrueScale(target);
+    } else if (after) addCircle(after);
   };
 
   // ─── Circle actions ─────────────────────────────────────────────────────────
@@ -777,17 +821,20 @@ export function App() {
     return { x: offset.x + media.w / 2, y: offset.y + media.h / 2 };
   };
 
+  // What adding a shape needs first, explained beneath the shape's button
+  const shapesNeed: ShapesNeed | null = !grid ? 'grid' : circles.length >= MAX_CIRCLES ? 'full' : null;
+
+  // Without a grid, the note's Measure grid button comes here: the shape is
+  // added once the grid is saved
   const handleAddCircle = (shape: AreaShape) => {
-    if (!mediaSize) return;
     if (!grid) {
-      notify('Measure the map’s grid first, so areas can be sized in feet.');
       startCalibration();
-      return;
-    }
-    if (circlesRef.current.length >= MAX_CIRCLES) {
-      notify(`A map can have at most ${MAX_CIRCLES} areas.`, 'error');
-      return;
-    }
+      afterGridRef.current = shape;
+    } else addCircle(shape);
+  };
+
+  const addCircle = (shape: AreaShape) => {
+    if (!mediaSize || circlesRef.current.length >= MAX_CIRCLES) return;
     // Cones and lines start pointing right on screen, whatever the map's orientation
     const right = screenToMapDirection({ x: 1, y: 0 });
     // In the middle of what the players see, or of the map
@@ -1195,7 +1242,8 @@ export function App() {
           zoom={zoom}
           fit16by9={fit16by9}
           atTrueScale={atTrueScale}
-          trueScaleBlocker={trueScaleBlocker}
+          trueScaleNeeds={trueScaleNeeds}
+          shapesNeed={shapesNeed}
           playerOpen={playerOpen}
           blackout={blackout}
         />
