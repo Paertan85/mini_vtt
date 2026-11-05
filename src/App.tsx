@@ -111,7 +111,7 @@ export function App() {
   const [mirrorVertical, setMirrorVertical] = useState(false);
 
   // ─── Tools ──────────────────────────────────────────────────────────────────
-  const [tool, setTool] = useState<Tool>('frame');
+  const [tool, setTool] = useState<Tool>('view');
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [shiftHeld, setShiftHeld] = useState(false);
   const [brushSize, setBrushSize] = useState(80);
@@ -949,7 +949,7 @@ export function App() {
     if (tool === 'shapes' && selectedCircleId) handleRecolorCircle(selectedCircleId, kind);
   };
 
-  // Areas can only be edited in the Frame and Shapes tools: leaving them
+  // Areas can only be edited in the View and Shapes tools: leaving them
   // drops the selection, so Delete can't remove an area that isn't shown
   const changeTool = useCallback((next: Tool) => {
     setTool(next);
@@ -968,7 +968,7 @@ export function App() {
     setShowEffectTools(next);
     if (!next) {
       setSelectedCircleId(null);
-      setTool((current) => (current === 'effect' || current === 'shapes' ? 'frame' : current));
+      setTool((current) => (current === 'effect' || current === 'shapes' ? 'view' : current));
     }
     void api?.saveSettings({ showEffectTools: next });
   };
@@ -1075,7 +1075,7 @@ export function App() {
       else if (event.key === ' ') {
         event.preventDefault();
         setSpaceHeld(true);
-      } else if (key === 'v') changeTool('frame');
+      } else if (key === 'v') changeTool('view');
       else if (key === 'f' && hasMap) changeTool('fog');
       else if (key === 'l' && hasMap) {
         // L for lasso, as in Photoshop: switches the Fog tool between brush and lasso
@@ -1242,7 +1242,7 @@ export function App() {
           fog={fog}
           effects={effects}
           effectKind={effectKind}
-          tool={spaceHeld ? 'frame' : tool}
+          tool={spaceHeld ? 'view' : tool}
           shiftHeld={shiftHeld}
           fogLasso={fogLasso}
           spaceHeld={spaceHeld}
@@ -1263,7 +1263,7 @@ export function App() {
             showEffectTools &&
             !calibration &&
             !shiftHeld &&
-            (spaceHeld || tool === 'frame' || tool === 'shapes')
+            (spaceHeld || tool === 'view' || tool === 'shapes')
           }
           onSelectCircle={setSelectedCircleId}
           onCircleDrag={handleCircleDrag}

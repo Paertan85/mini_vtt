@@ -10,10 +10,10 @@
 //         plain         resizes what you work with: the selected circle under
 //                       the pointer (5 ft per notch), else the brush (Fog and
 //                       Effects tools, or while Shift is held), else the player
-//                       view when over the frame (Frame tool)
+//                       view when over the frame (View tool)
 //
 // Panning a zoomed DM view: middle-button drag, or Space + drag.
-// Circles (Frame and Effects tools): drag the centre dot to move (Ctrl: snap
+// Circles (View and Shapes tools): drag the centre dot to move (Ctrl: snap
 // to square centres; Alt: leave a copy behind).
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -36,7 +36,7 @@ import { orientedSize, type Size } from '../lib/geometry';
 import { keyLabel } from '../lib/platform';
 import { releaseVideo } from '../lib/video';
 
-export type Tool = 'frame' | 'fog' | 'effect' | 'shapes';
+export type Tool = 'view' | 'fog' | 'effect' | 'shapes';
 
 interface MapStageProps {
   mediaUrl: string | null;
@@ -427,10 +427,10 @@ export function MapStage(props: MapStageProps) {
         for (let i = 0; i < Math.abs(notches); i++) current.onBrushResize(notches > 0 ? 1 : -1);
         return;
       }
-      // Frame tool, pointer over the player frame: the player view zoom. Not in
+      // View tool, pointer over the player frame: the player view zoom. Not in
       // the Shapes tool, where a wheel that just misses a shape would zoom it.
       const { pan: framePan, viewportSize: viewport, zoom: playerZoom } = current;
-      if (current.tool === 'frame' && framePan && viewport && surface) {
+      if (current.tool === 'view' && framePan && viewport && surface) {
         const { displayScale: scale } = geometry.current;
         const rect = surface.getBoundingClientRect();
         const x = (event.clientX - rect.left) / scale - framePan.x;
@@ -479,7 +479,7 @@ export function MapStage(props: MapStageProps) {
 
   // ─── Player frame dragging ────────────────────────────────────────────────
 
-  const frameDraggable = tool === 'frame' && !shiftHeld;
+  const frameDraggable = tool === 'view' && !shiftHeld;
 
   const handleFramePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!pan || event.button !== 0) return;

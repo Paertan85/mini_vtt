@@ -232,7 +232,7 @@ app.whenReady().then(async () => {
       (await panelShown()) === true && readIndex().settings.showLibrary === true,
     );
 
-    // Frame tool (default): dragging the frame saves the pan
+    // View tool (default): dragging the frame saves the pan
     const frame = await centerOf('[aria-label="Player view"]');
     check('player frame is shown', !!frame);
     if (frame) {
@@ -419,7 +419,7 @@ app.whenReady().then(async () => {
     await press('0', { ctrlKey: true });
     await sleep(300);
 
-    // Frame tool: the wheel over the player frame zooms the player view
+    // View tool: the wheel over the player frame zooms the player view
     await press('v');
     await sleep(100);
     const frameCenter = await centerOf('[aria-label="Player view"]');

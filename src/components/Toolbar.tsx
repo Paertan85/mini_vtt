@@ -1,5 +1,5 @@
 // The DM window's toolbar, in three groups:
-//   left    tools (frame / fog / effects / shapes), brush size, undo and
+//   left    tools (view / fog / effects / shapes), brush size, undo and
 //           redo, and the active tool's options: the fog menu, the effect
 //           colours and Clear, or the colours and the shapes to add
 //   centre  player view zoom and 16:9 fit
@@ -107,12 +107,12 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
       {/* Tools and fog */}
       <ButtonGroup label="Tool">
         <Button
-          tone={tool === 'frame' ? 'active' : 'default'}
-          aria-pressed={tool === 'frame'}
-          onClick={() => props.onToolChange('frame')}
-          title="Move the player view (V). Hold Space to move it while painting."
+          tone={tool === 'view' ? 'active' : 'default'}
+          aria-pressed={tool === 'view'}
+          onClick={() => props.onToolChange('view')}
+          title="View: drag the frame to move the player view (V). Hold Space to move it while painting."
         >
-          Frame
+          View
         </Button>
         <Button
           tone={tool === 'fog' ? 'active' : 'default'}
@@ -222,7 +222,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
           </ButtonGroup>
         </>
       )}
-      {(tool === 'frame' || tool === 'fog') && (
+      {(tool === 'view' || tool === 'fog') && (
         <>
           {tool === 'fog' && (
             <ButtonGroup label="Fog drawing">
@@ -367,7 +367,7 @@ function ZoomControl({
   return (
     <div
       className="flex items-center gap-2"
-      title="Player view zoom: + and − keys, or mouse wheel over the player frame in the Frame tool"
+      title="Player view zoom: + and − keys, or mouse wheel over the player frame in the View tool"
     >
       <span className="text-[13px] text-muted">Zoom</span>
       <ButtonGroup label="Player view zoom">

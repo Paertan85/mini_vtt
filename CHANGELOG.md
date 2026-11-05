@@ -40,9 +40,12 @@ All notable changes to this project are documented here. The format is based on
   shape. The mouse pointer stays visible while placing them (the Effects
   tool hid it behind the brush), and picking a colour there also recolours
   the selected shape. The Effects tool only paints now, so area dots no
-  longer catch brush strokes; areas can still be moved in the Frame tool.
+  longer catch brush strokes; areas can still be moved in the View tool.
   The Fog tool's Shape mode is now called Lasso (still L), so the two
   aren't confused.
+- The Frame tool is now called View (still V), the name other tabletop
+  apps use for what the players see. The teal frame on the map is still
+  dragged in it to move the player view.
 - Project files are now ordinary ZIP archives, so any unzip tool can open
   them and other programs can read and write them. Files exported by Mini
   VTT 1.1 and 1.2 still import, but those versions can't open the new files.

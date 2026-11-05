@@ -141,7 +141,7 @@ export function PlayerSetupDialog({
 }
 
 const SHORTCUTS: [string, string[]][] = [
-  ['Frame tool: move the player view', ['V']],
+  ['View tool: move the player view', ['V']],
   ['Fog tool', ['F']],
   ['Reveal fog / cover fog', ['Left Mouse button', 'Right Mouse button']],
   ['Fog tool: switch between brush and lasso (draw around an area)', ['L']],
@@ -155,7 +155,7 @@ const SHORTCUTS: [string, string[]][] = [
   ['Pan your zoomed view', ['Space + drag', 'Middle mouse drag']],
   ['Move the player view while painting (not zoomed)', ['Space + drag']],
   ['Zoom the player view', ['+', '−']],
-  ['Zoom the player view (Frame tool, pointer on the frame)', ['Mouse wheel']],
+  ['Zoom the player view (View tool, pointer on the frame)', ['Mouse wheel']],
   ['Resize the selected area by 5 ft, a line’s width (pointer over it)', ['Mouse wheel']],
   ['Aim a cone or line and set its length', ['Drag its tip']],
   ['Turn a square', ['Drag the handle on its edge']],
