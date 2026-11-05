@@ -36,7 +36,7 @@ import { orientedSize, type Size } from '../lib/geometry';
 import { keyLabel } from '../lib/platform';
 import { releaseVideo } from '../lib/video';
 
-export type Tool = 'frame' | 'fog' | 'effect';
+export type Tool = 'frame' | 'fog' | 'effect' | 'shapes';
 
 interface MapStageProps {
   mediaUrl: string | null;
@@ -55,7 +55,7 @@ interface MapStageProps {
   tool: Tool;
   shiftHeld: boolean;
   /** Fog tool draws outlines whose inside is revealed or covered, not brush strokes */
-  fogShape: boolean;
+  fogLasso: boolean;
   /** Space + drag pans a zoomed DM view (otherwise it moves the player frame) */
   spaceHeld: boolean;
   brushSize: number;
@@ -149,7 +149,7 @@ export function MapStage(props: MapStageProps) {
     effectKind,
     tool,
     shiftHeld,
-    fogShape,
+    fogLasso,
     spaceHeld,
     brushSize,
     pan,
@@ -219,14 +219,14 @@ export function MapStage(props: MapStageProps) {
   // Shift always paints fog, whatever the tool
   const paintsEffects = tool === 'effect' && !shiftHeld;
   const canPaint = tool === 'fog' || tool === 'effect' || shiftHeld;
-  // Shapes are a Fog tool mode; Shift from another tool is always the brush
-  const drawsShape = fogShape && tool === 'fog';
-  const shapeRef = useRef<SVGPolygonElement>(null);
-  const lastShapePointRef = useRef<Point | null>(null);
+  // The lasso is a Fog tool mode; Shift from another tool is always the brush
+  const drawsLasso = fogLasso && tool === 'fog';
+  const lassoRef = useRef<SVGPolygonElement>(null);
+  const lastLassoPointRef = useRef<Point | null>(null);
 
   /** Extend the outline preview without re-rendering. */
-  const addShapePoint = (point: Point) => {
-    const polygon = shapeRef.current;
+  const addLassoPoint = (point: Point) => {
+    const polygon = lassoRef.current;
     const svg = polygon?.ownerSVGElement;
     if (!polygon || !svg) return;
     const added = svg.createSVGPoint();
@@ -234,9 +234,9 @@ export function MapStage(props: MapStageProps) {
     added.y = point.y;
     polygon.points.appendItem(added);
   };
-  const clearShapePreview = () => {
-    shapeRef.current?.points.clear();
-    lastShapePointRef.current = null;
+  const clearLassoPreview = () => {
+    lassoRef.current?.points.clear();
+    lastLassoPointRef.current = null;
   };
 
   /** Client coordinates → map natural pixels, undoing rotation and mirroring. */
@@ -306,8 +306,8 @@ export function MapStage(props: MapStageProps) {
     if (cursorRef.current) cursorRef.current.style.visibility = 'hidden';
   };
   useEffect(() => {
-    if (!canPaint || drawsShape) hideCursor();
-  }, [canPaint, drawsShape]);
+    if (!canPaint || drawsLasso) hideCursor();
+  }, [canPaint, drawsLasso]);
 
   // ─── Painting ──────────────────────────────────────────────────────────────
 
@@ -318,27 +318,27 @@ export function MapStage(props: MapStageProps) {
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     if (paintsEffects) effects.beginStroke(event.button === 0 ? effectKind : null, point, brushSize);
-    else if (drawsShape) {
-      fog.beginShape(event.button === 0 ? 'reveal' : 'cover', point);
-      clearShapePreview();
-      addShapePoint(point);
-      lastShapePointRef.current = point;
-      shapeRef.current?.setAttribute('data-mode', event.button === 0 ? 'reveal' : 'cover');
+    else if (drawsLasso) {
+      fog.beginLasso(event.button === 0 ? 'reveal' : 'cover', point);
+      clearLassoPreview();
+      addLassoPoint(point);
+      lastLassoPointRef.current = point;
+      lassoRef.current?.setAttribute('data-mode', event.button === 0 ? 'reveal' : 'cover');
     } else fog.beginStroke(event.button === 0 ? 'reveal' : 'cover', point, brushSize);
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    if (canPaint && !drawsShape) moveCursor(event.clientX, event.clientY);
+    if (canPaint && !drawsLasso) moveCursor(event.clientX, event.clientY);
     if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
     const point = toMapPoint(event.clientX, event.clientY);
     if (!point) return;
-    const last = lastShapePointRef.current;
+    const last = lastLassoPointRef.current;
     if (last) {
       // Skip points under ~2 screen pixels apart; the outline needs no more
       if (Math.hypot(point.x - last.x, point.y - last.y) * displayScale < 2) return;
-      lastShapePointRef.current = point;
-      fog.continueShape(point);
-      addShapePoint(point);
+      lastLassoPointRef.current = point;
+      fog.continueLasso(point);
+      addLassoPoint(point);
       return;
     }
     fog.continueStroke(point);
@@ -350,9 +350,9 @@ export function MapStage(props: MapStageProps) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
     fog.endStroke();
-    fog.endShape();
+    fog.endLasso();
     effects.endStroke();
-    clearShapePreview();
+    clearLassoPreview();
   };
 
   // ─── DM view zoom ──────────────────────────────────────────────────────────
@@ -427,9 +427,10 @@ export function MapStage(props: MapStageProps) {
         for (let i = 0; i < Math.abs(notches); i++) current.onBrushResize(notches > 0 ? 1 : -1);
         return;
       }
-      // Frame tool, pointer over the player frame: the player view zoom
+      // Frame tool, pointer over the player frame: the player view zoom. Not in
+      // the Shapes tool, where a wheel that just misses a shape would zoom it.
       const { pan: framePan, viewportSize: viewport, zoom: playerZoom } = current;
-      if (framePan && viewport && surface) {
+      if (current.tool === 'frame' && framePan && viewport && surface) {
         const { displayScale: scale } = geometry.current;
         const rect = surface.getBoundingClientRect();
         const x = (event.clientX - rect.left) / scale - framePan.x;
@@ -660,11 +661,11 @@ export function MapStage(props: MapStageProps) {
               onPointerCancel={handlePointerUp}
               onContextMenu={(event) => event.preventDefault()}
               className={`absolute inset-0 h-full w-full opacity-80 ${
-                drawsShape ? 'cursor-crosshair' : canPaint ? 'cursor-none' : 'cursor-default'
+                drawsLasso ? 'cursor-crosshair' : canPaint ? 'cursor-none' : 'cursor-default'
               }`}
             />
-            {/* Freehand shape outline while drawing; the closing edge is implied */}
-            {mediaSize && drawsShape && (
+            {/* The lasso's outline while drawing; the closing edge is implied */}
+            {mediaSize && drawsLasso && (
               <svg
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
@@ -672,7 +673,7 @@ export function MapStage(props: MapStageProps) {
                 preserveAspectRatio="none"
               >
                 <polygon
-                  ref={shapeRef}
+                  ref={lassoRef}
                   className="fill-gold/15 stroke-gold data-[mode=cover]:fill-ground/40"
                   strokeWidth={2}
                   strokeDasharray="6 4"

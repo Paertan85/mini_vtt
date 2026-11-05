@@ -53,7 +53,7 @@ export function drawStroke(ctx: CanvasRenderingContext2D, stroke: FogStroke, med
  * The outline is closed with a straight line back to its start; overlapping
  * loops all count as inside. One fill, however large the area.
  */
-export function fillShape(
+export function fillOutline(
   ctx: CanvasRenderingContext2D,
   points: Point[],
   mode: FogMode,

@@ -11,7 +11,7 @@
 // mouse is released. Encoded snapshots and undo/redo steps wait their turn in
 // one queue, so they apply in the order they happened.
 //
-// A shape (freehand outline) only collects points while the mouse moves; the
+// A lasso (freehand outline) only collects points while the mouse moves; the
 // inside is filled once on release and published like a stroke.
 //
 // Undo needs no extra work: the state before a stroke is the snapshot that was
@@ -25,7 +25,7 @@ import {
   drawStroke,
   encodeMask,
   fillMask,
-  fillShape,
+  fillOutline,
   fogMaskSize,
   loadImage,
 } from '../lib/fog';
@@ -43,9 +43,9 @@ export interface Fog {
   continueStroke: (point: Point) => void;
   endStroke: () => void;
   /** Freehand outline: reveal or cover its inside when it ends */
-  beginShape: (mode: FogMode, point: Point) => void;
-  continueShape: (point: Point) => void;
-  endShape: () => void;
+  beginLasso: (mode: FogMode, point: Point) => void;
+  continueLasso: (point: Point) => void;
+  endLasso: () => void;
   revealAll: () => void;
   coverAll: () => void;
   undo: () => void;
@@ -61,7 +61,7 @@ export function useFog(): Fog {
   const mapIdRef = useRef<string | null>(null);
   const mediaRef = useRef<Size>({ w: 0, h: 0 });
   const strokeRef = useRef<{ mode: FogMode; last: Point; radius: number } | null>(null);
-  const shapeRef = useRef<{ mode: FogMode; points: Point[] } | null>(null);
+  const lassoRef = useRef<{ mode: FogMode; points: Point[] } | null>(null);
   // The encoded current mask, and masks to step back or forward to
   const currentRef = useRef<string | null>(null);
   const undoRef = useRef<string[]>([]);
@@ -126,7 +126,7 @@ export function useFog(): Fog {
       mapIdRef.current = mapId;
       mediaRef.current = media;
       strokeRef.current = null;
-      shapeRef.current = null;
+      lassoRef.current = null;
       undoRef.current = [];
       redoRef.current = [];
       const size = fogMaskSize(media);
@@ -194,21 +194,21 @@ export function useFog(): Fog {
     commit();
   }, [commit]);
 
-  const beginShape = useCallback((mode: FogMode, point: Point) => {
-    shapeRef.current = { mode, points: [point] };
+  const beginLasso = useCallback((mode: FogMode, point: Point) => {
+    lassoRef.current = { mode, points: [point] };
   }, []);
 
-  const continueShape = useCallback((point: Point) => {
-    shapeRef.current?.points.push(point);
+  const continueLasso = useCallback((point: Point) => {
+    lassoRef.current?.points.push(point);
   }, []);
 
-  const endShape = useCallback(() => {
-    const shape = shapeRef.current;
-    shapeRef.current = null;
+  const endLasso = useCallback(() => {
+    const shape = lassoRef.current;
+    lassoRef.current = null;
     const ctx = context();
     // A click or a line encloses nothing
     if (!shape || shape.points.length < 3 || !ctx) return;
-    fillShape(ctx, shape.points, shape.mode, mediaRef.current, DM_FOG_COLOR);
+    fillOutline(ctx, shape.points, shape.mode, mediaRef.current, DM_FOG_COLOR);
     commit();
   }, [commit]);
 
@@ -232,7 +232,7 @@ export function useFog(): Fog {
       const ctx = context();
       const target = from.current[from.current.length - 1];
       const current = currentRef.current;
-      if (!ctx || !target || !current || strokeRef.current || shapeRef.current) return;
+      if (!ctx || !target || !current || strokeRef.current || lassoRef.current) return;
       from.current = from.current.slice(0, -1);
       to.current = [...to.current.slice(-(MAX_HISTORY - 1)), current];
       currentRef.current = target;
@@ -260,9 +260,9 @@ export function useFog(): Fog {
     beginStroke,
     continueStroke,
     endStroke,
-    beginShape,
-    continueShape,
-    endShape,
+    beginLasso,
+    continueLasso,
+    endLasso,
     revealAll,
     coverAll,
     undo,

@@ -1,13 +1,13 @@
 // The DM window's toolbar, in three groups:
-//   left    tools (frame / fog / effects), brush size, undo and redo, and
-//           the fog menu or, with the Effects tool, its colours and Clear
+//   left    tools (frame / fog / effects / shapes), brush size, undo and
+//           redo, and the active tool's options: the fog menu, the effect
+//           colours and Clear, or the colours and the shapes to add
 //   centre  player view zoom and 16:9 fit
 //   right   player screen status, blackout, and the settings menu
 
 import { memo, useEffect, useRef, useState } from 'react';
 import {
   ChevronDown,
-  CircleDashed,
   Minus,
   PanelLeftClose,
   PanelLeftOpen,
@@ -21,7 +21,7 @@ import { Menu } from '../ui/Menu';
 import { clampZoom, MAX_ZOOM, MIN_ZOOM, stepZoom } from '../lib/geometry';
 import type { Tool } from './MapStage';
 import type { AreaShape, EffectKind } from '../types/map';
-import { AREA_LABELS, AREA_SHAPES } from '../lib/grid';
+import { AREA_LABELS, AREA_SHAPES, DEFAULT_AREA_FT } from '../lib/grid';
 import { EFFECT_KINDS, EFFECT_STYLES } from '../lib/effects';
 import { keyLabel } from '../lib/platform';
 
@@ -39,13 +39,14 @@ interface ToolbarProps {
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
+  /** The colour painted, and given to new shapes */
   effectKind: EffectKind;
   onEffectKindChange: (kind: EffectKind) => void;
   canClearEffects: boolean;
   onClearEffects: () => void;
-  /** Adds an aura circle (asks for the grid first if the map has none) */
+  /** Adds a spell area (asks for the grid first if the map has none) */
   onAddCircle: (shape: AreaShape) => void;
-  /** Whether the Effects tool and circles are offered at all */
+  /** Whether the Effects and Shapes tools and the spell areas are offered at all */
   showEffectTools: boolean;
   onToggleEffectTools: () => void;
   onCalibrateGrid: () => void;
@@ -56,6 +57,11 @@ interface ToolbarProps {
   onZoomChange: (zoom: number) => void;
   fit16by9: boolean;
   onToggleFit16by9: () => void;
+  /** Whether the player view is at true scale: the map's squares the size set in Player screen setup */
+  atTrueScale: boolean;
+  /** Why true scale isn't possible yet, or null when it is */
+  trueScaleBlocker: string | null;
+  onTrueScale: () => void;
 
   playerOpen: boolean;
   onOpenPlayer: () => void;
@@ -70,8 +76,8 @@ interface ToolbarProps {
   onReload: () => void;
   onToggleDevTools: () => void;
   onQuit: () => void;
-  fogShape: boolean;
-  onFogShapeChange: (shape: boolean) => void;
+  fogLasso: boolean;
+  onFogLassoChange: (shape: boolean) => void;
   showLibrary: boolean;
   onToggleLibrary: () => void;
 }
@@ -118,15 +124,26 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
           Fog
         </Button>
         {props.showEffectTools && (
-          <Button
-            tone={tool === 'effect' ? 'active' : 'default'}
-            aria-pressed={tool === 'effect'}
-            onClick={() => props.onToolChange('effect')}
-            disabled={!hasMap}
-            title="Paint effects such as fire or poison and place aura circles (E): Left Mouse button paints, Right mouse button erases"
-          >
-            Effects
-          </Button>
+          <>
+            <Button
+              tone={tool === 'effect' ? 'active' : 'default'}
+              aria-pressed={tool === 'effect'}
+              onClick={() => props.onToolChange('effect')}
+              disabled={!hasMap}
+              title="Paint effects such as fire or poison (E): Left Mouse button paints, Right mouse button erases"
+            >
+              Effects
+            </Button>
+            <Button
+              tone={tool === 'shapes' ? 'active' : 'default'}
+              aria-pressed={tool === 'shapes'}
+              onClick={() => props.onToolChange('shapes')}
+              disabled={!hasMap}
+              title="Place spell areas sized in feet: circles, squares, cones and lines (S)"
+            >
+              Shapes
+            </Button>
+          </>
         )}
       </ButtonGroup>
 
@@ -169,22 +186,13 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         </Button>
       </ButtonGroup>
 
-      {tool === 'effect' ? (
+      {tool === 'effect' && (
         <>
-          <ButtonGroup label="Effect">
-            {EFFECT_KINDS.map((kind) => (
-              <Button
-                key={kind}
-                tone={props.effectKind === kind ? 'active' : 'default'}
-                aria-pressed={props.effectKind === kind}
-                onClick={() => props.onEffectKindChange(kind)}
-                title={`Paint ${EFFECT_STYLES[kind].label.toLowerCase()}`}
-              >
-                <EffectSwatch kind={kind} />
-                {EFFECT_STYLES[kind].label}
-              </Button>
-            ))}
-          </ButtonGroup>
+          <EffectKindPicker
+            kind={props.effectKind}
+            onChange={props.onEffectKindChange}
+            title={(label) => `Paint ${label}`}
+          />
           <Button
             onClick={props.onClearEffects}
             disabled={!props.canClearEffects}
@@ -192,42 +200,47 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
           >
             Clear
           </Button>
-          <Menu
-            items={AREA_SHAPES.map((shape) => ({
-              label: AREA_LABELS[shape],
-              onSelect: () => props.onAddCircle(shape),
-            }))}
-            trigger={(trigger) => (
-              <Button
-                {...trigger}
-                title="Add a spell area sized in feet: circle, square, cone or line. Drag its dot to move it; the mouse wheel over it resizes it, or type the size."
-              >
-                <CircleDashed className="h-4 w-4" />
-                Area
-                <ChevronDown className="h-3.5 w-3.5 text-muted" />
-              </Button>
-            )}
-          />
         </>
-      ) : (
+      )}
+      {tool === 'shapes' && (
+        <>
+          <EffectKindPicker
+            kind={props.effectKind}
+            onChange={props.onEffectKindChange}
+            title={(label) => `Make new shapes, and the selected one, ${label}`}
+          />
+          <ButtonGroup label="Add a shape">
+            {AREA_SHAPES.map((shape) => (
+              <Button
+                key={shape}
+                onClick={() => props.onAddCircle(shape)}
+                title={`Add a ${DEFAULT_AREA_FT[shape]} ft ${AREA_LABELS[shape].toLowerCase()} in the middle of the player view. Drag its dot to move it; the mouse wheel over it resizes it, or type the size.`}
+              >
+                {AREA_LABELS[shape]}
+              </Button>
+            ))}
+          </ButtonGroup>
+        </>
+      )}
+      {(tool === 'frame' || tool === 'fog') && (
         <>
           {tool === 'fog' && (
             <ButtonGroup label="Fog drawing">
               <Button
-                tone={props.fogShape ? 'default' : 'active'}
-                aria-pressed={!props.fogShape}
-                onClick={() => props.onFogShapeChange(false)}
+                tone={props.fogLasso ? 'default' : 'active'}
+                aria-pressed={!props.fogLasso}
+                onClick={() => props.onFogLassoChange(false)}
                 title="Paint fog with a round brush (L switches)"
               >
                 Brush
               </Button>
               <Button
-                tone={props.fogShape ? 'active' : 'default'}
-                aria-pressed={props.fogShape}
-                onClick={() => props.onFogShapeChange(true)}
-                title="Draw around an area to reveal it all at once; Right Mouse button covers it (L switches)"
+                tone={props.fogLasso ? 'active' : 'default'}
+                aria-pressed={props.fogLasso}
+                onClick={() => props.onFogLassoChange(true)}
+                title="Lasso: draw around an area to reveal it all at once; Right Mouse button covers it (L switches)"
               >
-                Shape
+                Lasso
               </Button>
             </ButtonGroup>
           )}
@@ -259,6 +272,18 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
       >
         Fit 16:9
       </Button>
+      <Button
+        tone={props.atTrueScale ? 'active' : 'default'}
+        aria-pressed={props.atTrueScale}
+        onClick={props.onTrueScale}
+        disabled={!hasMap || props.trueScaleBlocker !== null}
+        title={
+          props.trueScaleBlocker ??
+          'Zoom the player view so the map’s squares are the grid square size from Player screen setup, for miniatures'
+        }
+      >
+        True scale
+      </Button>
 
       <div className="flex-1" />
 
@@ -288,7 +313,11 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
           { label: 'Player screen setup…', onSelect: props.onOpenPlayerSetup },
           { label: 'Keyboard shortcuts…', onSelect: props.onOpenShortcuts },
           { label: 'Measure map grid…', onSelect: props.onCalibrateGrid, disabled: !hasMap, separated: true },
-          { label: 'Show effect tools', onSelect: props.onToggleEffectTools, checked: props.showEffectTools },
+          {
+            label: 'Show effect and shape tools',
+            onSelect: props.onToggleEffectTools,
+            checked: props.showEffectTools,
+          },
           { label: 'Export project…', onSelect: props.onExportProject, separated: true },
           { label: 'Import project…', onSelect: props.onImportProject },
           { label: 'Open library folder', onSelect: props.onRevealLibraryFolder },
@@ -376,6 +405,35 @@ function ZoomControl({
         </Button>
       </ButtonGroup>
     </div>
+  );
+}
+
+/** Fire / poison / magic, each with its colour chip. */
+function EffectKindPicker({
+  kind,
+  onChange,
+  title,
+}: {
+  kind: EffectKind;
+  onChange: (kind: EffectKind) => void;
+  /** The button's tooltip, from the colour's name in lower case */
+  title: (label: string) => string;
+}) {
+  return (
+    <ButtonGroup label="Effect">
+      {EFFECT_KINDS.map((option) => (
+        <Button
+          key={option}
+          tone={kind === option ? 'active' : 'default'}
+          aria-pressed={kind === option}
+          onClick={() => onChange(option)}
+          title={title(EFFECT_STYLES[option].label.toLowerCase())}
+        >
+          <EffectSwatch kind={option} />
+          {EFFECT_STYLES[option].label}
+        </Button>
+      ))}
+    </ButtonGroup>
   );
 }
 

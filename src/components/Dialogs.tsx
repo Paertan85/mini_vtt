@@ -67,7 +67,8 @@ export function PlayerSetupDialog({
     >
       <p className="mb-4 text-[13px] leading-relaxed text-muted">
         With the screen size set, the player frame shows a grid that matches the physical screen, so
-        miniatures line up with the map. Use any unit, as long as both values use the same one.
+        miniatures line up with the map, and True scale zooms a map so its own squares are that size. Use any
+        unit, as long as both values use the same one.
       </p>
       <div className="grid grid-cols-2 gap-3">
         <label className="flex flex-col gap-1.5 text-[13px] text-ink">
@@ -143,8 +144,9 @@ const SHORTCUTS: [string, string[]][] = [
   ['Frame tool: move the player view', ['V']],
   ['Fog tool', ['F']],
   ['Reveal fog / cover fog', ['Left Mouse button', 'Right Mouse button']],
-  ['Fog tool: switch between brush and shape (draw around an area)', ['L']],
+  ['Fog tool: switch between brush and lasso (draw around an area)', ['L']],
   ['Effects tool: paint / erase fire, poison or magic', ['E']],
+  ['Shapes tool: place circles, squares, cones and lines', ['S']],
   ['Paint fog with any tool', ['Shift', '+ Mouse button']],
   ['Brush size (Fog and Effects tools, or holding Shift)', ['Mouse wheel', '[ ]']],
   ['Undo / redo (fog, or effects in the Effects tool)', ['Ctrl+Z', 'Ctrl+Y or Ctrl+Shift+Z']],

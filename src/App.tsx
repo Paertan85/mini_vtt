@@ -23,7 +23,7 @@ import { PlayerSetupDialog, ShortcutsDialog, screenDimensions } from './componen
 import { useFog } from './hooks/useFog';
 import { useHandlers } from './hooks/useHandlers';
 import { useEffectLayer } from './hooks/useEffectLayer';
-import { clamp, clampZoom, orientedSize, stepZoom, type Size } from './lib/geometry';
+import { clamp, clampZoom, MAX_ZOOM, MIN_ZOOM, orientedSize, stepZoom, type Size } from './lib/geometry';
 import { keyLabel } from './lib/platform';
 import { smallerVideoSize } from './lib/video';
 import {
@@ -122,7 +122,7 @@ export function App() {
   const [showEffectTools, setShowEffectTools] = useState(true);
   const [showLibrary, setShowLibrary] = useState(true);
   // Fog tool: freehand shapes instead of the brush
-  const [fogShape, setFogShape] = useState(false);
+  const [fogLasso, setFogLasso] = useState(false);
 
   // ─── Grid and circles (per map) ─────────────────────────────────────────────
   const [grid, setGrid] = useState<MapGrid | null>(null);
@@ -672,6 +672,35 @@ export function App() {
     setFit16by9(true);
   };
 
+  // True scale: the player view zoom at which the map's own squares come out
+  // at the grid square size of Player screen setup on the player screen, so
+  // miniatures fit them. Like the frame's grid, it takes the player window to
+  // fill the screen.
+  const trueScaleZoom =
+    screenDiagonal && viewportSize && grid
+      ? (gridSize * viewportSize.w) / (screenDimensions(screenDiagonal, viewportSize).width * grid.cell)
+      : null;
+  const trueScaleBlocker = !screenDiagonal
+    ? 'True scale needs the player screen’s size: Settings → Player screen setup…'
+    : !viewportSize
+      ? 'True scale needs the player screen open, to know its size in pixels'
+      : !grid
+        ? 'True scale needs this map’s grid: Settings → Measure map grid…'
+        : null;
+  const atTrueScale = trueScaleZoom !== null && Math.abs(zoom / trueScaleZoom - 1) < 1e-3;
+
+  const handleTrueScale = () => {
+    if (trueScaleZoom === null) return;
+    const next = clampZoom(trueScaleZoom);
+    setZoom(next);
+    if (next !== trueScaleZoom) {
+      notify(
+        `True scale would need ${Math.round(trueScaleZoom * 100)}% zoom for this map, but the player view goes from ${Math.round(MIN_ZOOM * 100)}% to ${Math.round(MAX_ZOOM * 100)}%. It is zoomed as close as it can be.`,
+        'error',
+      );
+    }
+  };
+
   const handleSavePlayerSetup = (diagonal: number | null, grid: number, rotation: number) => {
     setScreenDiagonal(diagonal);
     setGridSize(grid);
@@ -914,6 +943,19 @@ export function App() {
   const handleRecolorCircle = (id: string, kind: EffectKind) =>
     replaceCircles(circlesRef.current.map((circle) => (circle.id === id ? { ...circle, kind } : circle)));
 
+  // The colour picked in the Shapes tool also goes to the selected shape
+  const handleEffectKindChange = (kind: EffectKind) => {
+    setEffectKind(kind);
+    if (tool === 'shapes' && selectedCircleId) handleRecolorCircle(selectedCircleId, kind);
+  };
+
+  // Areas can only be edited in the Frame and Shapes tools: leaving them
+  // drops the selection, so Delete can't remove an area that isn't shown
+  const changeTool = useCallback((next: Tool) => {
+    setTool(next);
+    if (next === 'fog' || next === 'effect') setSelectedCircleId(null);
+  }, []);
+
   const handleToggleLibrary = useCallback(() => {
     setShowLibrary((shown) => {
       void window.electronAPI?.saveSettings({ showLibrary: !shown });
@@ -926,7 +968,7 @@ export function App() {
     setShowEffectTools(next);
     if (!next) {
       setSelectedCircleId(null);
-      setTool((current) => (current === 'effect' ? 'frame' : current));
+      setTool((current) => (current === 'effect' || current === 'shapes' ? 'frame' : current));
     }
     void api?.saveSettings({ showEffectTools: next });
   };
@@ -1033,13 +1075,14 @@ export function App() {
       else if (event.key === ' ') {
         event.preventDefault();
         setSpaceHeld(true);
-      } else if (key === 'v') setTool('frame');
-      else if (key === 'f' && hasMap) setTool('fog');
+      } else if (key === 'v') changeTool('frame');
+      else if (key === 'f' && hasMap) changeTool('fog');
       else if (key === 'l' && hasMap) {
-        // Like Photoshop's lasso: switches the Fog tool between brush and shape
-        setTool('fog');
-        setFogShape((shape) => !shape);
-      } else if (key === 'e' && hasMap && current.showEffectTools) setTool('effect');
+        // L for lasso, as in Photoshop: switches the Fog tool between brush and lasso
+        changeTool('fog');
+        setFogLasso((lasso) => !lasso);
+      } else if (key === 'e' && hasMap && current.showEffectTools) changeTool('effect');
+      else if (key === 's' && hasMap && current.showEffectTools) changeTool('shapes');
       else if (key === 'b') setBlackout((value) => !value);
     };
     const onKeyUp = (event: KeyboardEvent) => {
@@ -1058,7 +1101,7 @@ export function App() {
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onBlur);
     };
-  }, [resizeBrush]);
+  }, [resizeBrush, changeTool]);
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
@@ -1080,11 +1123,13 @@ export function App() {
   });
   const toolbarHandlers = useHandlers({
     onAddCircle: handleAddCircle,
+    onEffectKindChange: handleEffectKindChange,
     onToggleEffectTools: handleToggleEffectTools,
     onCalibrateGrid: startCalibration,
     onRevealAll: handleRevealAll,
     onZoomChange: (next: number) => setZoom(clampZoom(next)),
     onToggleFit16by9: handleToggleFit16by9,
+    onTrueScale: handleTrueScale,
     onOpenPlayer: handleOpenPlayer,
     onToggleBlackout: () => setBlackout((value) => !value),
     onOpenPlayerSetup: () => setDialog('setup'),
@@ -1131,7 +1176,7 @@ export function App() {
           {...toolbarHandlers}
           hasMap={!!mediaUrl}
           tool={tool}
-          onToolChange={setTool}
+          onToolChange={changeTool}
           brushSize={brushSize}
           onBrushSizeChange={setBrushSize}
           canUndo={history.canUndo}
@@ -1139,17 +1184,18 @@ export function App() {
           onUndo={history.undo}
           onRedo={history.redo}
           effectKind={effectKind}
-          onEffectKindChange={setEffectKind}
           canClearEffects={!effects.isEmpty}
           onClearEffects={effects.clear}
           showEffectTools={showEffectTools}
           showLibrary={showLibrary}
           onToggleLibrary={handleToggleLibrary}
-          fogShape={fogShape}
-          onFogShapeChange={setFogShape}
+          fogLasso={fogLasso}
+          onFogLassoChange={setFogLasso}
           onCoverAll={fog.coverAll}
           zoom={zoom}
           fit16by9={fit16by9}
+          atTrueScale={atTrueScale}
+          trueScaleBlocker={trueScaleBlocker}
           playerOpen={playerOpen}
           blackout={blackout}
         />
@@ -1198,7 +1244,7 @@ export function App() {
           effectKind={effectKind}
           tool={spaceHeld ? 'frame' : tool}
           shiftHeld={shiftHeld}
-          fogShape={fogShape}
+          fogLasso={fogLasso}
           spaceHeld={spaceHeld}
           brushSize={brushSize}
           onBrushResize={resizeBrush}
@@ -1217,7 +1263,7 @@ export function App() {
             showEffectTools &&
             !calibration &&
             !shiftHeld &&
-            (spaceHeld || tool === 'frame' || tool === 'effect')
+            (spaceHeld || tool === 'frame' || tool === 'shapes')
           }
           onSelectCircle={setSelectedCircleId}
           onCircleDrag={handleCircleDrag}

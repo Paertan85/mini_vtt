@@ -157,11 +157,8 @@ app.whenReady().then(async () => {
     js(
       `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === ${JSON.stringify(text)}).click()`,
     );
-  const addArea = async (label) => {
-    await clickText('Area');
-    await sleep(100);
-    await clickText(label);
-  };
+  // The Shapes tool's buttons, one per shape
+  const addArea = (label) => clickText(label);
   const playerButton = `[...document.querySelectorAll('button')].find((b) => /^(Open|Bring) the player window/.test(b.title))`;
   const press = (key, init = {}) =>
     js(
@@ -284,16 +281,16 @@ app.whenReady().then(async () => {
     await press('z', { ctrlKey: true });
     await sleep(900);
 
-    // Shape (L): draw around an area; its whole inside is revealed on release
+    // Lasso (L): draw around an area; its whole inside is revealed on release
     const fogAlphaAt = (fx, fy) =>
       js(`(() => { const c = document.querySelector('canvas[aria-label="Fog of war"]');
         return c.getContext('2d').getImageData(Math.round(c.width * ${fx}), Math.round(c.height * ${fy}), 1, 1).data[3]; })()`);
     await press('l');
     await sleep(200);
     check(
-      'L switches the Fog tool to shapes',
+      'L switches the Fog tool to the lasso',
       (await js(
-        `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Shape').getAttribute('aria-pressed')`,
+        `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Lasso').getAttribute('aria-pressed')`,
       )) === 'true',
     );
     const area =
@@ -458,6 +455,16 @@ app.whenReady().then(async () => {
     );
     check('undo in the Effects tool leaves the fog alone', fogHash() === fogAfter);
 
+    // Spell areas have their own tool, which keeps the mouse pointer
+    await press('s');
+    await sleep(100);
+    check(
+      'the Shapes tool keeps the mouse pointer over the map',
+      (await js(
+        `document.querySelector('canvas[aria-label="Fog of war"]').classList.contains('cursor-none')`,
+      )) === false,
+    );
+
     // Circles: "Circle" without a grid starts measuring; two clicks and Save
     // store the grid, then a circle can be placed, resized and deleted
     const alpha = () => readIndex().maps.find((m) => m.id === 'm_alpha');
@@ -485,6 +492,25 @@ app.whenReady().then(async () => {
     check(
       'the player screen draws the circle',
       (await js(`document.querySelectorAll('svg circle').length`, player)) >= 1,
+    );
+    await press('e');
+    await sleep(200);
+    check(
+      'the Effects tool only paints: area dots are not in its way',
+      (await js(`!!document.querySelector('button[aria-label^="Circle,"]')`)) === false,
+    );
+    await press('s');
+    await sleep(200);
+    const circleDot = await centerOf('button[aria-label^="Circle,"]');
+    mouse('mouseDown', circleDot.x, circleDot.y);
+    mouse('mouseUp', circleDot.x, circleDot.y);
+    await sleep(200);
+    await clickText('Poison');
+    await sleep(900);
+    check(
+      'a colour picked in the Shapes tool recolours the selected shape',
+      alpha().circles[0]?.kind === 'poison',
+      JSON.stringify(alpha().circles[0]),
     );
     await js(`(() => {
       const handle = document.querySelector('button[aria-label^="Circle,"]');
@@ -679,11 +705,39 @@ app.whenReady().then(async () => {
     await loadMap('Beta');
     await sleep(1200);
     check("switching maps applies that map's zoom", (await zoomText()) === '100', `${await zoomText()}%`);
+    const trueScaleButton = `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'True scale')`;
+    check(
+      'True scale waits for the map’s grid, and says so',
+      (await js(`${trueScaleButton}.disabled && /grid/.test(${trueScaleButton}.title)`)) === true,
+      await js(`${trueScaleButton}.title`),
+    );
     await loadMap('Alpha');
     await sleep(1200);
     check('switching back restores the latest zoom', (await zoomText()) === '150', `${await zoomText()}%`);
     const diskZoom = readIndex().maps.find((m) => m.id === 'm_alpha').zoom;
     check('the change was flushed to disk on switch', Math.abs(diskZoom - 1.5) < 0.01, String(diskZoom));
+
+    // True scale: the map's squares come out at the set grid size on the
+    // player screen (27 inches diagonal, 1-inch squares here)
+    const screen = await js(
+      `(() => { const m = document.querySelector('main'); return { w: m.clientWidth, h: m.clientHeight }; })()`,
+      player,
+    );
+    const aspect = screen.w / screen.h;
+    const screenInches = (27 * aspect) / Math.sqrt(aspect * aspect + 1);
+    const trueZoom = screen.w / screenInches / readIndex().maps.find((m) => m.id === 'm_alpha').grid.cell;
+    await clickText('True scale');
+    await sleep(900);
+    const scaledZoom = readIndex().maps.find((m) => m.id === 'm_alpha').zoom;
+    check(
+      'True scale zooms so one map square is one inch on the player screen',
+      Math.abs(scaledZoom / trueZoom - 1) < 1e-6,
+      `${scaledZoom} for ${trueZoom}`,
+    );
+    check(
+      'and the button shows the view is at true scale',
+      (await js(`${trueScaleButton}.getAttribute('aria-pressed')`)) === 'true',
+    );
 
     // Orientation lives in the map's menu, and works for maps that aren't loaded
     await click('[aria-label="Options for Beta"]');

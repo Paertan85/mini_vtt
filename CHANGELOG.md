@@ -8,6 +8,12 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **True scale**, next to Fit 16:9, zooms the player view so the map's own
+  squares come out at the grid square size from Player screen setup: on a
+  43-inch screen set to 1-inch squares, each square of the map is an inch
+  across, so miniatures fit it. It needs the screen size, the map's grid
+  (Measure map grid) and the player screen open, and its tooltip says
+  which is missing. It is highlighted while the view is at true scale.
 - Releases build themselves: pushing a version tag tests the app on
   Windows, macOS and Linux and drafts a GitHub release with the installers
   for all three, using the changelog as its notes. CI now tests on Windows
@@ -30,6 +36,13 @@ All notable changes to this project are documented here. The format is based on
 
 ### Changed
 
+- Spell areas have their own Shapes tool (S), with a button for each
+  shape. The mouse pointer stays visible while placing them (the Effects
+  tool hid it behind the brush), and picking a colour there also recolours
+  the selected shape. The Effects tool only paints now, so area dots no
+  longer catch brush strokes; areas can still be moved in the Frame tool.
+  The Fog tool's Shape mode is now called Lasso (still L), so the two
+  aren't confused.
 - Project files are now ordinary ZIP archives, so any unzip tool can open
   them and other programs can read and write them. Files exported by Mini
   VTT 1.1 and 1.2 still import, but those versions can't open the new files.
