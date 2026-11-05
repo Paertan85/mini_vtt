@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format is based on
 
 ## Unreleased
 
+## 1.1.0 - 2026-11-05
+
 ### Added
 
 - Zoom the DM view with Alt + mouse wheel in any tool, for example to see
