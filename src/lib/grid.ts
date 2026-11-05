@@ -133,30 +133,36 @@ export function areaTip(disc: Pick<AuraDisc, 'x' | 'y' | 'radius' | 'angle'>): P
 }
 
 /**
- * Outline of a square, cone or line (map pixels); null for a circle. A cone
- * is as wide at its end as it is long, as in D&D 5e; a line is centred on its
- * direction.
+ * Where a template's handle sits (map pixels): the tip of a cone or line, the
+ * middle of a square's front edge; null for a circle.
+ */
+export function areaHandle(disc: AuraDisc): Point | null {
+  if (disc.shape === 'circle') return null;
+  return areaTip(disc.shape === 'square' ? { ...disc, radius: disc.radius / 2 } : disc);
+}
+
+/**
+ * Outline of a square, cone or line (map pixels); null for a circle. A square
+ * turns about its centre; a cone is as wide at its end as it is long, as in
+ * D&D 5e; a line is centred on its direction.
  */
 export function areaOutline(disc: AuraDisc): Point[] | null {
   const { x, y, radius, shape } = disc;
   if (shape === 'circle') return null;
-  if (shape === 'square') {
-    const half = radius / 2;
-    return [
-      { x: x - half, y: y - half },
-      { x: x + half, y: y - half },
-      { x: x + half, y: y + half },
-      { x: x - half, y: y + half },
-    ];
-  }
   const radians = (disc.angle * Math.PI) / 180;
   const along = { x: Math.cos(radians), y: Math.sin(radians) };
   const across = { x: -along.y, y: along.x };
-  const tip = { x: x + along.x * radius, y: y + along.y * radius };
   const side = (from: Point, half: number, sign: number) => ({
     x: from.x + across.x * half * sign,
     y: from.y + across.y * half * sign,
   });
+  if (shape === 'square') {
+    const half = radius / 2;
+    const back = { x: x - along.x * half, y: y - along.y * half };
+    const front = { x: x + along.x * half, y: y + along.y * half };
+    return [side(back, half, -1), side(front, half, -1), side(front, half, 1), side(back, half, 1)];
+  }
+  const tip = { x: x + along.x * radius, y: y + along.y * radius };
   if (shape === 'cone') return [{ x, y }, side(tip, radius / 2, 1), side(tip, radius / 2, -1)];
   const half = disc.width / 2;
   return [side({ x, y }, half, 1), side(tip, half, 1), side(tip, half, -1), side({ x, y }, half, -1)];

@@ -26,7 +26,7 @@ import {
   AREA_LABELS,
   areaContains,
   areaOutline,
-  areaTip,
+  areaHandle,
   feetToPixels,
   snapArea,
   toDiscs,
@@ -700,8 +700,9 @@ export function MapStage(props: MapStageProps) {
               const selected = circle.id === selectedCircleId;
               const diameter = feetToPixels(circle.radiusFt, grid) * 2 * displayScale;
               const outline = areaOutline(discs[index]);
-              const aims = circle.shape === 'cone' || circle.shape === 'line';
-              const tip = aims ? mapToSurface(areaTip(discs[index])) : null;
+              const handle = areaHandle(discs[index]);
+              const tip = handle ? mapToSurface(handle) : null;
+              const turns = circle.shape === 'square';
               const label = AREA_LABELS[circle.shape];
               const sizeText =
                 circle.shape === 'line'
@@ -731,9 +732,13 @@ export function MapStage(props: MapStageProps) {
                   {tip && (
                     <button
                       type="button"
-                      aria-label={`Aim the ${label.toLowerCase()}`}
-                      title="Drag to aim and set the length (5 ft steps)"
-                      className="absolute z-30 h-3.5 w-3.5 rotate-45 cursor-crosshair border-2 border-gold bg-ground"
+                      aria-label={`${turns ? 'Turn' : 'Aim'} the ${label.toLowerCase()}`}
+                      title={
+                        turns
+                          ? 'Drag to turn the square (it settles square to the grid near a right angle)'
+                          : 'Drag to aim and set the length (5 ft steps)'
+                      }
+                      className="absolute z-40 h-3.5 w-3.5 rotate-45 cursor-crosshair border-2 border-gold bg-ground"
                       style={{ left: tip.x - 7, top: tip.y - 7 }}
                       onPointerDown={(event) => handleCirclePointerDown(event, circle.id, true)}
                       onPointerMove={handleCirclePointerMove}

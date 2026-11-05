@@ -308,6 +308,36 @@ app.whenReady().then(async () => {
           { x: 0, y: -1 },
         ]),
     );
+    {
+      // A 10 px square turned 45 degrees: corners on the axes, about the centre
+      const turned = gridLib.areaOutline(disc('square', { angle: 45 }));
+      const round = (points) =>
+        points.map(({ x, y }) => [Math.round(x * 100) / 100, Math.round(y * 100) / 100]);
+      const axisAligned = round(gridLib.areaOutline(disc('square')));
+      const r = Math.round(Math.SQRT1_2 * 10 * 100) / 100;
+      check(
+        'a square turns about its centre',
+        JSON.stringify(axisAligned) ===
+          JSON.stringify([
+            [-5, -5],
+            [5, -5],
+            [5, 5],
+            [-5, 5],
+          ]) &&
+          JSON.stringify(round(turned)) ===
+            JSON.stringify([
+              [0, -r],
+              [r, 0],
+              [0, r],
+              [-r, 0],
+            ]),
+        JSON.stringify(round(turned)),
+      );
+      check(
+        "a square's handle is the middle of its front edge",
+        JSON.stringify(gridLib.areaHandle(disc('square'))) === JSON.stringify({ x: 5, y: 0 }),
+      );
+    }
     check(
       'points inside a cone are found, outside are not',
       gridLib.areaContains(disc('cone'), { x: 8, y: 3 }, 0) &&

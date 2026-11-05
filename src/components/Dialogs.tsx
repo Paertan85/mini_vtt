@@ -124,6 +124,7 @@ const SHORTCUTS: [string, string[]][] = [
   ['Zoom the player view (Frame tool, pointer on the frame)', ['Mouse wheel']],
   ['Resize the selected area by 5 ft, a line’s width (pointer over it)', ['Mouse wheel']],
   ['Aim a cone or line and set its length', ['Drag its tip']],
+  ['Turn a square', ['Drag the handle on its edge']],
   ['Move the selected area one square / 1 ft', ['Arrows', 'Shift + arrows']],
   ['Snap a dragged area to the grid', ['Hold Ctrl']],
   ['Copy an area: drag a copy away / duplicate', ['Alt + drag', 'Ctrl+D']],

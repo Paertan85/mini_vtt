@@ -28,7 +28,8 @@ All notable changes to this project are documented here. The format is based on
 
 - Spell areas: besides circles, the Effects tool's **Area** menu places
   squares (cubes), cones and lines/walls, sized in feet. Drag the handle at
-  a cone's or line's tip to aim it and set its length (5 ft steps); the
+  a cone's or line's tip to aim it and set its length (5 ft steps), or the
+  handle on a square's edge to turn it; the
   mouse wheel over a line sets its width. Ctrl snaps each shape to the grid
   the way it is usually placed. Existing circles and project files load
   unchanged.

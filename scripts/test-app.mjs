@@ -575,6 +575,31 @@ app.whenReady().then(async () => {
     );
     await press('Delete');
     await sleep(600);
+    await addArea('Square');
+    await sleep(600);
+    const turnSquare = async (dx, dy) => {
+      const from = await centerOf('button[aria-label="Turn the square"]');
+      const centre = await centerOf('button[aria-label^="Square,"]');
+      const to = { x: centre.x + dx * (from.x - centre.x), y: centre.y + dy * (from.x - centre.x) };
+      mouse('mouseDown', from.x, from.y);
+      for (let i = 1; i <= 5; i++) {
+        mouse('mouseMove', from.x + ((to.x - from.x) * i) / 5, from.y + ((to.y - from.y) * i) / 5);
+        await sleep(30);
+      }
+      mouse('mouseUp', to.x, to.y);
+      await sleep(900);
+      return alpha().circles[0];
+    };
+    const turned = await turnSquare(1, 1);
+    check(
+      'dragging the handle turns the square, keeping its size',
+      turned?.shape === 'square' && Math.abs(turned.angle - 45) < 1 && turned.radiusFt === 10,
+      JSON.stringify(turned),
+    );
+    const settled = await turnSquare(1, 0.05);
+    check('near a right angle the square settles onto the grid', settled?.angle === 0, `${settled?.angle}°`);
+    await press('Delete');
+    await sleep(600);
     await press('v');
 
     // Blackout reaches the player screen

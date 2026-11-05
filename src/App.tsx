@@ -39,7 +39,8 @@ import { Button } from './ui/controls';
 import { NotificationHost, confirmAction, notify } from './ui/notify';
 
 const VIEW_SAVE_DELAY_MS = 400;
-/** Radius of a new circle: Spirit Guardians and most auras */
+/** A square turned within this many degrees of the grid settles onto it. */
+const SQUARE_SNAP_DEG = 5;
 
 /** Pan and fog to apply once the map being loaded has finished loading. */
 interface PendingRestore {
@@ -748,7 +749,10 @@ export function App() {
     [updateCircles],
   );
 
-  /** Cones and lines: point the template at `point`; its length follows, in 5 ft steps. */
+  /**
+   * Cones and lines: point the template at `point`; its length follows, in
+   * 5 ft steps. Squares only turn, and settle onto the grid near a right angle.
+   */
   const handleAimCircle = useCallback(
     (id: string, point: Point) => {
       if (!grid) return;
@@ -757,10 +761,15 @@ export function App() {
           if (circle.id !== id) return circle;
           const dx = point.x - circle.x;
           const dy = point.y - circle.y;
+          const angle = ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360;
+          if (circle.shape === 'square') {
+            const square = Math.round(angle / 90) * 90;
+            return { ...circle, angle: Math.abs(angle - square) <= SQUARE_SNAP_DEG ? square % 360 : angle };
+          }
           const feet = pixelsToFeet(Math.hypot(dx, dy), grid);
           return {
             ...circle,
-            angle: ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360,
+            angle,
             radiusFt: clampRadius(Math.max(5, Math.round(feet / 5) * 5)),
           };
         }),
