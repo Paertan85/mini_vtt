@@ -182,6 +182,16 @@ app.whenReady().then(async () => {
   const centerOf = (selector) =>
     js(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return null;
       const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+  // Waits for a result instead of a fixed time: a slow CI machine gets up to
+  // ten seconds, a fast one doesn't wait at all
+  const waitFor = async (condition, timeoutMs = 10000) => {
+    const end = Date.now() + timeoutMs;
+    for (;;) {
+      const value = await condition();
+      if (value || Date.now() > end) return value;
+      await sleep(100);
+    }
+  };
   const drag = async (from, dx, dy, button = 'left') => {
     mouse('mouseDown', from.x, from.y, button);
     for (let i = 1; i <= 5; i++) {
@@ -196,7 +206,11 @@ app.whenReady().then(async () => {
       'sandboxed preload exposes the API',
       (await js('typeof window.electronAPI?.loadLibrary')) === 'function',
     );
-    check('saved zoom is restored on startup', (await zoomText()) === '250', `${await zoomText()}%`);
+    check(
+      'saved zoom is restored on startup',
+      await waitFor(async () => (await zoomText()) === '250'),
+      `${await zoomText()}%`,
+    );
 
     // The media protocol answers Range requests with exactly those bytes: a
     // video resumes and loops by asking for the rest of the file from an
@@ -505,9 +519,8 @@ app.whenReady().then(async () => {
     await press('e');
     await sleep(100);
     await drag({ x: canvas.x - 40, y: canvas.y + 20 }, 80, 0);
-    await sleep(900);
-    check('painting an effect saves the layer', fs.existsSync(effectsFile));
-    check('the player screen shows the effect', (await playerEffectsWidth()) > 0);
+    check('painting an effect saves the layer', await waitFor(() => fs.existsSync(effectsFile)));
+    check('the player screen shows the effect', await waitFor(async () => (await playerEffectsWidth()) > 0));
     check('effects leave the fog alone', fogHash() === fogAfter);
     await press('z', { ctrlKey: true });
     await sleep(900);
