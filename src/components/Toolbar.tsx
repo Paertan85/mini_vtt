@@ -54,6 +54,10 @@ interface ToolbarProps {
   onExportProject: () => void;
   onImportProject: () => void;
   onRevealLibraryFolder: () => void;
+  onToggleFullScreen: () => void;
+  onReload: () => void;
+  onToggleDevTools: () => void;
+  onQuit: () => void;
 }
 
 export function Toolbar(props: ToolbarProps) {
@@ -225,6 +229,10 @@ export function Toolbar(props: ToolbarProps) {
           { label: 'Export project…', onSelect: props.onExportProject, separated: true },
           { label: 'Import project…', onSelect: props.onImportProject },
           { label: 'Open library folder', onSelect: props.onRevealLibraryFolder },
+          { label: 'Full screen', onSelect: props.onToggleFullScreen, hint: 'F11', separated: true },
+          { label: 'Reload', onSelect: props.onReload, hint: 'Ctrl+R' },
+          { label: 'Developer tools', onSelect: props.onToggleDevTools, hint: 'Ctrl+Shift+I' },
+          { label: 'Quit', onSelect: props.onQuit, separated: true },
         ]}
         trigger={(trigger) => (
           <Button {...trigger} square tone="quiet" aria-label="Settings" title="Settings">

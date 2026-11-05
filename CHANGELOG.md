@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- Zoom the DM view with Alt + mouse wheel in any tool, for example to see
+  squares while painting; drag with the middle mouse button to pan. Players
+  are unaffected, and the zoom badge fits the map again.
+- Settings menu: Full screen, Reload, Developer tools and Quit. The DM
+  window's menu bar is gone, so Alt no longer opens it.
 - Aura circles: soft discs sized in feet for auras and spell areas (Effects
   tool, then Circle). Drag the centre dot to move it freely (Alt snaps to
   square centres), scroll over it to resize in 5 ft steps (Shift: 1

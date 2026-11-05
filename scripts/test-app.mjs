@@ -230,6 +230,30 @@ app.whenReady().then(async () => {
     await press('z', { ctrlKey: true });
     await sleep(900);
 
+    // Alt + wheel zooms the DM view only, around the pointer, in any tool
+    const fogRect = () =>
+      js(`(() => { const r = document.querySelector('canvas[aria-label="Fog of war"]').getBoundingClientRect();
+        return { x: r.x, y: r.y, w: r.width, h: r.height }; })()`);
+    const fitRect = await fogRect();
+    const pointer = { x: fitRect.x + fitRect.w * 0.3, y: fitRect.y + fitRect.h * 0.6 };
+    const playerZoomBefore = await zoomText();
+    await js(`document.querySelector('canvas[aria-label="Fog of war"]').dispatchEvent(new WheelEvent('wheel',
+      { deltaY: -400, altKey: true, clientX: ${pointer.x}, clientY: ${pointer.y}, bubbles: true, cancelable: true }))`);
+    await sleep(300);
+    const zoomedRect = await fogRect();
+    check('Alt + wheel zooms the DM view', zoomedRect.w > fitRect.w * 1.5, `${fitRect.w} → ${zoomedRect.w}`);
+    check(
+      'the spot under the pointer stays put',
+      Math.abs((pointer.x - zoomedRect.x) / zoomedRect.w - 0.3) < 0.01 &&
+        Math.abs((pointer.y - zoomedRect.y) / zoomedRect.h - 0.6) < 0.01,
+    );
+    check('the player zoom is unchanged', (await zoomText()) === playerZoomBefore);
+    await js(
+      `[...document.querySelectorAll("button")].find((b) => b.title.startsWith("DM view only")).click()`,
+    );
+    await sleep(300);
+    check('the zoom badge fits the map again', (await fogRect()).w === fitRect.w);
+
     // Effects tool: nothing is allocated until the first stroke; painting saves
     // a layer and shows it on the player screen, undo frees it again
     const effectsFile = path.join(libraryDir, 'm_alpha', 'effects.png');

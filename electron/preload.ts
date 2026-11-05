@@ -126,6 +126,9 @@ const api = {
   isFullScreen: (): Promise<boolean> => ipcRenderer.invoke('window:isFullScreen'),
   onFullScreenChanged: (callback: (isFullScreen: boolean) => void) =>
     subscribe('window:fullScreenChanged', callback),
+  reloadWindow: (): void => ipcRenderer.send('window:reload'),
+  toggleDevTools: (): void => ipcRenderer.send('window:toggleDevTools'),
+  quitApp: (): void => ipcRenderer.send('app:quit'),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);

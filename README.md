@@ -77,6 +77,7 @@ Everything is saved as you go. Double-click another map in the library to switch
 | Brush size                          | Ctrl + mouse wheel with the Fog or Effects tool                                             |
 | Undo / redo                         | Ctrl+Z / Ctrl+Y or Ctrl+Shift+Z (effects in the Effects tool, otherwise fog)                |
 | Zoom the player view                | Ctrl + mouse wheel with the Frame tool, or the − and + buttons                              |
+| Zoom / pan your own view            | Alt + mouse wheel in any tool / drag with the middle mouse button (players are unaffected)  |
 | Blackout the player screen          | B                                                                                           |
 | Load a map / show a handout         | Double-click it in the library                                                              |
 | Rename, rotate, mirror or remove    | The ⋯ menu on the map or handout                                                            |

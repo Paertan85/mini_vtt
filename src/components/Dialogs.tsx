@@ -120,6 +120,8 @@ const SHORTCUTS: [string, string[]][] = [
   ['Delete the selected circle / deselect', ['Del', 'Esc']],
   ['Undo / redo (fog, or effects in the Effects tool)', ['Ctrl+Z', 'Ctrl+Y or Ctrl+Shift+Z']],
   ['Zoom the player view (Frame tool)', ['Ctrl', '+ Mouse wheel']],
+  ['Zoom your own view (any tool; players unaffected)', ['Alt', '+ Mouse wheel']],
+  ['Pan your zoomed view', ['Middle mouse drag']],
   ['Blackout the player screen', ['B']],
   ['Load a map', ['Double-click']],
   ['Show or hide a handout', ['Double-click']],

@@ -96,7 +96,14 @@ function createDmWindow() {
     icon: windowIcon,
     backgroundColor: WINDOW_BACKGROUND,
     webPreferences: webPreferences(),
-    autoHideMenuBar: true,
+  });
+  // Hidden for good: its shortcuts still work, but Alt (snap circles, zoom the
+  // DM view) must not pop up a menu bar and shift the layout
+  dmWindow.setMenuBarVisibility(false);
+  // On Windows a hidden menu still takes focus when Alt is released. Swallow
+  // the bare Alt key; mouse and wheel events still report Alt as held.
+  dmWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'Alt' && !input.control && !input.shift && !input.meta) event.preventDefault();
   });
   lockDownNavigation(dmWindow);
   dmWindow.on('closed', () => {
@@ -255,6 +262,12 @@ ipcMain.handle('window:isFullScreen', async (event) => {
   const target = BrowserWindow.fromWebContents(event.sender);
   return target ? target.isFullScreen() : false;
 });
+
+// The DM window's menu bar is hidden, so its useful commands live in the
+// settings menu. They act on the window that asks.
+ipcMain.on('window:reload', (event) => event.sender.reload());
+ipcMain.on('window:toggleDevTools', (event) => event.sender.toggleDevTools());
+ipcMain.on('app:quit', () => app.quit());
 
 // ─── Library ──────────────────────────────────────────────────────────────────
 

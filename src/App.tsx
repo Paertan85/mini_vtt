@@ -892,6 +892,16 @@ export function App() {
           onExportProject={() => void handleExportProject()}
           onImportProject={() => void handleImportProject()}
           onRevealLibraryFolder={() => void api?.revealLibraryFolder()}
+          onToggleFullScreen={() => void api?.toggleFullScreen()}
+          onReload={() => {
+            flushViewSave();
+            api?.reloadWindow();
+          }}
+          onToggleDevTools={() => api?.toggleDevTools()}
+          onQuit={() => {
+            flushViewSave();
+            api?.quitApp();
+          }}
         />
 
         {(blackout || activeHandout) && (

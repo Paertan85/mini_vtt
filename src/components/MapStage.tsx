@@ -6,6 +6,8 @@
 //         any tool      Shift + left/right paints fog, Ctrl + wheel zooms the
 //                       player view (Frame tool) or resizes the brush (Fog and
 //                       Effects tools)
+//         any tool      Alt + wheel zooms the DM view around the pointer (players
+//                       are unaffected); middle-button drag pans it
 //         circles       (Frame and Effects tools) drag the centre dot to move,
 //                       freely (Alt: snap to square centres); wheel over the
 //                       selected circle resizes it, 5 ft per notch (Shift: 1 ft)
@@ -79,6 +81,20 @@ const STAGE_PADDING = 24;
 const WHEEL_NOTCH = 100;
 /** How close (screen px) the pointer must be to a small circle for the wheel to resize it */
 const MIN_WHEEL_TARGET = 24;
+/** DM view zoom range, relative to fitting the whole map */
+const MAX_VIEW_ZOOM = 8;
+
+interface ViewZoom {
+  zoom: number;
+  /** Offset of the map from the centre of the stage, in screen px */
+  x: number;
+  y: number;
+}
+const FIT_VIEW: ViewZoom = { zoom: 1, x: 0, y: 0 };
+
+/** Wheel delta in pixels, whatever unit the device reports. */
+const wheelPixels = (event: WheelEvent) =>
+  (event.deltaY || event.deltaX) * (event.deltaMode === 1 ? 40 : event.deltaMode === 2 ? 800 : 1);
 
 const mediaSizeOf = (element: HTMLImageElement | HTMLVideoElement): Size =>
   element instanceof HTMLVideoElement
@@ -117,7 +133,11 @@ export function MapStage(props: MapStageProps) {
   const frameDragRef = useRef<{ start: Point; startPan: MapPan } | null>(null);
   const circleDragRef = useRef<{ id: string; pointerId: number } | null>(null);
   const wheelRemainderRef = useRef(0);
+  const viewDragRef = useRef<{ start: Point; startView: ViewZoom; pointerId: number } | null>(null);
   const [available, setAvailable] = useState<Size>({ w: 0, h: 0 });
+  // DM-only zoom and pan; the player screen never sees it
+  const [view, setView] = useState<ViewZoom>(FIT_VIEW);
+  useEffect(() => setView(FIT_VIEW), [mediaUrl]);
 
   // Latest props for the native listeners, which are registered once
   const latest = useRef(props);
@@ -137,12 +157,14 @@ export function MapStage(props: MapStageProps) {
     return () => observer.disconnect();
   }, []);
 
-  // Fit the (rotated) map into the available space, never upscaling
+  // Fit the (rotated) map into the available space, never upscaling; the DM
+  // view zoom scales up from there
   const oriented = mediaSize ? orientedSize(mediaSize, rotation) : null;
-  const displayScale =
+  const fitScale =
     oriented && available.w > 0 && available.h > 0
       ? Math.min(1, available.w / oriented.w, available.h / oriented.h)
       : 1;
+  const displayScale = fitScale * view.zoom;
   const surfaceSize = oriented
     ? { w: oriented.w * displayScale, h: oriented.h * displayScale }
     : { w: 0, h: 0 };
@@ -191,8 +213,21 @@ export function MapStage(props: MapStageProps) {
     else if (rotation === 270) [x, y] = [y, -x];
     return { x: x + surfaceSize.w / 2, y: y + surfaceSize.h / 2 };
   };
-  const geometry = useRef({ mapToSurface, displayScale });
-  geometry.current = { mapToSurface, displayScale };
+  /** Keep a zoomed map covering the stage: it can be panned edge to edge, no further. */
+  const clampView = (next: ViewZoom): ViewZoom => {
+    if (!oriented || next.zoom <= 1) return FIT_VIEW;
+    const limitX = Math.max(0, (oriented.w * fitScale * next.zoom - available.w) / 2);
+    const limitY = Math.max(0, (oriented.h * fitScale * next.zoom - available.h) / 2);
+    return {
+      zoom: next.zoom,
+      x: Math.max(-limitX, Math.min(limitX, next.x)),
+      y: Math.max(-limitY, Math.min(limitY, next.y)),
+    };
+  };
+  const shownView = clampView(view);
+
+  const geometry = useRef({ mapToSurface, displayScale, clampView });
+  geometry.current = { mapToSurface, displayScale, clampView };
 
   // ─── Brush cursor (moved directly, without re-rendering) ──────────────────
 
@@ -248,6 +283,27 @@ export function MapStage(props: MapStageProps) {
     const onWheel = (event: WheelEvent) => {
       const current = latest.current;
       if (!current.mediaUrl) return;
+      // Alt + wheel zooms the DM view, in any tool, keeping the spot under the pointer
+      if (event.altKey) {
+        event.preventDefault();
+        const rect = container.getBoundingClientRect();
+        const fromCenterX = event.clientX - rect.left - rect.width / 2;
+        const fromCenterY = event.clientY - rect.top - rect.height / 2;
+        const factor = Math.exp(-wheelPixels(event) * 0.002);
+        hideCursor(); // it would sit off the pointer until the next move
+        setView((previous) => {
+          const { clampView: clamp } = geometry.current;
+          const start = clamp(previous);
+          const zoom = Math.max(1, Math.min(MAX_VIEW_ZOOM, start.zoom * factor));
+          const grow = zoom / start.zoom;
+          return clamp({
+            zoom,
+            x: fromCenterX - (fromCenterX - start.x) * grow,
+            y: fromCenterY - (fromCenterY - start.y) * grow,
+          });
+        });
+        return;
+      }
       // The wheel over the selected circle resizes it, with or without Ctrl
       const selected = current.circlesInteractive
         ? current.circles.find((circle) => circle.id === current.selectedCircleId)
@@ -265,9 +321,7 @@ export function MapStage(props: MapStageProps) {
         if (distance <= reach) {
           event.preventDefault();
           // Shift turns vertical scrolling horizontal in Chromium, so read both axes
-          const raw = event.deltaY || event.deltaX;
-          const delta = raw * (event.deltaMode === 1 ? 40 : event.deltaMode === 2 ? 800 : 1);
-          const total = wheelRemainderRef.current - delta;
+          const total = wheelRemainderRef.current - wheelPixels(event);
           const notches = Math.trunc(total / WHEEL_NOTCH);
           wheelRemainderRef.current = total - notches * WHEEL_NOTCH;
           if (notches !== 0) current.onResizeCircle(selected.id, notches, event.shiftKey);
@@ -286,6 +340,35 @@ export function MapStage(props: MapStageProps) {
     container.addEventListener('wheel', onWheel, { passive: false });
     return () => container.removeEventListener('wheel', onWheel);
   }, []);
+
+  // ─── DM view: middle-button drag pans a zoomed map ─────────────────────────
+
+  const handleViewPointerDown = (event: React.PointerEvent<HTMLElement>) => {
+    if (event.button !== 1 || shownView.zoom <= 1) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    viewDragRef.current = {
+      start: { x: event.clientX, y: event.clientY },
+      startView: shownView,
+      pointerId: event.pointerId,
+    };
+  };
+
+  const handleViewPointerMove = (event: React.PointerEvent<HTMLElement>) => {
+    const drag = viewDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    setView(
+      clampView({
+        zoom: drag.startView.zoom,
+        x: drag.startView.x + event.clientX - drag.start.x,
+        y: drag.startView.y + event.clientY - drag.start.y,
+      }),
+    );
+  };
+
+  const endViewDrag = (event: React.PointerEvent<HTMLElement>) => {
+    if (viewDragRef.current?.pointerId === event.pointerId) viewDragRef.current = null;
+  };
 
   // ─── Player frame dragging ────────────────────────────────────────────────
 
@@ -364,15 +447,26 @@ export function MapStage(props: MapStageProps) {
       ref={containerRef}
       className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden"
       style={{ padding: STAGE_PADDING }}
+      onPointerDown={handleViewPointerDown}
+      onPointerMove={handleViewPointerMove}
+      onPointerUp={endViewDrag}
+      onPointerCancel={endViewDrag}
+      // No autoscroll on a middle click
+      onMouseDown={(event) => event.button === 1 && event.preventDefault()}
     >
       {mediaUrl ? (
         <div
           ref={surfaceRef}
           className="relative shrink-0"
-          style={{ width: surfaceSize.w, height: surfaceSize.h }}
+          style={{
+            width: surfaceSize.w,
+            height: surfaceSize.h,
+            transform: shownView.zoom > 1 ? `translate(${shownView.x}px, ${shownView.y}px)` : undefined,
+          }}
           onPointerLeave={hideCursor}
           onPointerDownCapture={(event) => {
             const target = event.target as HTMLElement;
+            if (event.button === 1) return; // panning the view keeps the selection
             if (selectedCircleId && !target.closest('[data-circle-control]')) props.onSelectCircle(null);
           }}
         >
@@ -602,6 +696,16 @@ export function MapStage(props: MapStageProps) {
             Add maps in the library, or drop image and WebM files onto it. Double-click a map to load it.
           </p>
         </div>
+      )}
+      {mediaUrl && shownView.zoom > 1 && (
+        <button
+          type="button"
+          title="DM view only; players are unaffected. Alt + mouse wheel zooms, middle-drag pans. Click to fit the map."
+          onClick={() => setView(FIT_VIEW)}
+          className="absolute bottom-3 right-3 z-50 rounded border border-line bg-panel/90 px-2 py-1 text-[12px] tabular-nums text-ink hover:bg-raised"
+        >
+          DM view {Math.round(shownView.zoom * 100)}% · Fit
+        </button>
       )}
     </main>
   );
