@@ -59,6 +59,16 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
+- A video map could fill with garbled blocks, or keep jumping back to its
+  start every few seconds, after it had looped or when switching back to
+  it; closing and reopening the player screen cleared it. When a window
+  asked for the rest of the video from part-way through, it got the file
+  from the start instead, and the decoder showed that data in the wrong
+  place. Now each window gets exactly the bytes it asks for. Measured on a
+  176 MB 5.5K map: it loops every 30 seconds as it should, the player
+  window uses less memory, and almost no frames are dropped. (Range
+  requests had been turned down before, on measurements of the broken
+  behaviour.)
 - WebP, GIF and BMP handouts were refused, and maps in those formats were
   added without a size or a thumbnail. The DM window now draws their
   thumbnails (once; they are kept), as the main process can't decode those

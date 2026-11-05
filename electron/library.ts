@@ -107,6 +107,36 @@ const toDataUrl = (bytes: Buffer, ext: string) => `data:${mimeFor(ext)};base64,$
 /** The content type of a library media file (named image.<ext> by its sniffed type). */
 export const mediaMimeType = (filePath: string) => mimeFor(path.extname(filePath).slice(1));
 
+/**
+ * The bytes a `Range` header asks for, in a file of `size` bytes: null for
+ * the whole file (no header, or one that isn't a single byte range), or
+ * 'unsatisfiable' when it starts past the end.
+ *
+ * Chromium asks a video for "the rest from byte N" when it resumes loading or
+ * loops, and takes the reply to start at N. Answering with the whole file
+ * puts the file's start in the wrong place, and the decoder shows garbage.
+ */
+export function byteRange(
+  header: string | null,
+  size: number,
+): { start: number; end: number } | 'unsatisfiable' | null {
+  const match = header ? /^bytes=(\d*)-(\d*)$/.exec(header.trim()) : null;
+  if (!match || (!match[1] && !match[2])) return null;
+  const first = match[1] ? Number(match[1]) : null;
+  const last = match[2] ? Number(match[2]) : null;
+  if ((first !== null && !Number.isSafeInteger(first)) || (last !== null && !Number.isSafeInteger(last))) {
+    return null;
+  }
+  if (first === null) {
+    // "bytes=-500": the last 500 bytes
+    if (last === 0 || size === 0) return 'unsatisfiable';
+    return { start: Math.max(0, size - (last ?? 0)), end: size - 1 };
+  }
+  if (first >= size) return 'unsatisfiable';
+  if (last !== null && last < first) return null;
+  return { start: first, end: last === null ? size - 1 : Math.min(last, size - 1) };
+}
+
 // ─── Index read/write ─────────────────────────────────────────────────────────
 
 interface IndexShape {

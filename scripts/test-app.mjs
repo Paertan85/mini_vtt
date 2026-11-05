@@ -7,7 +7,7 @@
 //
 // Uses a scratch userData directory, so your real library is untouched.
 
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, net } from 'electron';
 import '../dist-electron/main.js'; // must load before `ready` (registers the media protocol)
 import fs from 'node:fs';
 import path from 'node:path';
@@ -197,6 +197,45 @@ app.whenReady().then(async () => {
       (await js('typeof window.electronAPI?.loadLibrary')) === 'function',
     );
     check('saved zoom is restored on startup', (await zoomText()) === '250', `${await zoomText()}%`);
+
+    // The media protocol answers Range requests with exactly those bytes: a
+    // video resumes and loops by asking for the rest of the file from an
+    // offset, and the whole file in reply put garbage on the player screen
+    const alphaDir = path.join(libraryDir, 'm_alpha');
+    const alphaBytes = fs.readFileSync(
+      path.join(
+        alphaDir,
+        fs.readdirSync(alphaDir).find((f) => f.startsWith('image.')),
+      ),
+    );
+    const fetchMedia = async (range) => {
+      const response = await net.fetch('map-media://m_alpha', range ? { headers: { Range: range } } : {});
+      return {
+        status: response.status,
+        contentRange: response.headers.get('content-range'),
+        bytes: Buffer.from(await response.arrayBuffer()),
+      };
+    };
+    const half = Math.floor(alphaBytes.length / 2);
+    const whole = await fetchMedia(null);
+    check('the media protocol serves a whole file', whole.status === 200 && whole.bytes.equals(alphaBytes));
+    const rest = await fetchMedia(`bytes=${half}-`);
+    check(
+      'asked for the rest of a file, it sends exactly that',
+      rest.status === 206 &&
+        rest.contentRange === `bytes ${half}-${alphaBytes.length - 1}/${alphaBytes.length}` &&
+        rest.bytes.equals(alphaBytes.subarray(half)),
+      `${rest.status} ${rest.contentRange} ${rest.bytes.length} bytes`,
+    );
+    const middle = await fetchMedia('bytes=10-19');
+    check(
+      'a bounded range gets just those bytes',
+      middle.status === 206 && middle.bytes.equals(alphaBytes.subarray(10, 20)),
+    );
+    check(
+      'a range past the end is refused',
+      (await fetchMedia(`bytes=${alphaBytes.length}-`)).status === 416,
+    );
     await sleep(600);
     check('pre-1.1 settings are migrated', readIndex().settings.playerScreenDiagonal === 27);
 

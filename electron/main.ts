@@ -541,9 +541,24 @@ app.whenReady().then(() => {
     // once and lets go of the file. A net.fetch of the file kept it open for
     // as long as it took to read it all, so a video map couldn't be deleted.
     const { size } = await fs.stat(mediaPath);
-    const body = Readable.toWeb(createReadStream(mediaPath)) as unknown as ReadableStream<Uint8Array>;
+    const headers = { 'Content-Type': library.mediaMimeType(mediaPath), 'Accept-Ranges': 'bytes' };
+    // Exactly the bytes asked for: a video asks for the rest of the file from
+    // where it left off (see byteRange)
+    const range = library.byteRange(request.headers.get('range'), size);
+    if (range === 'unsatisfiable') {
+      return new Response(null, { status: 416, headers: { ...headers, 'Content-Range': `bytes */${size}` } });
+    }
+    if (size === 0) return new Response(null, { headers: { ...headers, 'Content-Length': '0' } });
+    const { start, end } = range ?? { start: 0, end: size - 1 };
+    const stream = createReadStream(mediaPath, { start, end });
+    const body = Readable.toWeb(stream) as unknown as ReadableStream<Uint8Array>;
     return new Response(body, {
-      headers: { 'Content-Type': library.mediaMimeType(mediaPath), 'Content-Length': String(size) },
+      status: range ? 206 : 200,
+      headers: {
+        ...headers,
+        'Content-Length': String(end - start + 1),
+        ...(range ? { 'Content-Range': `bytes ${start}-${end}/${size}` } : {}),
+      },
     });
   });
   // In the background: folders of removed maps that couldn't be deleted yet

@@ -32,4 +32,3 @@ Have an idea? Open an [issue](https://github.com/Paertan85/mini_vtt/issues).
 
 - **Showing fog strokes to players while they are painted.** Players see a stroke when the mouse is released, so a room is revealed all at once, and the mask is encoded once per stroke rather than continuously.
 - **Areas snapping to the grid by default.** Some spells start in the middle of a square and others anywhere at all, so areas move freely; holding Ctrl snaps them.
-- **Range requests (seeking) for video maps.** Measured with a 169 MB map: looping already works without them, and with them playback read more data and used more memory.

@@ -265,6 +265,28 @@ app.whenReady().then(async () => {
     check('listed maps keep their folders', await exists(path.join(listedDir, 'image.png')));
     await fs.rm(importing, { recursive: true });
 
+    // ── Byte ranges for the media protocol ──────────────────────────────────
+    // A video resumes and loops by asking for "the rest from byte N"
+    const range = (header, size = 1000) => JSON.stringify(lib.byteRange(header, size));
+    check('no Range header: the whole file', range(null) === 'null');
+    check('the rest from a byte', range('bytes=400-') === '{"start":400,"end":999}', range('bytes=400-'));
+    check('a bounded range', range('bytes=10-19') === '{"start":10,"end":19}');
+    check('a range past the end is cut at the end', range('bytes=900-5000') === '{"start":900,"end":999}');
+    check(
+      'the last bytes',
+      range('bytes=-100') === '{"start":900,"end":999}' && range('bytes=-5000') === '{"start":0,"end":999}',
+    );
+    check(
+      'a range starting at or past the end is unsatisfiable',
+      range('bytes=1000-') === '"unsatisfiable"' && range('bytes=-0') === '"unsatisfiable"',
+    );
+    check(
+      'anything else is answered with the whole file',
+      ['bytes=5-2', 'bytes=0-1,5-6', 'items=0-5', 'bytes=-', 'bytes=99999999999999999999-'].every(
+        (header) => range(header) === 'null',
+      ),
+    );
+
     // ── Video codecs ─────────────────────────────────────────────────────────
     const webm = (codec) =>
       Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.from(`--webm--${codec}--`)]);
