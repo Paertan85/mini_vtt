@@ -26,6 +26,10 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- Fog shapes: in the Fog tool, switch to Shape (or press L) and draw around
+  a room; everything inside is revealed (left button) or covered (right
+  button) when you let go. The outline closes itself, and one undo removes
+  it.
 - ? shows the shortcuts, Enter loads the selected map, Ctrl+O adds maps.
 - A button at the left of the toolbar (or Ctrl+B) hides the maps and
   handouts panel to give the map more room. The choice is remembered.

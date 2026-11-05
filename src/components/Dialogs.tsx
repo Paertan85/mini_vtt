@@ -111,6 +111,7 @@ const SHORTCUTS: [string, string[]][] = [
   ['Frame tool: move the player view', ['V']],
   ['Fog tool', ['F']],
   ['Reveal fog / cover fog', ['Left Mouse button', 'Right Mouse button']],
+  ['Fog tool: switch between brush and shape (draw around an area)', ['L']],
   ['Effects tool: paint / erase fire, poison or magic', ['E']],
   ['Paint fog with any tool', ['Shift', '+ Mouse button']],
   ['Brush size (Fog and Effects tools, or holding Shift)', ['Mouse wheel', '[ ]']],

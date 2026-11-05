@@ -7,13 +7,16 @@
 // a room the DM reveals in one drag appears all at once when the mouse is
 // released, and the encode happens exactly once per stroke.
 //
+// A shape (freehand outline) only collects points while the mouse moves; the
+// inside is filled once on release and published like a stroke.
+//
 // Undo needs no extra work: the state before a stroke is the snapshot that was
 // encoded at the end of the previous one.
 
 import { useCallback, useRef, useState } from 'react';
 import type { FogMode, Point } from '../types/map';
 import type { Size } from '../lib/geometry';
-import { drawSnapshot, drawStroke, fillMask, fogMaskSize, loadImage } from '../lib/fog';
+import { drawSnapshot, drawStroke, fillMask, fillShape, fogMaskSize, loadImage } from '../lib/fog';
 
 /** Mask colour in the DM window: a deep indigo, so fog never blends into dark maps. */
 export const DM_FOG_COLOR = '#1d1a2e';
@@ -27,6 +30,10 @@ export interface Fog {
   beginStroke: (mode: FogMode, point: Point, radius: number) => void;
   continueStroke: (point: Point) => void;
   endStroke: () => void;
+  /** Freehand outline: reveal or cover its inside when it ends */
+  beginShape: (mode: FogMode, point: Point) => void;
+  continueShape: (point: Point) => void;
+  endShape: () => void;
   revealAll: () => void;
   coverAll: () => void;
   undo: () => void;
@@ -40,6 +47,7 @@ export function useFog(): Fog {
   const mapIdRef = useRef<string | null>(null);
   const mediaRef = useRef<Size>({ w: 0, h: 0 });
   const strokeRef = useRef<{ mode: FogMode; last: Point; radius: number } | null>(null);
+  const shapeRef = useRef<{ mode: FogMode; points: Point[] } | null>(null);
   // The encoded current mask, and masks to step back or forward to
   const currentRef = useRef<string | null>(null);
   const undoRef = useRef<string[]>([]);
@@ -79,6 +87,7 @@ export function useFog(): Fog {
       mapIdRef.current = mapId;
       mediaRef.current = media;
       strokeRef.current = null;
+      shapeRef.current = null;
       undoRef.current = [];
       redoRef.current = [];
       const size = fogMaskSize(media);
@@ -134,6 +143,24 @@ export function useFog(): Fog {
     commit();
   }, [commit]);
 
+  const beginShape = useCallback((mode: FogMode, point: Point) => {
+    shapeRef.current = { mode, points: [point] };
+  }, []);
+
+  const continueShape = useCallback((point: Point) => {
+    shapeRef.current?.points.push(point);
+  }, []);
+
+  const endShape = useCallback(() => {
+    const shape = shapeRef.current;
+    shapeRef.current = null;
+    const ctx = context();
+    // A click or a line encloses nothing
+    if (!shape || shape.points.length < 3 || !ctx) return;
+    fillShape(ctx, shape.points, shape.mode, mediaRef.current, DM_FOG_COLOR);
+    commit();
+  }, [commit]);
+
   const revealAll = useCallback(() => {
     const ctx = context();
     if (!ctx) return;
@@ -154,7 +181,7 @@ export function useFog(): Fog {
       const ctx = context();
       const target = from.current[from.current.length - 1];
       const current = currentRef.current;
-      if (!ctx || !target || !current || strokeRef.current) return;
+      if (!ctx || !target || !current || strokeRef.current || shapeRef.current) return;
       from.current = from.current.slice(0, -1);
       to.current = [...to.current.slice(-(MAX_HISTORY - 1)), current];
       currentRef.current = target;
@@ -181,6 +208,9 @@ export function useFog(): Fog {
     beginStroke,
     continueStroke,
     endStroke,
+    beginShape,
+    continueShape,
+    endShape,
     revealAll,
     coverAll,
     undo,

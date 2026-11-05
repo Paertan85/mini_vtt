@@ -85,6 +85,8 @@ export function App() {
   const [effectKind, setEffectKind] = useState<EffectKind>('fire');
   const [showEffectTools, setShowEffectTools] = useState(true);
   const [showLibrary, setShowLibrary] = useState(true);
+  // Fog tool: freehand shapes instead of the brush
+  const [fogShape, setFogShape] = useState(false);
 
   // ─── Grid and circles (per map) ─────────────────────────────────────────────
   const [grid, setGrid] = useState<MapGrid | null>(null);
@@ -893,7 +895,11 @@ export function App() {
         setSpaceHeld(true);
       } else if (key === 'v') setTool('frame');
       else if (key === 'f' && hasMap) setTool('fog');
-      else if (key === 'e' && hasMap && current.showEffectTools) setTool('effect');
+      else if (key === 'l' && hasMap) {
+        // Like Photoshop's lasso: switches the Fog tool between brush and shape
+        setTool('fog');
+        setFogShape((shape) => !shape);
+      } else if (key === 'e' && hasMap && current.showEffectTools) setTool('effect');
       else if (key === 'b') setBlackout((value) => !value);
     };
     const onKeyUp = (event: KeyboardEvent) => {
@@ -968,6 +974,8 @@ export function App() {
           showEffectTools={showEffectTools}
           showLibrary={showLibrary}
           onToggleLibrary={handleToggleLibrary}
+          fogShape={fogShape}
+          onFogShapeChange={setFogShape}
           onToggleEffectTools={handleToggleEffectTools}
           onCalibrateGrid={startCalibration}
           onRevealAll={handleRevealAll}
@@ -1041,6 +1049,7 @@ export function App() {
           effectKind={effectKind}
           tool={spaceHeld ? 'frame' : tool}
           shiftHeld={shiftHeld}
+          fogShape={fogShape}
           spaceHeld={spaceHeld}
           brushSize={brushSize}
           onBrushResize={resizeBrush}

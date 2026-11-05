@@ -251,6 +251,54 @@ app.whenReady().then(async () => {
     await press('z', { ctrlKey: true });
     await sleep(900);
 
+    // Shape (L): draw around an area; its whole inside is revealed on release
+    const fogAlphaAt = (fx, fy) =>
+      js(`(() => { const c = document.querySelector('canvas[aria-label="Fog of war"]');
+        return c.getContext('2d').getImageData(Math.round(c.width * ${fx}), Math.round(c.height * ${fy}), 1, 1).data[3]; })()`);
+    await press('l');
+    await sleep(200);
+    check(
+      'L switches the Fog tool to shapes',
+      (await js(
+        `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Shape').getAttribute('aria-pressed')`,
+      )) === 'true',
+    );
+    const area =
+      await js(`(() => { const r = document.querySelector('canvas[aria-label="Fog of war"]').getBoundingClientRect();
+      return { x: r.x, y: r.y, w: r.width, h: r.height }; })()`);
+    const at = (fx, fy) => ({ x: area.x + area.w * fx, y: area.y + area.h * fy });
+    check('the area starts fogged', (await fogAlphaAt(0.75, 0.75)) > 0 && (await fogAlphaAt(0.95, 0.95)) > 0);
+    const playerBeforeShape = await playerFog();
+    const corners = [at(0.65, 0.65), at(0.85, 0.65), at(0.85, 0.85), at(0.65, 0.85)];
+    mouse('mouseDown', corners[0].x, corners[0].y);
+    for (const [from, to] of [
+      [0, 1],
+      [1, 2],
+      [2, 3],
+    ]) {
+      for (let i = 1; i <= 6; i++) {
+        const a = corners[from];
+        const b = corners[to];
+        mouse('mouseMove', a.x + ((b.x - a.x) * i) / 6, a.y + ((b.y - a.y) * i) / 6);
+        await sleep(15);
+      }
+    }
+    await sleep(300);
+    check(
+      'a shape changes nothing while it is drawn',
+      (await fogAlphaAt(0.75, 0.75)) > 0 && (await playerFog()) === playerBeforeShape,
+    );
+    mouse('mouseUp', corners[3].x, corners[3].y);
+    await sleep(900);
+    check('releasing reveals the whole inside', (await fogAlphaAt(0.75, 0.75)) === 0);
+    check('outside the shape stays fogged', (await fogAlphaAt(0.95, 0.95)) > 0);
+    check('players see the revealed area', (await playerFog()) !== playerBeforeShape);
+    await press('z', { ctrlKey: true });
+    await sleep(900);
+    check('one undo removes the shape', (await fogAlphaAt(0.75, 0.75)) > 0);
+    await press('l');
+    await sleep(100);
+
     // Alt + wheel zooms the DM view only, around the pointer, in any tool
     const fogRect = () =>
       js(`(() => { const r = document.querySelector('canvas[aria-label="Fog of war"]').getBoundingClientRect();

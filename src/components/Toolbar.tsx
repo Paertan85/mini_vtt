@@ -68,6 +68,8 @@ interface ToolbarProps {
   onReload: () => void;
   onToggleDevTools: () => void;
   onQuit: () => void;
+  fogShape: boolean;
+  onFogShapeChange: (shape: boolean) => void;
   showLibrary: boolean;
   onToggleLibrary: () => void;
 }
@@ -193,18 +195,40 @@ export function Toolbar(props: ToolbarProps) {
           </Button>
         </>
       ) : (
-        <Menu
-          items={[
-            { label: 'Reveal entire map', onSelect: props.onRevealAll },
-            { label: 'Cover entire map', onSelect: props.onCoverAll },
-          ]}
-          trigger={(trigger) => (
-            <Button {...trigger} disabled={!hasMap} title="Reveal or cover the whole map">
-              Fill
-              <ChevronDown className="h-3.5 w-3.5 text-muted" />
-            </Button>
+        <>
+          {tool === 'fog' && (
+            <ButtonGroup label="Fog drawing">
+              <Button
+                tone={props.fogShape ? 'default' : 'active'}
+                aria-pressed={!props.fogShape}
+                onClick={() => props.onFogShapeChange(false)}
+                title="Paint fog with a round brush (L switches)"
+              >
+                Brush
+              </Button>
+              <Button
+                tone={props.fogShape ? 'active' : 'default'}
+                aria-pressed={props.fogShape}
+                onClick={() => props.onFogShapeChange(true)}
+                title="Draw around an area to reveal it all at once; Right Mouse button covers it (L switches)"
+              >
+                Shape
+              </Button>
+            </ButtonGroup>
           )}
-        />
+          <Menu
+            items={[
+              { label: 'Reveal entire map', onSelect: props.onRevealAll },
+              { label: 'Cover entire map', onSelect: props.onCoverAll },
+            ]}
+            trigger={(trigger) => (
+              <Button {...trigger} disabled={!hasMap} title="Reveal or cover the whole map">
+                Fill
+                <ChevronDown className="h-3.5 w-3.5 text-muted" />
+              </Button>
+            )}
+          />
+        </>
       )}
 
       <Divider />

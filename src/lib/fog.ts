@@ -5,7 +5,7 @@
 // the player screen recolours it solid black. Keeping the mask binary makes
 // reveal and cover strokes exactly symmetric, with no alpha build-up.
 
-import type { FogStroke } from '../types/map';
+import type { FogMode, FogStroke, Point } from '../types/map';
 import type { Size } from './geometry';
 
 /** Longest mask edge in pixels; bounds memory and PNG size for huge maps. */
@@ -45,6 +45,31 @@ export function drawStroke(ctx: CanvasRenderingContext2D, stroke: FogStroke, med
   ctx.moveTo(stroke.from.x * scaleX, stroke.from.y * scaleY);
   ctx.lineTo(stroke.to.x * scaleX, stroke.to.y * scaleY);
   ctx.stroke();
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+/**
+ * Reveal or cover everything inside a freehand outline (map natural pixels).
+ * The outline is closed with a straight line back to its start; overlapping
+ * loops all count as inside. One fill, however large the area.
+ */
+export function fillShape(
+  ctx: CanvasRenderingContext2D,
+  points: Point[],
+  mode: FogMode,
+  media: Size,
+  color: string,
+) {
+  if (points.length < 3 || !media.w || !media.h || ctx.canvas.width === 0) return;
+  const scaleX = ctx.canvas.width / media.w;
+  const scaleY = ctx.canvas.height / media.h;
+  ctx.globalCompositeOperation = mode === 'cover' ? 'source-over' : 'destination-out';
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(points[0].x * scaleX, points[0].y * scaleY);
+  for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x * scaleX, points[i].y * scaleY);
+  ctx.closePath();
+  ctx.fill('nonzero');
   ctx.globalCompositeOperation = 'source-over';
 }
 

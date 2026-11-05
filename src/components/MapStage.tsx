@@ -44,6 +44,8 @@ interface MapStageProps {
   effectKind: EffectKind;
   tool: Tool;
   shiftHeld: boolean;
+  /** Fog tool draws outlines whose inside is revealed or covered, not brush strokes */
+  fogShape: boolean;
   /** Space + drag pans a zoomed DM view (otherwise it moves the player frame) */
   spaceHeld: boolean;
   brushSize: number;
@@ -133,6 +135,7 @@ export function MapStage(props: MapStageProps) {
     effectKind,
     tool,
     shiftHeld,
+    fogShape,
     spaceHeld,
     brushSize,
     pan,
@@ -196,6 +199,25 @@ export function MapStage(props: MapStageProps) {
   // Shift always paints fog, whatever the tool
   const paintsEffects = tool === 'effect' && !shiftHeld;
   const canPaint = tool === 'fog' || tool === 'effect' || shiftHeld;
+  // Shapes are a Fog tool mode; Shift from another tool is always the brush
+  const drawsShape = fogShape && tool === 'fog';
+  const shapeRef = useRef<SVGPolygonElement>(null);
+  const lastShapePointRef = useRef<Point | null>(null);
+
+  /** Extend the outline preview without re-rendering. */
+  const addShapePoint = (point: Point) => {
+    const polygon = shapeRef.current;
+    const svg = polygon?.ownerSVGElement;
+    if (!polygon || !svg) return;
+    const added = svg.createSVGPoint();
+    added.x = point.x;
+    added.y = point.y;
+    polygon.points.appendItem(added);
+  };
+  const clearShapePreview = () => {
+    shapeRef.current?.points.clear();
+    lastShapePointRef.current = null;
+  };
 
   /** Client coordinates → map natural pixels, undoing rotation and mirroring. */
   const toMapPoint = useCallback(
@@ -264,8 +286,8 @@ export function MapStage(props: MapStageProps) {
     if (cursorRef.current) cursorRef.current.style.visibility = 'hidden';
   };
   useEffect(() => {
-    if (!canPaint) hideCursor();
-  }, [canPaint]);
+    if (!canPaint || drawsShape) hideCursor();
+  }, [canPaint, drawsShape]);
 
   // ─── Painting ──────────────────────────────────────────────────────────────
 
@@ -276,14 +298,29 @@ export function MapStage(props: MapStageProps) {
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     if (paintsEffects) effects.beginStroke(event.button === 0 ? effectKind : null, point, brushSize);
-    else fog.beginStroke(event.button === 0 ? 'reveal' : 'cover', point, brushSize);
+    else if (drawsShape) {
+      fog.beginShape(event.button === 0 ? 'reveal' : 'cover', point);
+      clearShapePreview();
+      addShapePoint(point);
+      lastShapePointRef.current = point;
+      shapeRef.current?.setAttribute('data-mode', event.button === 0 ? 'reveal' : 'cover');
+    } else fog.beginStroke(event.button === 0 ? 'reveal' : 'cover', point, brushSize);
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    if (canPaint) moveCursor(event.clientX, event.clientY);
+    if (canPaint && !drawsShape) moveCursor(event.clientX, event.clientY);
     if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
     const point = toMapPoint(event.clientX, event.clientY);
     if (!point) return;
+    const last = lastShapePointRef.current;
+    if (last) {
+      // Skip points under ~2 screen pixels apart; the outline needs no more
+      if (Math.hypot(point.x - last.x, point.y - last.y) * displayScale < 2) return;
+      lastShapePointRef.current = point;
+      fog.continueShape(point);
+      addShapePoint(point);
+      return;
+    }
     fog.continueStroke(point);
     effects.continueStroke(point);
   };
@@ -293,7 +330,9 @@ export function MapStage(props: MapStageProps) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
     fog.endStroke();
+    fog.endShape();
     effects.endStroke();
+    clearShapePreview();
   };
 
   // ─── DM view zoom ──────────────────────────────────────────────────────────
@@ -594,8 +633,28 @@ export function MapStage(props: MapStageProps) {
               onPointerUp={handlePointerUp}
               onPointerCancel={handlePointerUp}
               onContextMenu={(event) => event.preventDefault()}
-              className={`absolute inset-0 h-full w-full opacity-80 ${canPaint ? 'cursor-none' : 'cursor-default'}`}
+              className={`absolute inset-0 h-full w-full opacity-80 ${
+                drawsShape ? 'cursor-crosshair' : canPaint ? 'cursor-none' : 'cursor-default'
+              }`}
             />
+            {/* Freehand shape outline while drawing; the closing edge is implied */}
+            {mediaSize && drawsShape && (
+              <svg
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+                viewBox={`0 0 ${mediaSize.w} ${mediaSize.h}`}
+                preserveAspectRatio="none"
+              >
+                <polygon
+                  ref={shapeRef}
+                  className="fill-gold/15 stroke-gold data-[mode=cover]:fill-ground/40"
+                  strokeWidth={2}
+                  strokeDasharray="6 4"
+                  vectorEffect="non-scaling-stroke"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            )}
           </div>
 
           {pan && viewportSize && (
