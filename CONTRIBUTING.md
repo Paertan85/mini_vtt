@@ -10,6 +10,9 @@ templates. For bugs, the most useful things to include are your operating
 system, the app version, the steps to reproduce, and whether the problem is in
 the DM window or on the player screen.
 
+For a feature, have a look at [ROADMAP.md](ROADMAP.md) first: it may already be
+planned or listed as an idea, or have been decided against, with the reason.
+
 ## Development setup
 
 You'll need Node.js 20 or newer.

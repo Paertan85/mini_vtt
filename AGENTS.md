@@ -16,3 +16,10 @@
 - Map loading in the DM window goes through `loadMap()` in `src/App.tsx`, so every per-map setting is restored in one place. Fog changes go through `useFog`, which sends one snapshot per change; the main process relays and saves it.
 - The `ElectronAPI` type is derived from `electron/preload.ts`; add bridge calls there, never in a separate declaration. IPC channels are named `domain:action`, with the same name on both legs of a relay.
 - Validate everything that arrives over IPC in the main process; the renderer is sandboxed and has no Node access.
+
+## Plans and ideas
+
+- `ROADMAP.md` holds what is planned (**Next**), ideas not decided on (**Ideas**), and what was turned down (**Decided against**, with the reason).
+- When the user mentions an idea they don't want yet, add it under **Ideas**. When they decide against something, move it to **Decided against** with their reason.
+- Check `ROADMAP.md` before suggesting features. Don't suggest something under **Decided against** again unless its reason no longer holds.
+- When planned work or an idea is done, remove it from `ROADMAP.md` and describe it in `CHANGELOG.md` under "Unreleased".
