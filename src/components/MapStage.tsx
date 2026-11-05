@@ -34,6 +34,7 @@ import {
 import { AuraDiscs } from './AuraDiscs';
 import { orientedSize, type Size } from '../lib/geometry';
 import { keyLabel } from '../lib/platform';
+import { releaseVideo } from '../lib/video';
 
 export type Tool = 'frame' | 'fog' | 'effect';
 
@@ -165,6 +166,12 @@ export function MapStage(props: MapStageProps) {
 
   const containerRef = useRef<HTMLElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
+  // A video map lets go of its file and decoder as soon as it is replaced or unloaded
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const setVideo = useCallback((element: HTMLVideoElement | null) => {
+    if (!element) releaseVideo(videoRef.current);
+    videoRef.current = element;
+  }, []);
   const cursorRef = useRef<HTMLDivElement>(null);
   const frameDragRef = useRef<{ start: Point; startPan: MapPan } | null>(null);
   const circleDragRef = useRef<{ id: string; pointerId: number; aim: boolean } | null>(null);
@@ -591,6 +598,7 @@ export function MapStage(props: MapStageProps) {
             {mediaType === 'video' ? (
               <video
                 key={mediaUrl}
+                ref={setVideo}
                 src={mediaUrl}
                 muted
                 playsInline

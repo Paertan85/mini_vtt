@@ -392,6 +392,9 @@ function EmptyState({ title, body }: { title: string; body?: string }) {
 // card scrolls into view
 const thumbCache = new Map<string, string | null>();
 
+/** Drop a removed map's or handout's thumbnail from the cache. */
+export const forgetThumb = (id: string) => thumbCache.delete(id);
+
 function Thumb({ id, kind }: { id: string; kind: 'map' | 'handout' }) {
   const ref = useRef<HTMLSpanElement>(null);
   const [url, setUrl] = useState<string | null | undefined>(() => thumbCache.get(id));

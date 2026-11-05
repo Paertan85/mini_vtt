@@ -1,9 +1,11 @@
-import { app, BrowserWindow, Menu, ipcMain, dialog, shell, protocol, net, screen } from 'electron';
+import { app, BrowserWindow, Menu, ipcMain, dialog, shell, protocol, screen } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import { existsSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createReadStream, existsSync } from 'node:fs';
+import { Readable } from 'node:stream';
+import { fileURLToPath } from 'node:url';
 import * as library from './library.js';
+import { normalizeDiscs } from '../src/lib/grid';
 import type {
   EffectSnapshot,
   FogSnapshot,
@@ -30,11 +32,8 @@ protocol.registerSchemesAsPrivileged([
 //   dist-electron/preload.cjs  the window.electronAPI bridge
 process.env.APP_ROOT = path.join(__dirname, '..');
 
-export const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'];
-export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron');
-export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist');
-
-process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST;
+const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'];
+const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist');
 
 // Windows takes the icon from the executable, except in unpacked runs (npm run
 // dev). Linux has no executable icon, and an AppImage that isn't integrated
@@ -88,6 +87,20 @@ function loadPage(target: BrowserWindow, mode?: 'view') {
   }
 }
 
+/**
+ * Hide a window's menu bar for good. Its shortcuts still work, but Alt (snap,
+ * zoom the DM view) must not pop it up: over the DM window's layout, or on the
+ * table screen. On Windows a hidden menu still takes focus when Alt is
+ * released, so the bare Alt key is swallowed; mouse and wheel events still
+ * report Alt as held.
+ */
+function hideMenuBar(target: BrowserWindow) {
+  target.setMenuBarVisibility(false);
+  target.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'Alt' && !input.control && !input.shift && !input.meta) event.preventDefault();
+  });
+}
+
 const isOpen = (target: BrowserWindow | null): target is BrowserWindow => !!target && !target.isDestroyed();
 const sendToDm = (channel: string, ...args: unknown[]) => {
   if (isOpen(dmWindow)) dmWindow.webContents.send(channel, ...args);
@@ -109,14 +122,7 @@ function createDmWindow() {
     backgroundColor: WINDOW_BACKGROUND,
     webPreferences: webPreferences(),
   });
-  // Hidden for good: its shortcuts still work, but Alt (snap circles, zoom the
-  // DM view) must not pop up a menu bar and shift the layout
-  dmWindow.setMenuBarVisibility(false);
-  // On Windows a hidden menu still takes focus when Alt is released. Swallow
-  // the bare Alt key; mouse and wheel events still report Alt as held.
-  dmWindow.webContents.on('before-input-event', (event, input) => {
-    if (input.key === 'Alt' && !input.control && !input.shift && !input.meta) event.preventDefault();
-  });
+  hideMenuBar(dmWindow);
   // On a screen smaller than the preferred size, use all of it
   if (tooSmall) dmWindow.maximize();
   lockDownNavigation(dmWindow);
@@ -144,9 +150,9 @@ function openPlayerWindow() {
     icon: windowIcon,
     backgroundColor: '#000000',
     webPreferences: webPreferences(),
-    autoHideMenuBar: true,
   });
   playerWindow = created;
+  hideMenuBar(created);
   lockDownNavigation(created);
   created.on('closed', () => {
     if (playerWindow === created) playerWindow = null;
@@ -166,7 +172,8 @@ function openPlayerWindow() {
 // sends it here. The snapshot is relayed to the player window immediately and
 // saved to disk after a short pause, so a burst of strokes costs one write. A
 // pending save is flushed (never dropped) when a different map's snapshot
-// arrives, before that map's layer is read back, and when the app quits.
+// arrives, before that map's layer is read back or the map is removed, and
+// when the app quits.
 
 const SNAPSHOT_SAVE_DELAY_MS = 500;
 
@@ -197,12 +204,6 @@ function delayedMapSave<T>(label: string, save: (mapId: string, value: T) => Pro
       if (pending) clearTimeout(pending.timer);
       pending = { mapId, value, timer: setTimeout(() => void flush(), SNAPSHOT_SAVE_DELAY_MS) };
     },
-    /** Drop a waiting save, e.g. because the map is being deleted. */
-    cancel: (mapId: string) => {
-      if (pending?.mapId !== mapId) return;
-      clearTimeout(pending.timer);
-      pending = null;
-    },
   };
 }
 
@@ -211,6 +212,44 @@ const effectSaves = delayedMapSave<string | null>('effects', library.saveMapEffe
 const flushAllSaves = () => Promise.all([fogSaves.flush(), effectSaves.flush()]);
 
 // ─── Player window and relayed messages ───────────────────────────────────────
+//
+// What the DM window sends for the player screen is checked before it is kept
+// or passed on, like everything else that arrives over IPC.
+
+const MEDIA_URL = /^map-media:\/\/[A-Za-z0-9_-]{1,64}$/;
+const PNG_DATA_URL = 'data:image/png;base64,';
+const QUARTER_TURNS = [0, 90, 180, 270];
+
+const isFiniteNumber = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value);
+const isMediaUrl = (value: unknown): value is string | null =>
+  value === null || (typeof value === 'string' && MEDIA_URL.test(value));
+const isPngDataUrl = (value: unknown): value is string =>
+  typeof value === 'string' && value.startsWith(PNG_DATA_URL);
+
+/** A valid player state, or null. */
+function normalizeMapState(value: unknown): MapState | null {
+  if (!value || typeof value !== 'object') return null;
+  const state = value as Record<string, unknown>;
+  const { mediaUrl, handoutUrl, mediaType, zoom, rotation, handoutRotation } = state;
+  if (!isMediaUrl(mediaUrl) || !isMediaUrl(handoutUrl)) return null;
+  if (mediaType !== 'image' && mediaType !== 'video') return null;
+  if (!isFiniteNumber(zoom) || zoom <= 0) return null;
+  if (!isFiniteNumber(rotation) || !QUARTER_TURNS.includes(rotation)) return null;
+  if (!isFiniteNumber(handoutRotation) || !QUARTER_TURNS.includes(handoutRotation)) return null;
+  return {
+    mediaUrl,
+    mediaType,
+    zoom,
+    rotation,
+    mirrorHorizontal: state.mirrorHorizontal === true,
+    mirrorVertical: state.mirrorVertical === true,
+    handoutUrl,
+    handoutRotation,
+    blackout: state.blackout === true,
+    circles: normalizeDiscs(state.circles),
+  };
+}
 
 ipcMain.handle('player:open', async () => {
   openPlayerWindow();
@@ -228,7 +267,9 @@ ipcMain.handle('player:resize', async (_event, requestedWidth: number, requested
   return { width, height };
 });
 
-ipcMain.on('player:state', (_event, state: MapState) => {
+ipcMain.on('player:state', (_event, value: unknown) => {
+  const state = normalizeMapState(value);
+  if (!state) return;
   latestMapState = state;
   sendToPlayer('player:state', state);
 });
@@ -243,25 +284,39 @@ ipcMain.on('fog:reset', () => {
   sendToPlayer('fog:reset');
 });
 
-ipcMain.on('fog:snapshot', (_event, snapshot: FogSnapshot) => {
-  if (!snapshot || typeof snapshot.dataUrl !== 'string' || typeof snapshot.mapId !== 'string') return;
+ipcMain.on('fog:snapshot', (_event, value: FogSnapshot) => {
+  if (!value || typeof value.mapId !== 'string' || !isPngDataUrl(value.dataUrl)) return;
+  const snapshot: FogSnapshot = {
+    mapId: value.mapId,
+    dataUrl: value.dataUrl,
+    persist: value.persist === true,
+  };
   latestFogDataUrl = snapshot.dataUrl;
   sendToPlayer('fog:snapshot', snapshot);
   if (snapshot.persist) fogSaves.schedule(snapshot.mapId, snapshot.dataUrl);
 });
 
-ipcMain.on('effects:snapshot', (_event, snapshot: EffectSnapshot) => {
-  if (!snapshot || typeof snapshot.mapId !== 'string') return;
-  if (snapshot.dataUrl !== null && typeof snapshot.dataUrl !== 'string') return;
+ipcMain.on('effects:snapshot', (_event, value: EffectSnapshot) => {
+  if (!value || typeof value.mapId !== 'string') return;
+  if (value.dataUrl !== null && !isPngDataUrl(value.dataUrl)) return;
+  const snapshot: EffectSnapshot = {
+    mapId: value.mapId,
+    dataUrl: value.dataUrl,
+    persist: value.persist === true,
+  };
   latestEffects = snapshot;
   sendToPlayer('effects:snapshot', snapshot);
   if (snapshot.persist) effectSaves.schedule(snapshot.mapId, snapshot.dataUrl);
 });
 
-ipcMain.on('viewport:size', (_event, width: number, height: number) =>
-  sendToDm('viewport:size', width, height),
-);
-ipcMain.on('viewport:pan', (_event, x: number, y: number) => sendToPlayer('viewport:pan', x, y));
+ipcMain.on('viewport:size', (_event, width: unknown, height: unknown) => {
+  if (isFiniteNumber(width) && isFiniteNumber(height) && width > 0 && height > 0) {
+    sendToDm('viewport:size', width, height);
+  }
+});
+ipcMain.on('viewport:pan', (_event, x: unknown, y: unknown) => {
+  if (isFiniteNumber(x) && isFiniteNumber(y)) sendToPlayer('viewport:pan', x, y);
+});
 
 // ─── Full screen (applies to whichever window asks) ───────────────────────────
 
@@ -296,7 +351,7 @@ async function importFiles(paths: unknown, kind: 'map' | 'handout'): Promise<Imp
         const added = await library.addMap(sourcePath);
         if (added) {
           result.added += 1;
-          result.firstMap ??= added.entry;
+          result.firstMap ??= added;
         } else result.skipped.push(path.basename(sourcePath));
       } else if (await library.addHandout(sourcePath)) {
         result.added += 1;
@@ -330,6 +385,7 @@ ipcMain.handle('library:importMapsFromDialog', async () => importFromDialog('map
 ipcMain.handle('library:importMaps', async (_e, paths: unknown) => importFiles(paths, 'map'));
 ipcMain.handle('library:loadMapMedia', async (_e, id: string) => library.loadMapMediaUrl(id));
 ipcMain.handle('library:loadMapThumb', async (_e, id: string) => library.loadMapThumb(id));
+ipcMain.handle('library:loadVideoCodec', async (_e, id: string) => library.loadVideoCodec(id));
 ipcMain.handle('library:loadMapFog', async (_e, id: string) => {
   // A save may still be pending for this map: write it first so the read is current
   await fogSaves.flushFor(id);
@@ -345,9 +401,11 @@ ipcMain.handle('library:saveMapGrid', async (_e, id: string, grid: MapGrid | nul
 );
 ipcMain.handle('library:renameMap', async (_e, id: string, name: string) => library.renameMap(id, name));
 ipcMain.handle('library:removeMap', async (_e, id: string) => {
-  // Don't let a late fog save recreate the deleted map's folder
-  fogSaves.cancel(id);
-  effectSaves.cancel(id);
+  // Write a waiting fog or effects save first: before the folder goes, so no
+  // late save recreates it, and so nothing painted is lost if the map can't be
+  // removed after all (its video still in use)
+  await fogSaves.flushFor(id);
+  await effectSaves.flushFor(id);
   return library.removeMap(id);
 });
 ipcMain.handle('library:reorderMaps', async (_e, ids: string[]) => library.reorderMaps(ids));
@@ -472,7 +530,17 @@ app.whenReady().then(() => {
       ? await library.resolveHandoutPath(id)
       : await library.resolveMapMediaPath(id);
     if (!mediaPath) return new Response('Not found', { status: 404 });
-    return net.fetch(pathToFileURL(mediaPath).href);
+    // Streamed straight from the file rather than with net.fetch: when a
+    // window drops the media (map switched or removed), this stream closes at
+    // once and lets go of the file. A net.fetch of the file kept it open for
+    // as long as it took to read it all, so a video map couldn't be deleted.
+    const { size } = await fs.stat(mediaPath);
+    const body = Readable.toWeb(createReadStream(mediaPath)) as unknown as ReadableStream<Uint8Array>;
+    return new Response(body, {
+      headers: { 'Content-Type': library.mediaMimeType(mediaPath), 'Content-Length': String(size) },
+    });
   });
+  // In the background: folders of removed maps that couldn't be deleted yet
+  void library.removeLeftovers();
   createDmWindow();
 });

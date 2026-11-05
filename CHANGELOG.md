@@ -25,6 +25,12 @@ All notable changes to this project are documented here. The format is based on
 - The brush goes from 10 to 600 in steps of 10 (was up to 300, in steps of 5).
 - On a Mac, Cmd works wherever Ctrl does (zoom with Cmd + wheel, snap with
   Cmd while dragging), and tooltips and the shortcut list name Mac keys.
+- Lighter on a laptop: a video map lets go of its file and decoder as soon
+  as another map is loaded, dragging an area sends nothing to the player
+  screen until it is dropped, and loading a map no longer re-encodes its
+  saved fog.
+- The installer is smaller: the app ships under 1 MB of code instead of
+  33 MB.
 
 ### Added
 
@@ -36,10 +42,9 @@ All notable changes to this project are documented here. The format is based on
 - Spell areas: besides circles, the Effects tool's **Area** menu places
   squares (cubes), cones and lines/walls, sized in feet. Drag the handle at
   a cone's or line's tip to aim it and set its length (5 ft steps), or the
-  handle on a square's edge to turn it; the
-  mouse wheel over a line sets its width. Ctrl snaps each shape to the grid
-  the way it is usually placed. Existing circles and project files load
-  unchanged.
+  handle on a square's edge to turn it; the mouse wheel over a line sets
+  its width. Ctrl snaps each shape to the grid the way it is usually
+  placed. Existing circles and project files load unchanged.
 - Fog shapes: in the Fog tool, switch to Shape (or press L) and draw around
   a room; everything inside is revealed (left button) or covered (right
   button) when you let go. The outline closes itself, and one undo removes
@@ -47,6 +52,22 @@ All notable changes to this project are documented here. The format is based on
 - ? shows the shortcuts, Enter loads the selected map, Ctrl+O adds maps.
 - A button at the left of the toolbar (or Ctrl+B) hides the maps and
   handouts panel to give the map more room. The choice is remembered.
+- A video map larger than the computer can decode in hardware (say 5.5K on
+  a laptop that handles 4K) gets a note suggesting a size that plays
+  smoothly.
+
+### Fixed
+
+- Removing a video map while it was loaded failed on Windows: the map left
+  the library, but its file stayed on disk and its card in the panel. Now
+  it is removed cleanly. If another program has the file open, the map
+  stays as it was and a message says so. Folders left behind by earlier
+  versions are deleted at startup.
+- In a confirmation dialog, pressing or releasing Shift (as in Shift+Tab to
+  reach Cancel) moved the focus back to the main button, such as Remove.
+- Pressing Alt with the player window focused showed a menu bar on the
+  player screen.
+- Picking maps in quick succession could leave the earlier one loaded.
 
 ## 1.1.0 - 2026-11-05
 

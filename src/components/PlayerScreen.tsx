@@ -13,6 +13,7 @@ import { EFFECT_OPACITY, showLayer } from '../lib/effects';
 import { AuraDiscs } from './AuraDiscs';
 import type { Size } from '../lib/geometry';
 import { keyLabel } from '../lib/platform';
+import { releaseVideo } from '../lib/video';
 
 const PLAYER_FOG_COLOR = '#000000';
 const MIN_HANDOUT_ZOOM = 0.1;
@@ -245,8 +246,14 @@ export function PlayerScreen() {
     };
   }, [state.handoutUrl]);
 
-  // Pause a video map while it is covered, to save power
+  // A replaced or unloaded video lets go of its file and decoder straight away
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const setVideo = useCallback((element: HTMLVideoElement | null) => {
+    if (!element) releaseVideo(videoRef.current);
+    videoRef.current = element;
+  }, []);
+
+  // Pause a video map while it is covered, to save power
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -292,7 +299,7 @@ export function PlayerScreen() {
             {state.mediaType === 'video' ? (
               <video
                 key={state.mediaUrl}
-                ref={videoRef}
+                ref={setVideo}
                 src={state.mediaUrl}
                 autoPlay
                 loop

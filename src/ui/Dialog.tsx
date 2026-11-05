@@ -16,6 +16,12 @@ interface DialogProps {
 export function Dialog({ title, onClose, children, footer, width = 'w-[26rem]' }: DialogProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useRef(`dialog-${Math.random().toString(36).slice(2)}`).current;
+  // Parents pass a new function on every render. Reading it through a ref lets
+  // the effect below run once, when the dialog opens: run again, it would move
+  // the focus back to the default button (onto Remove, after the user had
+  // tabbed to Cancel)
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
@@ -28,7 +34,7 @@ export function Dialog({ title, onClose, children, footer, width = 'w-[26rem]' }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.stopPropagation();
-        onClose();
+        onCloseRef.current();
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -36,7 +42,7 @@ export function Dialog({ title, onClose, children, footer, width = 'w-[26rem]' }
       window.removeEventListener('keydown', onKeyDown);
       previouslyFocused?.focus?.();
     };
-  }, [onClose]);
+  }, []);
 
   return (
     <div

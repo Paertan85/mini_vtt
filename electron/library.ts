@@ -2,7 +2,6 @@ import { app, nativeImage } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import type {
-  AddMapResult,
   HandoutMeta,
   LibrarySettings,
   LibrarySnapshot,
@@ -10,6 +9,7 @@ import type {
   MapGrid,
   MapView,
   ProjectImportSummary,
+  VideoCodec,
 } from '../src/types/map';
 import { normalizeCircles, normalizeGrid } from '../src/lib/grid';
 
@@ -43,6 +43,13 @@ export const isHandoutId = (id: string) => id.startsWith(HANDOUT_ID_PREFIX);
 
 // Only allow ids we generated, so a corrupt index can't escape the library dir
 const SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+// A removed map's or handout's folder is first renamed with this prefix, then
+// deleted. The dot keeps it from ever matching an id.
+const REMOVED_PREFIX = '.removed-';
+// Folders no index entry points to are deleted at startup once they are this
+// old, so an import that is still copying its file is never touched
+const LEFTOVER_AGE_MS = 10 * 60 * 1000;
 
 // Image extensions we accept, probed from magic bytes rather than trusting the
 // filename
@@ -88,6 +95,9 @@ const mimeFor = (ext: string) => {
   return `image/${ext}`;
 };
 const toDataUrl = (bytes: Buffer, ext: string) => `data:${mimeFor(ext)};base64,${bytes.toString('base64')}`;
+
+/** The content type of a library media file (named image.<ext> by its sniffed type). */
+export const mediaMimeType = (filePath: string) => mimeFor(path.extname(filePath).slice(1));
 
 // ─── Index read/write ─────────────────────────────────────────────────────────
 
@@ -302,13 +312,118 @@ export async function rotateHandout(id: string, rotation: number): Promise<boole
 
 export async function removeHandout(id: string): Promise<boolean> {
   if (!SAFE_ID.test(id) || !isHandoutId(id)) return false;
-  const removed = await mutateIndex((index) => {
-    const before = index.handouts.length;
-    index.handouts = index.handouts.filter((entry) => entry.id !== id);
-    return index.handouts.length !== before;
-  });
-  if (removed) await fs.rm(handoutDir(id), { recursive: true, force: true });
-  return removed;
+  return removeEntry(
+    handoutDir(id),
+    (index) => index.handouts.some((entry) => entry.id === id),
+    (index) => {
+      index.handouts = index.handouts.filter((entry) => entry.id !== id);
+    },
+  );
+}
+
+/**
+ * Remove a map or handout: its folder first, then its index entry. The folder
+ * is renamed aside before anything else changes. Windows refuses that while a
+ * window still has a file in it open (a playing video); the DM window unloads
+ * the map first, so a few short retries cover the moment until the windows
+ * let go. If the folder stays in use, nothing has changed and this returns
+ * false. Never throws.
+ */
+async function removeEntry(
+  dir: string,
+  listed: (index: IndexShape) => boolean,
+  unlist: (index: IndexShape) => void,
+): Promise<boolean> {
+  try {
+    if (!(await withIndex(listed))) return false;
+    const aside = await setAside(dir);
+    if (!aside) return false;
+    try {
+      await mutateIndex((index) => {
+        unlist(index);
+      });
+    } catch (err) {
+      // Put the folder back, so the entry that is still listed keeps its files
+      if (aside.moved) await fs.rename(aside.moved, dir).catch(() => undefined);
+      throw err;
+    }
+    // A failure here only leaves a set-aside folder, deleted at next startup
+    if (aside.moved) await fs.rm(aside.moved, { recursive: true, force: true }).catch(() => undefined);
+    return true;
+  } catch (err) {
+    console.error(`Failed to remove ${path.basename(dir)}:`, err);
+    return false;
+  }
+}
+
+const IN_USE_CODES = ['EBUSY', 'EPERM', 'EACCES'];
+const SET_ASIDE_ATTEMPTS = 8;
+
+/** Rename `dir` aside for deletion; null while a file in it stays in use. */
+async function setAside(dir: string): Promise<{ moved: string | null } | null> {
+  const target = path.join(path.dirname(dir), `${REMOVED_PREFIX}${path.basename(dir)}`);
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await fs.rename(dir, target);
+      return { moved: target };
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code ?? '';
+      if (code === 'ENOENT') return { moved: null }; // no files on disk: just unlist it
+      if (!IN_USE_CODES.includes(code) || attempt === SET_ASIDE_ATTEMPTS) {
+        console.error(`Couldn’t set ${dir} aside for deletion:`, err);
+        return null;
+      }
+      // About 3 s in all
+      await new Promise((resolve) => setTimeout(resolve, attempt * 100));
+    }
+  }
+}
+
+/**
+ * Delete what earlier sessions left behind: folders set aside for deletion
+ * that couldn't be deleted yet, and folders no index entry points to (from
+ * versions before 1.2, which unlisted a map before deleting its folder, or an
+ * import cut short by a crash). Unlisted folders are only deleted when the
+ * index was read successfully and they haven't changed for a while, so a
+ * damaged index or an import still copying never loses anything.
+ */
+export async function removeLeftovers(): Promise<void> {
+  let listed: Set<string> | null = null;
+  try {
+    const parsed = JSON.parse(await fs.readFile(INDEX_FILE(), 'utf8')) as Partial<IndexShape>;
+    if (Array.isArray(parsed.maps) && Array.isArray(parsed.handouts)) {
+      listed = new Set([...parsed.maps, ...parsed.handouts].map((entry) => entry?.id));
+    }
+  } catch {
+    // No index, or a damaged one: only delete folders that were set aside
+  }
+  const cutoff = Date.now() - LEFTOVER_AGE_MS;
+  const places: [string, string][] = [
+    [LIBRARY_DIR(), MAP_ID_PREFIX],
+    [handoutsDir(), HANDOUT_ID_PREFIX],
+  ];
+  for (const [parent, prefix] of places) {
+    let names: string[];
+    try {
+      names = await fs.readdir(parent);
+    } catch {
+      continue;
+    }
+    for (const name of names) {
+      const dir = path.join(parent, name);
+      try {
+        const setAsideBefore = name.startsWith(REMOVED_PREFIX);
+        const unlisted =
+          listed !== null && name.startsWith(prefix) && SAFE_ID.test(name) && !listed.has(name);
+        if (!setAsideBefore && !unlisted) continue;
+        const stats = await fs.stat(dir);
+        if (!stats.isDirectory() || (unlisted && stats.mtimeMs > cutoff)) continue;
+        await fs.rm(dir, { recursive: true, force: true });
+      } catch (err) {
+        console.error(`Couldn’t delete the leftover folder ${dir}:`, err);
+      }
+    }
+  }
 }
 
 export async function loadHandoutThumb(id: string): Promise<string | null> {
@@ -367,7 +482,7 @@ async function readHeader(sourcePath: string): Promise<Buffer> {
   }
 }
 
-export async function addMap(sourcePath: string): Promise<AddMapResult | null> {
+export async function addMap(sourcePath: string): Promise<MapEntryMeta | null> {
   const ext = detectExt(await readHeader(sourcePath));
   if (!ext) return null;
 
@@ -404,12 +519,32 @@ export async function addMap(sourcePath: string): Promise<AddMapResult | null> {
     index.maps.push(entry);
     index.settings = { ...index.settings, currentMapId: id };
   });
+  return entry;
+}
 
-  return {
-    entry,
-    mediaUrl: `map-media://${id}`,
-    thumbDataUrl: thumb ? toDataUrl(thumb, 'png') : '',
-  };
+/** The video codec named in a WebM file's first bytes (its track header), or null. */
+export function sniffVideoCodec(bytes: Buffer): VideoCodec | null {
+  if (bytes.includes(Buffer.from('V_VP9'))) return 'vp9';
+  if (bytes.includes(Buffer.from('V_AV1'))) return 'av1';
+  if (bytes.includes(Buffer.from('V_VP8'))) return 'vp8';
+  return null;
+}
+
+/** A video map's codec, read from the start of its file; null for images. */
+export async function loadVideoCodec(id: string): Promise<VideoCodec | null> {
+  const mediaPath = await resolveMapMediaPath(id);
+  if (!mediaPath?.endsWith('.webm')) return null;
+  const file = await fs.open(mediaPath, 'r');
+  try {
+    // The track header comes before any video data
+    const buffer = Buffer.alloc(64 * 1024);
+    const { bytesRead } = await file.read(buffer, 0, buffer.length, 0);
+    return sniffVideoCodec(buffer.subarray(0, bytesRead));
+  } catch {
+    return null;
+  } finally {
+    await file.close();
+  }
 }
 
 /** Read one of a map's assets, trying each known extension. */
@@ -559,21 +694,20 @@ export async function renameMap(id: string, name: string): Promise<boolean> {
   });
 }
 
-/** Drop a map's metadata and its folder from disk. */
+/** Delete a map's folder and drop it from the index; false if its file is still in use. */
 export async function removeMap(id: string): Promise<boolean> {
   if (!SAFE_ID.test(id)) return false;
-  const removed = await mutateIndex((index) => {
-    const before = index.maps.length;
-    index.maps = index.maps.filter((m) => m.id !== id);
-    if (index.maps.length === before) return false;
-    if (index.settings.currentMapId === id) index.settings.currentMapId = null;
-    if (index.settings.mapOrder) {
-      index.settings.mapOrder = index.settings.mapOrder.filter((entry) => entry !== id);
-    }
-    return true;
-  });
-  if (removed) await fs.rm(mapDir(id), { recursive: true, force: true });
-  return removed;
+  return removeEntry(
+    mapDir(id),
+    (index) => index.maps.some((m) => m.id === id),
+    (index) => {
+      index.maps = index.maps.filter((m) => m.id !== id);
+      if (index.settings.currentMapId === id) index.settings.currentMapId = null;
+      if (index.settings.mapOrder) {
+        index.settings.mapOrder = index.settings.mapOrder.filter((entry) => entry !== id);
+      }
+    },
+  );
 }
 
 /**

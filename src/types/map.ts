@@ -76,7 +76,6 @@ export interface MapGrid {
   feetPerCell: number;
 }
 
-/** A movable circle (aura or spell area), in map natural pixels and feet. */
 /** The shapes of spell areas: sphere/emanation, cube, cone and line/wall. */
 export type AreaShape = 'circle' | 'square' | 'cone' | 'line';
 
@@ -155,12 +154,8 @@ export interface LibrarySnapshot {
   settings: LibrarySettings;
 }
 
-/** Result of importing a map. */
-export interface AddMapResult {
-  entry: MapEntryMeta;
-  mediaUrl: string;
-  thumbDataUrl: string;
-}
+/** Video codecs a WebM map can use. */
+export type VideoCodec = 'vp8' | 'vp9' | 'av1';
 
 /** Result of a batch import: how many files were added and which were skipped. */
 export interface ImportResult {

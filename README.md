@@ -24,7 +24,7 @@ It's built to stay out of the way on modest hardware: no accounts, no server, no
 - **True-scale grid.** Enter the player screen's diagonal and your grid size, and the frame shows a grid that matches the physical screen, so 1-inch minis line up with the map.
 - **Blackout.** One key hides everything on the player screen while you set up the next scene.
 - **Map library.** Maps, along with each map's fog, effects, zoom, framing, rotation and mirroring, are saved automatically and restored when you switch maps or restart.
-- **Animated maps.** WebM videos work as maps alongside PNG, JPEG, GIF, WebP and BMP images.
+- **Animated maps.** WebM videos work as maps alongside PNG, JPEG, GIF, WebP and BMP images. If a video is larger than your computer can decode in hardware, Mini VTT suggests a size that plays smoothly.
 - **Handouts.** Show a letter, portrait or clue fullscreen on the player screen, then hide it to return to the map.
 - **Clean player screen.** Its few buttons and the mouse cursor fade out when the mouse is idle, so players only see the map.
 

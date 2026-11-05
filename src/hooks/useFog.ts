@@ -52,6 +52,8 @@ export function useFog(): Fog {
   const currentRef = useRef<string | null>(null);
   const undoRef = useRef<string[]>([]);
   const redoRef = useRef<string[]>([]);
+  // Counts initialize calls, so one that is overtaken while decoding stops
+  const initializeRunRef = useRef(0);
   const [history, setHistory] = useState({ canUndo: false, canRedo: false });
 
   const context = () => canvasRef.current?.getContext('2d') ?? null;
@@ -84,6 +86,7 @@ export function useFog(): Fog {
       const canvas = canvasRef.current;
       const ctx = context();
       if (!canvas || !ctx) return;
+      const run = ++initializeRunRef.current;
       mapIdRef.current = mapId;
       mediaRef.current = media;
       strokeRef.current = null;
@@ -96,17 +99,26 @@ export function useFog(): Fog {
       let restored = false;
       if (savedMask) {
         try {
-          drawSnapshot(ctx, await loadImage(savedMask), DM_FOG_COLOR);
+          const image = await loadImage(savedMask);
+          // Another map started loading while this mask decoded: it owns the canvas now
+          if (run !== initializeRunRef.current) return;
+          drawSnapshot(ctx, image, DM_FOG_COLOR);
           restored = true;
         } catch (err) {
+          if (run !== initializeRunRef.current) return;
           console.error('Saved fog is unreadable; starting fully fogged instead.', err);
         }
       }
       if (!restored) fillMask(ctx, DM_FOG_COLOR);
       window.electronAPI?.sendFogReset();
-      // A freshly fogged map has nothing on disk yet, so save it; a restored
-      // mask is already saved and only needs relaying
-      currentRef.current = publish(!restored);
+      if (restored && savedMask) {
+        // Already saved: relay the mask as loaded, without encoding it again
+        window.electronAPI?.sendFogSnapshot({ mapId, dataUrl: savedMask, persist: false });
+        currentRef.current = savedMask;
+      } else {
+        // A freshly fogged map has nothing on disk yet, so save it
+        currentRef.current = publish(true);
+      }
       syncHistoryState();
     },
     [publish],

@@ -67,6 +67,22 @@ export function normalizeCircles(value: unknown): AuraCircle[] {
   return circles;
 }
 
+/** Valid templates as the player screen draws them (map pixels), at most MAX_CIRCLES. */
+export function normalizeDiscs(value: unknown): AuraDisc[] {
+  if (!Array.isArray(value)) return [];
+  const discs: AuraDisc[] = [];
+  for (const raw of value.slice(0, MAX_CIRCLES)) {
+    if (!raw || typeof raw !== 'object') continue;
+    const { x, y, radius, kind, shape, angle, width } = raw as Record<string, unknown>;
+    if (!finite(x) || !finite(y) || !finite(radius) || !finite(angle) || !finite(width)) continue;
+    if (radius <= 0 || width < 0) continue;
+    if (!EFFECT_KIND_NAMES.includes(kind as EffectKind) || !AREA_SHAPES.includes(shape as AreaShape))
+      continue;
+    discs.push({ x, y, radius, kind: kind as EffectKind, shape: shape as AreaShape, angle, width });
+  }
+  return discs;
+}
+
 /**
  * Measure a grid from two clicked corners `squares` squares apart. Corners on
  * a diagonal average both axes; corners along one line use that axis.

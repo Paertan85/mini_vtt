@@ -2,7 +2,7 @@
 // and wires the pieces together; the fog lives in useFog, the map area in
 // MapStage, and the controls in Toolbar and MapLibraryPanel.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   AreaShape,
   AuraCircle,
@@ -16,7 +16,7 @@ import type {
   MediaType,
   Point,
 } from './types/map';
-import { MapLibraryPanel, type OrientationChange } from './components/MapLibraryPanel';
+import { MapLibraryPanel, forgetThumb, type OrientationChange } from './components/MapLibraryPanel';
 import { MapStage, type Tool, type ViewControls } from './components/MapStage';
 import { BRUSH_STEP, MAX_BRUSH, MIN_BRUSH, Toolbar } from './components/Toolbar';
 import { PlayerSetupDialog, ShortcutsDialog, screenDimensions } from './components/Dialogs';
@@ -24,6 +24,7 @@ import { useFog } from './hooks/useFog';
 import { useEffectLayer } from './hooks/useEffectLayer';
 import { clamp, clampZoom, orientedSize, stepZoom, type Size } from './lib/geometry';
 import { keyLabel } from './lib/platform';
+import { smallerVideoSize } from './lib/video';
 import {
   clampRadius,
   DEFAULT_AREA_FT,
@@ -45,7 +46,11 @@ const SQUARE_SNAP_DEG = 5;
 
 /** Pan and fog to apply once the map being loaded has finished loading. */
 interface PendingRestore {
+  /** The load this belongs to; a newer load replaces it */
+  token: number;
   mapId: string;
+  name: string;
+  mediaType: MediaType;
   /** null: never framed, so centre the player frame */
   pan: MapPan | null;
   fog: string | null;
@@ -53,6 +58,30 @@ interface PendingRestore {
 }
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
+
+/** Resolves once React has rendered and the browser has painted. */
+const afterPaint = () =>
+  new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+
+// Video maps already checked this session: the advice shows once per map
+const checkedVideos = new Set<string>();
+
+/** Suggest a smaller copy of a video map this computer can't decode in hardware. */
+async function adviseOnVideo(mapId: string, name: string, size: Size) {
+  if (checkedVideos.has(mapId)) return;
+  checkedVideos.add(mapId);
+  const codec = await window.electronAPI?.loadVideoCodec(mapId);
+  if (!codec) return;
+  const smaller = await smallerVideoSize(codec, size);
+  if (!smaller) return;
+  notify(
+    `“${name}” is a ${size.w} × ${size.h} video, too large for this computer to decode in hardware. ` +
+      `It will use a lot of CPU and may stutter on the player screen; a copy at ${smaller.w} × ${smaller.h} ` +
+      'plays much more smoothly.',
+    'info',
+    15000,
+  );
+}
 
 /** True when a key press should go to a text field or dialog rather than a shortcut. */
 const isTypingTarget = (target: EventTarget | null) =>
@@ -117,6 +146,8 @@ export function App() {
   // overwrite what it is loading
   const restoringRef = useRef(false);
   const pendingRestoreRef = useRef<PendingRestore | null>(null);
+  // Bumped by every load and unload, so only the latest of quick loads applies
+  const loadTokenRef = useRef(0);
 
   const reloadLibrary = useCallback(async () => {
     const snapshot = await api?.loadLibrary();
@@ -224,11 +255,6 @@ export function App() {
     saveView(pending.id, pending.view);
   }, [saveView]);
 
-  const cancelViewSave = useCallback(() => {
-    if (pendingViewSave.current) window.clearTimeout(pendingViewSave.current.timer);
-    pendingViewSave.current = null;
-  }, []);
-
   useEffect(() => {
     if (!currentMapId || restoringRef.current) return;
     const view: MapView = { zoom, pan, rotation, mirrorHorizontal, mirrorVertical, circles };
@@ -259,18 +285,24 @@ export function App() {
   const loadMap = useCallback(
     async (meta: MapEntryMeta, options: { centerFrame?: boolean } = {}) => {
       flushViewSave();
+      const token = ++loadTokenRef.current;
       const [url, savedFog, savedEffects] = await Promise.all([
         api?.loadMapMedia(meta.id),
         options.centerFrame ? null : api?.loadMapFog(meta.id),
         options.centerFrame ? null : api?.loadMapEffects(meta.id),
       ]);
+      // Another map was picked while this one's files were read
+      if (token !== loadTokenRef.current) return;
       if (!url) {
         notify(`Couldn’t find the file for “${meta.name}” in the library folder.`, 'error');
         return;
       }
       restoringRef.current = true;
       pendingRestoreRef.current = {
+        token,
         mapId: meta.id,
+        name: meta.name,
+        mediaType: meta.mediaType,
         pan: options.centerFrame ? null : meta.pan,
         fog: savedFog ?? null,
         effects: savedEffects ?? null,
@@ -305,7 +337,10 @@ export function App() {
       setMediaSize(size);
       await fog.initialize(restore.mapId, size, restore.fog);
       await effects.initialize(restore.mapId, size, restore.effects);
+      // A newer load started meanwhile; it ends the restore when it is done
+      if (restore.token !== loadTokenRef.current) return;
       restoringRef.current = false;
+      if (restore.mediaType === 'video') void adviseOnVideo(restore.mapId, restore.name, size);
     },
     [api, fog, effects],
   );
@@ -390,6 +425,23 @@ export function App() {
     if (meta) saveView(id, { ...meta, ...change });
   };
 
+  /** Show no map, in either window. */
+  const unloadMap = () => {
+    loadTokenRef.current += 1; // a load still reading its files must not apply
+    pendingRestoreRef.current = null;
+    restoringRef.current = false;
+    setCurrentMapId(null);
+    setMediaUrl(null);
+    setMediaSize(null);
+    applyPan(null, null);
+    api?.sendFogReset();
+    effects.release();
+    setGrid(null);
+    replaceCircles([]);
+    setSelectedCircleId(null);
+    setCalibration(null);
+  };
+
   const handleRemoveMap = async (id: string) => {
     const meta = maps.find((entry) => entry.id === id);
     if (!meta) return;
@@ -400,29 +452,30 @@ export function App() {
       danger: true,
     });
     if (!confirmed) return;
-    if (id === currentMapId) cancelViewSave();
-    if (!(await api?.removeMap(id))) {
-      notify(`Couldn’t remove “${meta.name}”.`, 'error');
+    const wasLoaded = id === currentMapId;
+    if (wasLoaded) {
+      // Save the latest framing, in case the map can't be removed after all
+      flushViewSave();
+      // Both windows let go of the map's file first: a video stays open while
+      // it is shown, and Windows can't delete an open file
+      unloadMap();
+      await afterPaint();
+    }
+    const removed = await api?.removeMap(id).catch(() => false);
+    const snapshot = await reloadLibrary();
+    if (!removed) {
+      notify(
+        `Couldn’t remove “${meta.name}”: its file is in use. If another program has it open, close it and try again.`,
+        'error',
+      );
+      const stillThere = snapshot?.maps.find((entry) => entry.id === id);
+      if (wasLoaded && stillThere) await loadMap(stillThere);
       return;
     }
-    const snapshot = await reloadLibrary();
+    forgetThumb(id);
     if (id === selectedMapId) setSelectedMapId(null);
-    if (id !== currentMapId) return;
     const next = snapshot?.maps[0];
-    if (next) {
-      await loadMap(next);
-    } else {
-      setCurrentMapId(null);
-      setMediaUrl(null);
-      setMediaSize(null);
-      applyPan(null, null);
-      api?.sendFogReset();
-      effects.release();
-      setGrid(null);
-      replaceCircles([]);
-      setSelectedCircleId(null);
-      setCalibration(null);
-    }
+    if (wasLoaded && next) await loadMap(next);
   };
 
   // ─── Project files ──────────────────────────────────────────────────────────
@@ -512,10 +565,14 @@ export function App() {
       danger: true,
     });
     if (!confirmed) return;
-    if (!(await api?.removeHandout(id))) {
-      notify(`Couldn’t remove “${handout.name}”.`, 'error');
+    if (!(await api?.removeHandout(id).catch(() => false))) {
+      notify(
+        `Couldn’t remove “${handout.name}”. If another program has its file open, close it and try again.`,
+        'error',
+      );
       return;
     }
+    forgetThumb(id);
     setHandouts((entries) => entries.filter((entry) => entry.id !== id));
     setSelectedHandoutId((selected) => (selected === id ? null : selected));
     setActiveHandout((active) => (active?.id === id ? null : active));
@@ -536,6 +593,11 @@ export function App() {
     [api],
   );
 
+  // While an area is dragged, players keep the copy from before the drag, so
+  // this stays the same object and nothing is sent until it is dropped
+  const shownCircles = playerCircles ?? circles;
+  const playerDiscs = useMemo(() => toDiscs(shownCircles, grid), [shownCircles, grid]);
+
   useEffect(() => {
     api?.sendMapState({
       mediaUrl,
@@ -547,7 +609,7 @@ export function App() {
       handoutUrl: activeHandout?.url ?? null,
       handoutRotation: activeHandout?.rotation ?? 0,
       blackout,
-      circles: toDiscs(playerCircles ?? circles, grid),
+      circles: playerDiscs,
     });
   }, [
     api,
@@ -559,9 +621,7 @@ export function App() {
     mirrorVertical,
     activeHandout,
     blackout,
-    circles,
-    playerCircles,
-    grid,
+    playerDiscs,
   ]);
 
   const handleOpenPlayer = async () => {
@@ -645,7 +705,6 @@ export function App() {
 
   // ─── Circle actions ─────────────────────────────────────────────────────────
 
-  /** A point in rotated-map coordinates (like the pan) → map natural pixels. */
   /** A direction on screen → the same direction on the map, undoing rotation and mirroring. */
   const screenToMapDirection = ({ x, y }: Point): Point => {
     if (rotation === 90) [x, y] = [y, -x];
@@ -656,6 +715,7 @@ export function App() {
     return { x, y };
   };
 
+  /** A point in rotated-map coordinates (like the pan) → map natural pixels. */
   const orientedToMap = (point: Point, media: Size): Point => {
     const oriented = orientedSize(media, rotation);
     const offset = screenToMapDirection({ x: point.x - oriented.w / 2, y: point.y - oriented.h / 2 });
@@ -783,7 +843,7 @@ export function App() {
     const source = circlesRef.current.find((circle) => circle.id === id);
     if (!source || !grid) return;
     if (circlesRef.current.length >= MAX_CIRCLES) {
-      notify(`A map can have at most ${MAX_CIRCLES} circles.`, 'error');
+      notify(`A map can have at most ${MAX_CIRCLES} areas.`, 'error');
       return;
     }
     const copy = { ...source, id: newCircleId(), x: source.x + grid.cell };

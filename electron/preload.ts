@@ -17,6 +17,7 @@ import type {
   MapView,
   ProjectImportSummary,
   ProjectResult,
+  VideoCodec,
 } from '../src/types/map';
 
 /** Subscribe to a channel; returns an unsubscribe function. */
@@ -40,6 +41,9 @@ const api = {
   getDroppedFilePaths: (files: File[]): string[] => files.map((file) => webUtils.getPathForFile(file)),
   loadMapMedia: (id: string): Promise<string | null> => ipcRenderer.invoke('library:loadMapMedia', id),
   loadMapThumb: (id: string): Promise<string | null> => ipcRenderer.invoke('library:loadMapThumb', id),
+  /** A video map's codec (from its file header), or null for images. */
+  loadVideoCodec: (id: string): Promise<VideoCodec | null> =>
+    ipcRenderer.invoke('library:loadVideoCodec', id),
   loadMapFog: (id: string): Promise<string | null> => ipcRenderer.invoke('library:loadMapFog', id),
   /** The map's painted effect layer, or null when it has none. */
   loadMapEffects: (id: string): Promise<string | null> => ipcRenderer.invoke('library:loadMapEffects', id),

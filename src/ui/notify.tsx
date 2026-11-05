@@ -23,7 +23,8 @@ const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((listener) => listener());
 let nextToastId = 1;
 
-export function notify(message: string, kind: Toast['kind'] = 'info') {
+/** Show a toast; longer messages can stay up longer than the default. */
+export function notify(message: string, kind: Toast['kind'] = 'info', durationMs?: number) {
   const toast = { id: nextToastId++, message, kind };
   toasts = [...toasts.slice(-3), toast];
   emit();
@@ -32,7 +33,7 @@ export function notify(message: string, kind: Toast['kind'] = 'info') {
       toasts = toasts.filter((entry) => entry.id !== toast.id);
       emit();
     },
-    kind === 'error' ? 6000 : 3000,
+    durationMs ?? (kind === 'error' ? 6000 : 3000),
   );
 }
 

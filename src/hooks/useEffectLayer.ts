@@ -59,6 +59,8 @@ export function useEffectLayer(): EffectLayer {
   const redoRef = useRef<(string | null)[]>([]);
   // Bumped whenever the shown layer changes, so a late decode can't overwrite it
   const versionRef = useRef(0);
+  // Counts initialize calls, so one that is overtaken while decoding stops
+  const initializeRunRef = useRef(0);
   const [status, setStatus] = useState({ canUndo: false, canRedo: false, isEmpty: true });
 
   const syncStatus = () =>
@@ -104,10 +106,14 @@ export function useEffectLayer(): EffectLayer {
       redoRef.current = [];
       currentRef.current = null;
       if (scratchRef.current) showLayer(scratchRef.current, null);
+      const run = ++initializeRunRef.current;
       try {
         await show(saved);
+        // Another map started loading while this layer decoded: it owns the layer now
+        if (run !== initializeRunRef.current) return;
         currentRef.current = saved;
       } catch (err) {
+        if (run !== initializeRunRef.current) return;
         console.error('Saved effects are unreadable; starting without them.', err);
         await show(null);
       }
@@ -119,6 +125,7 @@ export function useEffectLayer(): EffectLayer {
 
   const release = useCallback(() => {
     versionRef.current += 1;
+    initializeRunRef.current += 1;
     if (canvasRef.current) showLayer(canvasRef.current, null);
     if (scratchRef.current) showLayer(scratchRef.current, null);
     send(null, false);

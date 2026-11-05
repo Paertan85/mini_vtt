@@ -7,7 +7,7 @@
 //
 // Uses a scratch userData directory, so your real library is untouched.
 
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import '../dist-electron/main.js'; // must load before `ready` (registers the media protocol)
 import fs from 'node:fs';
 import path from 'node:path';
@@ -22,6 +22,10 @@ app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// Player-state messages from the DM window, to see what reaches the player screen
+let playerStates = 0;
+ipcMain.on('player:state', () => (playerStates += 1));
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const results = [];
@@ -509,12 +513,19 @@ app.whenReady().then(async () => {
     const circleXBefore = await playerCircleX();
     const handle = await centerOf('button[aria-label^="Circle,"]');
     mouse('mouseDown', handle.x, handle.y);
+    await sleep(100);
+    const statesBeforeMoves = playerStates;
     for (let i = 1; i <= 5; i++) {
       mouse('mouseMove', handle.x + i * 30, handle.y);
       await sleep(30);
     }
     await sleep(400);
     check('players don’t see a circle being dragged', (await playerCircleX()) === circleXBefore);
+    check(
+      'and nothing is sent to the player screen meanwhile',
+      playerStates === statesBeforeMoves,
+      `${playerStates - statesBeforeMoves} updates`,
+    );
     mouse('mouseUp', handle.x + 150, handle.y);
     await sleep(400);
     check('players see the circle where it is dropped', (await playerCircleX()) !== circleXBefore);
@@ -637,6 +648,49 @@ app.whenReady().then(async () => {
       'rotating a map from its menu is saved',
       readIndex().maps.find((m) => m.id === 'm_beta').rotation === 90,
     );
+
+    // In a confirmation dialog, keyboard focus stays where it is moved to
+    const focusedText = () => js(`document.activeElement?.textContent.trim() ?? ''`);
+    const key = (type, keyCode, modifiers = []) =>
+      main.webContents.sendInputEvent({ type, keyCode, modifiers });
+    await click('[aria-label="Options for Beta"]');
+    await sleep(200);
+    await clickText('Remove…');
+    await sleep(400);
+    check('the remove dialog opens on its Remove button', (await focusedText()) === 'Remove');
+    key('keyDown', 'Shift');
+    key('keyDown', 'Tab', ['shift']);
+    key('keyUp', 'Tab', ['shift']);
+    key('keyUp', 'Shift');
+    await sleep(300);
+    check(
+      'Shift+Tab moves the focus to Cancel, and it stays there',
+      (await focusedText()) === 'Cancel',
+      await focusedText(),
+    );
+    key('keyDown', 'Escape');
+    key('keyUp', 'Escape');
+    await sleep(300);
+    check('Escape closes the dialog', !(await js(`!!document.querySelector('[role="dialog"]')`)));
+    check(
+      'without removing anything',
+      readIndex().maps.some((m) => m.id === 'm_beta'),
+    );
+
+    // Removing the loaded map unloads it in both windows, deletes it and loads the next
+    await click('[aria-label="Options for Alpha"]');
+    await sleep(200);
+    await clickText('Remove…');
+    await sleep(300);
+    await js(
+      `[...document.querySelectorAll('[role="dialog"] button')].find((b) => b.textContent.trim() === 'Remove').click()`,
+    );
+    await sleep(2000);
+    check(
+      'removing the loaded map deletes it',
+      !readIndex().maps.some((m) => m.id === 'm_alpha') && !fs.existsSync(path.join(libraryDir, 'm_alpha')),
+    );
+    check('and loads the next one', readIndex().settings.currentMapId === 'm_beta');
 
     await js(`location.href = 'file:///'`).catch(() => {});
     await sleep(500);

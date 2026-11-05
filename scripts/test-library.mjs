@@ -44,6 +44,7 @@ app.whenReady().then(async () => {
   app.setPath('userData', tmp);
   const lib = await import('../dist-electron/library.test.mjs');
   const gridLib = await import('../dist-electron/grid.test.mjs');
+  const videoLib = await import('../dist-electron/video.test.mjs');
   const fixtures = path.join(tmp, 'fixtures');
   await fs.mkdir(fixtures, { recursive: true });
   const fixture = async (name, bytes) => {
@@ -55,19 +56,14 @@ app.whenReady().then(async () => {
   try {
     // ── Import ───────────────────────────────────────────────────────────────
     const a = await lib.addMap(await fixture('alpha.png', makePng({ rgb: [40, 80, 160] })));
-    check('addImage returns an entry', !!a, a ? `id=${a.entry.id}` : 'null');
-    check(
-      'dimensions are read',
-      a.entry.width === 64 && a.entry.height === 64,
-      `${a.entry.width}x${a.entry.height}`,
-    );
-    check('name comes from the filename', a.entry.name === 'alpha', a.entry.name);
-    check('media is served via map-media://', a.mediaUrl === `map-media://${a.entry.id}`, a.mediaUrl);
-    check('a thumbnail is generated', a.thumbDataUrl.startsWith('data:image/png;base64,'));
-    check('defaults: zoom 1, no fog', a.entry.zoom === 1 && a.entry.hasFog === false);
+    check('addImage returns an entry', !!a, a ? `id=${a.id}` : 'null');
+    check('dimensions are read', a.width === 64 && a.height === 64, `${a.width}x${a.height}`);
+    check('name comes from the filename', a.name === 'alpha', a.name);
+    check('a thumbnail is generated', await exists(path.join(tmp, 'library', a.id, 'thumb.png')));
+    check('defaults: zoom 1, no fog', a.zoom === 1 && a.hasFog === false);
 
     const b = await lib.addMap(await fixture('beta.png', makePng({ rgb: [30, 110, 60] })));
-    check('ids are unique', a.entry.id !== b.entry.id);
+    check('ids are unique', a.id !== b.id);
     check(
       'rejects files that are not images',
       (await lib.addMap(await fixture('notes.png', 'definitely not an image'))) === null,
@@ -76,17 +72,17 @@ app.whenReady().then(async () => {
     const snap = await lib.loadSnapshot();
     check(
       'snapshot lists both maps, newest first',
-      snap.maps.length === 2 && snap.maps[0].id === b.entry.id,
+      snap.maps.length === 2 && snap.maps[0].id === b.id,
       `got ${snap.maps.length}`,
     );
-    check('last import becomes the current map', snap.settings.currentMapId === b.entry.id);
-    check('image file resolves on disk', !!(await lib.resolveMapMediaPath(a.entry.id)));
-    check('thumbnail reloads', !!(await lib.loadMapThumb(a.entry.id))?.startsWith('data:image/png'));
+    check('last import becomes the current map', snap.settings.currentMapId === b.id);
+    check('image file resolves on disk', !!(await lib.resolveMapMediaPath(a.id)));
+    check('thumbnail reloads', !!(await lib.loadMapThumb(a.id))?.startsWith('data:image/png'));
 
     // ── Fog ──────────────────────────────────────────────────────────────────
     const fogUrl = `data:image/png;base64,${makePng({ rgb: [9, 9, 11], leftHalfOnly: true }).toString('base64')}`;
-    check('saveMapFog succeeds', (await lib.saveMapFog(a.entry.id, fogUrl)) === true);
-    const fogBack = await lib.loadMapFog(a.entry.id);
+    check('saveMapFog succeeds', (await lib.saveMapFog(a.id, fogUrl)) === true);
+    const fogBack = await lib.loadMapFog(a.id);
     const bitmap = nativeImage.createFromBuffer(Buffer.from(fogBack.split(',')[1], 'base64')).toBitmap();
     let opaqueLeft = 0;
     let clearRight = 0;
@@ -102,35 +98,32 @@ app.whenReady().then(async () => {
       opaqueLeft === 2048 && clearRight === 2048,
       `${opaqueLeft}/${clearRight}`,
     );
-    check(
-      'hasFog flag is set',
-      (await lib.loadSnapshot()).maps.find((m) => m.id === a.entry.id).hasFog === true,
-    );
+    check('hasFog flag is set', (await lib.loadSnapshot()).maps.find((m) => m.id === a.id).hasFog === true);
     check(
       'saveMapFog rejects data that is not a PNG',
-      (await lib.saveMapFog(a.entry.id, 'data:image/png;base64,aGVsbG8=')) === false,
+      (await lib.saveMapFog(a.id, 'data:image/png;base64,aGVsbG8=')) === false,
     );
 
     // ── View state ───────────────────────────────────────────────────────────
-    await lib.saveMapView(a.entry.id, {
+    await lib.saveMapView(a.id, {
       zoom: 2.5,
       pan: { x: 123, y: 456 },
       rotation: 450,
       mirrorHorizontal: true,
       mirrorVertical: false,
     });
-    let aMeta = (await lib.loadSnapshot()).maps.find((m) => m.id === a.entry.id);
+    let aMeta = (await lib.loadSnapshot()).maps.find((m) => m.id === a.id);
     check('zoom and pan persist', aMeta.zoom === 2.5 && aMeta.pan.x === 123 && aMeta.pan.y === 456);
     check('rotation is normalised to 0-359', aMeta.rotation === 90, String(aMeta.rotation));
     check('mirroring persists', aMeta.mirrorHorizontal === true && aMeta.mirrorVertical === false);
-    await lib.saveMapView(a.entry.id, {
+    await lib.saveMapView(a.id, {
       zoom: 3,
       pan: null,
       rotation: 0,
       mirrorHorizontal: false,
       mirrorVertical: false,
     });
-    aMeta = (await lib.loadSnapshot()).maps.find((m) => m.id === a.entry.id);
+    aMeta = (await lib.loadSnapshot()).maps.find((m) => m.id === a.id);
     check(
       'a null pan keeps the saved pan',
       aMeta.zoom === 3 && aMeta.pan.x === 123,
@@ -138,7 +131,7 @@ app.whenReady().then(async () => {
     );
     check(
       'rejects a non-finite zoom',
-      (await lib.saveMapView(a.entry.id, {
+      (await lib.saveMapView(a.id, {
         zoom: NaN,
         pan: null,
         rotation: 0,
@@ -148,30 +141,30 @@ app.whenReady().then(async () => {
     );
     check(
       "other maps' view state is untouched",
-      (await lib.loadSnapshot()).maps.find((m) => m.id === b.entry.id).zoom === 1,
+      (await lib.loadSnapshot()).maps.find((m) => m.id === b.id).zoom === 1,
     );
 
     // ── Concurrent writes (regression: saves used to overwrite each other) ──
     await Promise.all([
-      lib.saveMapView(a.entry.id, {
+      lib.saveMapView(a.id, {
         zoom: 4,
         pan: { x: 1, y: 2 },
         rotation: 180,
         mirrorHorizontal: false,
         mirrorVertical: true,
       }),
-      lib.saveSettings({ currentMapId: a.entry.id }),
+      lib.saveSettings({ currentMapId: a.id }),
       lib.saveSettings({ playerScreenDiagonal: 32, gridSize: 2 }),
-      lib.renameMap(b.entry.id, 'Renamed concurrently'),
-      lib.saveMapFog(b.entry.id, fogUrl),
+      lib.renameMap(b.id, 'Renamed concurrently'),
+      lib.saveMapFog(b.id, fogUrl),
     ]);
     const conc = await lib.loadSnapshot();
-    const concA = conc.maps.find((m) => m.id === a.entry.id);
-    const concB = conc.maps.find((m) => m.id === b.entry.id);
+    const concA = conc.maps.find((m) => m.id === a.id);
+    const concB = conc.maps.find((m) => m.id === b.id);
     check('concurrent: view state kept', concA.zoom === 4 && concA.rotation === 180 && concA.mirrorVertical);
     check(
       'concurrent: both settings patches kept',
-      conc.settings.currentMapId === a.entry.id && conc.settings.playerScreenDiagonal === 32,
+      conc.settings.currentMapId === a.id && conc.settings.playerScreenDiagonal === 32,
     );
     check('concurrent: rename kept', concB.name === 'Renamed concurrently', concB.name);
     check('concurrent: fog flag kept', concB.hasFog === true);
@@ -192,10 +185,10 @@ app.whenReady().then(async () => {
     check('rejects an unsafe currentMapId', (await lib.saveSettings({ currentMapId: '../evil' })) === false);
 
     // ── Rename and reorder ───────────────────────────────────────────────────
-    check('rename rejects a blank name', (await lib.renameMap(a.entry.id, '   ')) === false);
-    check('reorder accepts a full permutation', (await lib.reorderMaps([a.entry.id, b.entry.id])) === true);
-    check('reorder is applied', (await lib.loadSnapshot()).maps[0].id === a.entry.id);
-    check('reorder rejects a partial list', (await lib.reorderMaps([a.entry.id])) === false);
+    check('rename rejects a blank name', (await lib.renameMap(a.id, '   ')) === false);
+    check('reorder accepts a full permutation', (await lib.reorderMaps([a.id, b.id])) === true);
+    check('reorder is applied', (await lib.loadSnapshot()).maps[0].id === a.id);
+    check('reorder rejects a partial list', (await lib.reorderMaps([a.id])) === false);
 
     // ── Path traversal guards ────────────────────────────────────────────────
     check(
@@ -206,18 +199,81 @@ app.whenReady().then(async () => {
     check('traversal id rejected by removeMap', (await lib.removeMap('../../evil')) === false);
 
     // ── Delete ───────────────────────────────────────────────────────────────
-    const aDir = path.join(tmp, 'library', a.entry.id);
+    const aDir = path.join(tmp, 'library', a.id);
     check('map folder exists before delete', await exists(path.join(aDir, 'fog.png')));
-    check('removeMap succeeds', (await lib.removeMap(a.entry.id)) === true);
+    check('removeMap succeeds', (await lib.removeMap(a.id)) === true);
     check('map folder is removed', !(await exists(aDir)));
     const afterDelete = await lib.loadSnapshot();
-    check('index no longer lists the map', !afterDelete.maps.some((m) => m.id === a.entry.id));
-    check('deleted map is pruned from mapOrder', !afterDelete.settings.mapOrder?.includes(a.entry.id));
+    check('index no longer lists the map', !afterDelete.maps.some((m) => m.id === a.id));
+    check('deleted map is pruned from mapOrder', !afterDelete.settings.mapOrder?.includes(a.id));
     check('deleted current map clears currentMapId', afterDelete.settings.currentMapId === null);
     check(
       'a late fog save cannot recreate a deleted map',
-      (await lib.saveMapFog(a.entry.id, fogUrl)) === false && !(await exists(aDir)),
+      (await lib.saveMapFog(a.id, fogUrl)) === false && !(await exists(aDir)),
     );
+
+    // A folder that can't be set aside (on Windows: its video still open)
+    // leaves the map exactly as it was. Something in the way of the rename
+    // makes it fail on every platform.
+    const stuck = await lib.addMap(await fixture('stuck.png', makePng()));
+    const stuckDir = path.join(tmp, 'library', stuck.id);
+    const blocker = path.join(tmp, 'library', `.removed-${stuck.id}`);
+    await fs.mkdir(path.join(blocker, 'in-the-way'), { recursive: true });
+    check('removeMap reports a folder it can’t move', (await lib.removeMap(stuck.id)) === false);
+    check(
+      'and leaves that map listed, with its files',
+      (await lib.loadSnapshot()).maps.some((m) => m.id === stuck.id) &&
+        (await exists(path.join(stuckDir, 'image.png'))),
+    );
+    await fs.rm(blocker, { recursive: true });
+    check(
+      'it is removed once nothing is in the way',
+      (await lib.removeMap(stuck.id)) === true && !(await exists(stuckDir)),
+    );
+
+    // ── Leftover folders (cleared at startup) ────────────────────────────────
+    const libraryDir = path.join(tmp, 'library');
+    const anHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const leftover = async (name, { aged = true } = {}) => {
+      const dir = path.join(libraryDir, name);
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(path.join(dir, 'image.webm'), 'x');
+      if (aged) await fs.utimes(dir, anHourAgo, anHourAgo);
+      return dir;
+    };
+    const setAside = await leftover('.removed-m_gone', { aged: false });
+    const unlisted = await leftover('m_unlisted');
+    const unlistedHandout = await leftover(path.join('handouts', 'h_unlisted'));
+    const importing = await leftover('m_importing', { aged: false });
+    const listedDir = path.join(libraryDir, b.id);
+    await fs.utimes(listedDir, anHourAgo, anHourAgo);
+    await lib.removeLeftovers();
+    check('a folder set aside for deletion is deleted', !(await exists(setAside)));
+    check(
+      'old folders no entry points to are deleted',
+      !(await exists(unlisted)) && !(await exists(unlistedHandout)),
+    );
+    check('a recent one is kept (an import may still be copying)', await exists(importing));
+    check('listed maps keep their folders', await exists(path.join(listedDir, 'image.png')));
+    await fs.rm(importing, { recursive: true });
+
+    // ── Video codecs ─────────────────────────────────────────────────────────
+    const webm = (codec) =>
+      Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.from(`--webm--${codec}--`)]);
+    check(
+      'the codec is read from a WebM header',
+      lib.sniffVideoCodec(webm('V_VP9')) === 'vp9' &&
+        lib.sniffVideoCodec(webm('V_AV1')) === 'av1' &&
+        lib.sniffVideoCodec(webm('V_VP8')) === 'vp8' &&
+        lib.sniffVideoCodec(makePng()) === null,
+    );
+    const clip = await lib.addMap(await fixture('clip.webm', webm('V_VP9')));
+    check(
+      'a video map reports its codec',
+      clip?.mediaType === 'video' && (await lib.loadVideoCodec(clip.id)) === 'vp9',
+    );
+    check('an image map has none', (await lib.loadVideoCodec(b.id)) === null);
+    await lib.removeMap(clip.id);
 
     // ── Handouts ─────────────────────────────────────────────────────────────
     const handout = await lib.addHandout(await fixture('letter.png', makePng({ width: 300, height: 100 })));
@@ -233,8 +289,8 @@ app.whenReady().then(async () => {
     // Library now holds map b (renamed, with fog). Add a second map, a handout,
     // view state and settings, then export, empty the library and import.
     const c = await lib.addMap(await fixture('gamma.png', makePng({ width: 80, height: 40 })));
-    await lib.reorderMaps([b.entry.id, c.entry.id]);
-    await lib.saveMapView(b.entry.id, {
+    await lib.reorderMaps([b.id, c.id]);
+    await lib.saveMapView(b.id, {
       zoom: 1.75,
       pan: { x: 10, y: 20 },
       rotation: 270,
@@ -263,6 +319,43 @@ app.whenReady().then(async () => {
     check('a zero-size grid is rejected', gridLib.normalizeGrid({ cell: 0, feetPerCell: 5 }) === null);
 
     // Area templates: old circles load unchanged, shapes have the D&D outlines
+    const discs = gridLib.normalizeDiscs([
+      { x: 1, y: 2, radius: 30, kind: 'fire', shape: 'cone', angle: 90, width: 10 },
+      { x: 1, y: 2, radius: -5, kind: 'fire', shape: 'circle', angle: 0, width: 0 },
+      { x: 1, y: 2, radius: 5, kind: 'acid', shape: 'circle', angle: 0, width: 0 },
+      { x: 'a', y: 2, radius: 5, kind: 'fire', shape: 'circle', angle: 0, width: 0 },
+    ]);
+    check(
+      'templates for the player screen are validated',
+      discs.length === 1 && discs[0].shape === 'cone' && gridLib.normalizeDiscs('nope').length === 0,
+      JSON.stringify(discs),
+    );
+
+    // Video maps too large for this computer's hardware decoder
+    const decodesUpTo = (edge) => async (_codec, size) => Math.max(size.w, size.h) <= edge;
+    check(
+      'a video decoded in hardware needs no advice',
+      (await videoLib.smallerVideoSize('vp9', { w: 5550, h: 3150 }, decodesUpTo(8192))) === null,
+    );
+    const advice = await videoLib.smallerVideoSize('vp9', { w: 5550, h: 3150 }, decodesUpTo(4096));
+    check(
+      'too large for the decoder: the largest common size it handles',
+      advice?.w === 3840 && advice?.h === 2180,
+      JSON.stringify(advice),
+    );
+    const noDecoder = await videoLib.smallerVideoSize('vp8', { w: 5550, h: 3150 }, async () => false);
+    check(
+      'no hardware decoder at all: Full HD',
+      noDecoder?.w === 1920 && noDecoder?.h === 1090,
+      JSON.stringify(noDecoder),
+    );
+    let asked = false;
+    const small = await videoLib.smallerVideoSize('vp8', { w: 1920, h: 1080 }, async () => {
+      asked = true;
+      return false;
+    });
+    check('Full HD videos are never questioned', small === null && !asked);
+
     const [old, cone] = gridLib.normalizeCircles([
       { id: 'old', x: 1, y: 2, radiusFt: 15, kind: 'fire' },
       { id: 'cone', x: 0, y: 0, radiusFt: 15, kind: 'magic', shape: 'cone', angle: -90, widthFt: 0.2 },
@@ -362,14 +455,14 @@ app.whenReady().then(async () => {
       JSON.stringify(gridLib.snapArea({ x: 130, y: 99 }, square(10), measured)),
     );
 
-    check('a new map has no grid or circles', c.entry.grid === null && c.entry.circles.length === 0);
-    check('saveMapGrid stores the grid', (await lib.saveMapGrid(c.entry.id, measured)) === true);
+    check('a new map has no grid or circles', c.grid === null && c.circles.length === 0);
+    check('saveMapGrid stores the grid', (await lib.saveMapGrid(c.id, measured)) === true);
     check(
       'saveMapGrid rejects an invalid grid',
-      (await lib.saveMapGrid(c.entry.id, { cell: -4, offsetX: 0, offsetY: 0, feetPerCell: 5 })) === false,
+      (await lib.saveMapGrid(c.id, { cell: -4, offsetX: 0, offsetY: 0, feetPerCell: 5 })) === false,
     );
     const goodCircle = { id: 'c1', x: 160, y: 110, radiusFt: 15, kind: 'magic' };
-    await lib.saveMapView(c.entry.id, {
+    await lib.saveMapView(c.id, {
       zoom: 1,
       pan: null,
       rotation: 0,
@@ -383,7 +476,7 @@ app.whenReady().then(async () => {
         { id: 'c3', x: 1, y: 1, radiusFt: 9999, kind: 'poison' }, // clamped
       ],
     });
-    const calibrated = (await lib.loadSnapshot()).maps.find((m) => m.id === c.entry.id);
+    const calibrated = (await lib.loadSnapshot()).maps.find((m) => m.id === c.id);
     check('the grid persists', calibrated.grid?.cell === 100, JSON.stringify(calibrated.grid));
     check(
       'circles persist, invalid ones are dropped and radii clamped',
@@ -409,12 +502,12 @@ app.whenReady().then(async () => {
 
     // Effects: optional per-map layer, saved as PNG, removed again with null
     const effectsUrl = `data:image/png;base64,${makePng({ width: 32, height: 32, rgb: [255, 100, 20] }).toString('base64')}`;
-    check('a map starts without effects', (await lib.loadMapEffects(c.entry.id)) === null);
-    check('saveMapEffects stores a PNG', (await lib.saveMapEffects(c.entry.id, effectsUrl)) === true);
-    check('effects reload losslessly', (await lib.loadMapEffects(c.entry.id)) === effectsUrl);
+    check('a map starts without effects', (await lib.loadMapEffects(c.id)) === null);
+    check('saveMapEffects stores a PNG', (await lib.saveMapEffects(c.id, effectsUrl)) === true);
+    check('effects reload losslessly', (await lib.loadMapEffects(c.id)) === effectsUrl);
     check(
       'saveMapEffects rejects data that is not a PNG',
-      (await lib.saveMapEffects(c.entry.id, 'data:image/png;base64,aGVsbG8=')) === false,
+      (await lib.saveMapEffects(c.id, 'data:image/png;base64,aGVsbG8=')) === false,
     );
     check(
       'saveMapEffects rejects a traversal id',
@@ -422,13 +515,13 @@ app.whenReady().then(async () => {
     );
     check(
       'saveMapEffects ignores a deleted map',
-      (await lib.saveMapEffects(a.entry.id, effectsUrl)) === false && !(await exists(aDir)),
+      (await lib.saveMapEffects(a.id, effectsUrl)) === false && !(await exists(aDir)),
     );
-    await lib.saveMapEffects(b.entry.id, effectsUrl);
-    await lib.saveMapEffects(b.entry.id, null);
+    await lib.saveMapEffects(b.id, effectsUrl);
+    await lib.saveMapEffects(b.id, null);
     check(
       'saving null removes the effects file',
-      !(await exists(path.join(tmp, 'library', b.entry.id, 'effects.png'))),
+      !(await exists(path.join(tmp, 'library', b.id, 'effects.png'))),
     );
 
     const projectPath = path.join(fixtures, 'campaign.minivtt');
@@ -440,8 +533,8 @@ app.whenReady().then(async () => {
     );
     check('export leaves no temp file', !(await fs.readdir(fixtures)).some((f) => f.endsWith('.tmp')));
 
-    await lib.removeMap(b.entry.id);
-    await lib.removeMap(c.entry.id);
+    await lib.removeMap(b.id);
+    await lib.removeMap(c.id);
     await lib.removeHandout(letter.id);
     await lib.saveSettings({ playerScreenDiagonal: null, gridSize: 1 });
 
@@ -462,7 +555,7 @@ app.whenReady().then(async () => {
         first.rotation === 270 &&
         first.mirrorHorizontal,
     );
-    check('imported maps get fresh ids', first.id !== b.entry.id && second.id !== c.entry.id);
+    check('imported maps get fresh ids', first.id !== b.id && second.id !== c.id);
     const importedFog = await lib.loadMapFog(first.id);
     check('fog is kept', first.hasFog && importedFog === fogUrl && !second.hasFog);
     check(
@@ -570,6 +663,9 @@ app.whenReady().then(async () => {
 
     // ── Corrupt index recovery ───────────────────────────────────────────────
     await fs.writeFile(path.join(tmp, 'library', 'index.json'), '{ this is not json');
+    const keptDir = await leftover('m_unlisted_again');
+    await lib.removeLeftovers();
+    check('with a damaged index, unlisted folders are left alone', await exists(keptDir));
     const recovered = await lib.loadSnapshot();
     check(
       'recovers from a corrupt index',
