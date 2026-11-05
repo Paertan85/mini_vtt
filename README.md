@@ -125,6 +125,7 @@ npm run lint         # ESLint
 npm run format       # Prettier
 npm test             # library tests (runs inside Electron)
 npm run test:app     # end-to-end test of the built app
+npm run check        # all of the checks: types, lint, formatting and both tests
 ```
 
 On Linux without a display, run the tests under `xvfb-run -a`.

@@ -11,7 +11,7 @@
 
 ## Working on the code
 
-- Run `npm run typecheck`, `npm run lint`, `npm test` and `npm run test:app` before finishing a change (prefix the tests with `xvfb-run -a` on headless Linux).
+- Run `npm run typecheck`, `npm run lint`, `npm test` and `npm run test:app` before finishing a change, or `npm run check` for all of them plus the format check (prefix the tests with `xvfb-run -a` on headless Linux).
 - All changes to `index.json` go through `mutateIndex()` in `electron/library.ts`; never read-modify-write the index directly.
 - Map loading in the DM window goes through `loadMap()` in `src/App.tsx`, so every per-map setting is restored in one place. Fog changes go through `useFog`, which sends one snapshot per change; the main process relays and saves it.
 - The `ElectronAPI` type is derived from `electron/preload.ts`; add bridge calls there, never in a separate declaration. IPC channels are named `domain:action`, with the same name on both legs of a relay.

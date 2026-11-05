@@ -34,7 +34,9 @@ npm test
 npm run test:app
 ```
 
-On Linux without a display, prefix the test commands with `xvfb-run -a`.
+`npm run check` runs all five in order and stops at the first failure. On
+Linux without a display, prefix the test commands with `xvfb-run -a` (or run
+`xvfb-run -a npm run check`).
 
 A few guidelines:
 
