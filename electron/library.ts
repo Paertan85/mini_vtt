@@ -18,14 +18,8 @@ import type {
   ProjectImportSummary,
   VideoCodec,
 } from '../src/types/map';
-import {
-  type AreaReport,
-  cellFromNames,
-  DEFAULT_FEET_PER_CELL,
-  NAME_FOLDER_LEVELS,
-  normalizeCircles,
-  normalizeGrid,
-} from '../src/lib/grid';
+import { cellFromNames, DEFAULT_FEET_PER_CELL, NAME_FOLDER_LEVELS, normalizeGrid } from '../src/lib/grid';
+import { type AreaReport, normalizeCircles } from '../src/lib/areas';
 import { EFFECT_STYLES } from '../src/lib/effects';
 import { cleanSettingsPatch, DEFAULT_SETTINGS, LIBRARY_ID, normalizeSettings } from '../src/lib/settings';
 

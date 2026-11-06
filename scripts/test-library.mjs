@@ -54,6 +54,8 @@ app.whenReady().then(async () => {
   const gridLib = await import('../dist-electron/grid.test.mjs');
   const videoLib = await import('../dist-electron/video.test.mjs');
   const saveLib = await import('../dist-electron/delayedSave.test.mjs');
+  const areasLib = await import('../dist-electron/areas.test.mjs');
+  const geometryLib = await import('../dist-electron/geometry.test.mjs');
   const fixtures = path.join(tmp, 'fixtures');
   await fs.mkdir(fixtures, { recursive: true });
   const fixture = async (name, bytes) => {
@@ -774,7 +776,7 @@ app.whenReady().then(async () => {
     );
 
     // Area templates: old circles load unchanged, shapes have the D&D outlines
-    const discs = gridLib.normalizeDiscs([
+    const discs = areasLib.normalizeDiscs([
       { x: 1, y: 2, radius: 30, kind: 'fire', shape: 'cone', angle: 90, width: 10 },
       { x: 1, y: 2, radius: -5, kind: 'fire', shape: 'circle', angle: 0, width: 0 },
       { x: 1, y: 2, radius: 5, kind: 'acid', shape: 'circle', angle: 0, width: 0 },
@@ -782,7 +784,7 @@ app.whenReady().then(async () => {
     ]);
     check(
       'templates for the player screen are validated',
-      discs.length === 1 && discs[0].shape === 'cone' && gridLib.normalizeDiscs('nope').length === 0,
+      discs.length === 1 && discs[0].shape === 'cone' && areasLib.normalizeDiscs('nope').length === 0,
       JSON.stringify(discs),
     );
 
@@ -811,7 +813,7 @@ app.whenReady().then(async () => {
     });
     check('Full HD videos are never questioned', small === null && !asked);
 
-    const [old, cone] = gridLib.normalizeCircles([
+    const [old, cone] = areasLib.normalizeCircles([
       { id: 'old', x: 1, y: 2, radiusFt: 15, kind: 'fire' },
       { id: 'cone', x: 0, y: 0, radiusFt: 15, kind: 'magic', shape: 'cone', angle: -90, widthFt: 0.2 },
     ]);
@@ -824,7 +826,7 @@ app.whenReady().then(async () => {
     // Areas from a newer version or a fork
     const area = (id, extra) => ({ id, x: 0, y: 0, radiusFt: 5, kind: 'fire', ...extra });
     const report = { leftOut: 0, restyled: 0 };
-    const foreign = gridLib.normalizeCircles(
+    const foreign = areasLib.normalizeCircles(
       [
         area('moon', { shape: 'halfmoon' }),
         area('ice', { kind: 'ice', color: '#9be7ff' }),
@@ -857,7 +859,7 @@ app.whenReady().then(async () => {
       foreign.find((c) => c.id === 'kept')?.shape === 'cone',
     );
     const crowded = { leftOut: 0, restyled: 0 };
-    const capped = gridLib.normalizeCircles(
+    const capped = areasLib.normalizeCircles(
       Array.from({ length: 60 }, (_, i) => area(`a${i}`)),
       crowded,
     );
@@ -878,17 +880,17 @@ app.whenReady().then(async () => {
     });
     check(
       'a cone is as wide at its end as it is long',
-      JSON.stringify(gridLib.areaOutline(disc('cone'))) ===
+      JSON.stringify(areasLib.areaOutline(disc('cone'))) ===
         JSON.stringify([
           { x: 0, y: 0 },
           { x: 10, y: 5 },
           { x: 10, y: -5 },
         ]),
-      JSON.stringify(gridLib.areaOutline(disc('cone'))),
+      JSON.stringify(areasLib.areaOutline(disc('cone'))),
     );
     check(
       'a line is centred on its direction',
-      JSON.stringify(gridLib.areaOutline(disc('line'))) ===
+      JSON.stringify(areasLib.areaOutline(disc('line'))) ===
         JSON.stringify([
           { x: 0, y: 1 },
           { x: 10, y: 1 },
@@ -898,10 +900,10 @@ app.whenReady().then(async () => {
     );
     {
       // A 10 px square turned 45 degrees: corners on the axes, about the centre
-      const turned = gridLib.areaOutline(disc('square', { angle: 45 }));
+      const turned = areasLib.areaOutline(disc('square', { angle: 45 }));
       const round = (points) =>
         points.map(({ x, y }) => [Math.round(x * 100) / 100, Math.round(y * 100) / 100]);
-      const axisAligned = round(gridLib.areaOutline(disc('square')));
+      const axisAligned = round(areasLib.areaOutline(disc('square')));
       const r = Math.round(Math.SQRT1_2 * 10 * 100) / 100;
       check(
         'a square turns about its centre',
@@ -923,13 +925,13 @@ app.whenReady().then(async () => {
       );
       check(
         "a square's handle is the middle of its front edge",
-        JSON.stringify(gridLib.areaHandle(disc('square'))) === JSON.stringify({ x: 5, y: 0 }),
+        JSON.stringify(areasLib.areaHandle(disc('square'))) === JSON.stringify({ x: 5, y: 0 }),
       );
     }
     check(
       'points inside a cone are found, outside are not',
-      gridLib.areaContains(disc('cone'), { x: 8, y: 3 }, 0) &&
-        !gridLib.areaContains(disc('cone'), { x: 2, y: 3 }, 0),
+      areasLib.areaContains(disc('cone'), { x: 8, y: 3 }, 0) &&
+        !areasLib.areaContains(disc('cone'), { x: 2, y: 3 }, 0),
     );
     const square = (radiusFt) => ({
       id: 's',
@@ -943,12 +945,94 @@ app.whenReady().then(async () => {
     });
     check(
       'a 10 ft square snaps to a grid corner, a 15 ft one to a square centre',
-      JSON.stringify(gridLib.snapArea({ x: 130, y: 99 }, square(10), measured)) ===
+      JSON.stringify(areasLib.snapArea({ x: 130, y: 99 }, square(10), measured)) ===
         JSON.stringify({ x: 110, y: 60 }) &&
-        JSON.stringify(gridLib.snapArea({ x: 130, y: 99 }, square(15), measured)) ===
+        JSON.stringify(areasLib.snapArea({ x: 130, y: 99 }, square(15), measured)) ===
           JSON.stringify({ x: 160, y: 110 }),
-      JSON.stringify(gridLib.snapArea({ x: 130, y: 99 }, square(10), measured)),
+      JSON.stringify(areasLib.snapArea({ x: 130, y: 99 }, square(10), measured)),
     );
+
+    // Editing steps (the DM window's wheel, aim handle and new shapes)
+    {
+      check(
+        'the wheel steps sizes to the next 5 ft, and never below 5 ft',
+        areasLib.stepSize(12, 1) === 15 &&
+          areasLib.stepSize(15, 2) === 25 &&
+          areasLib.stepSize(12, -1) === 10 &&
+          areasLib.stepSize(5, -3) === 5 &&
+          areasLib.stepSize(498, 1) === areasLib.MAX_RADIUS_FT,
+      );
+      const line = { ...square(30), shape: 'line', widthFt: 5 };
+      check(
+        'the wheel over a line changes its width, over anything else its size',
+        areasLib.resizeArea(line, 1).widthFt === 10 &&
+          areasLib.resizeArea(line, 1).radiusFt === 30 &&
+          areasLib.resizeArea(square(10), 1).radiusFt === 15,
+      );
+      const cone = { ...square(15), shape: 'cone', x: 0, y: 0 };
+      const cell = measured.cell / measured.feetPerCell; // pixels per foot
+      const aimed = areasLib.aimArea(cone, { x: 0, y: 23 * cell }, measured, false);
+      const snapped = areasLib.aimArea(cone, { x: 20 * cell, y: 8 * cell }, measured, true);
+      check(
+        'aiming points a cone at the handle, its length in 5 ft steps; Ctrl keeps to 45°',
+        aimed.angle === 90 && aimed.radiusFt === 25 && snapped.angle === 0,
+        JSON.stringify({ aimed: [aimed.angle, aimed.radiusFt], snapped: snapped.angle }),
+      );
+      check(
+        'a square near a right angle settles onto the grid, and keeps its size',
+        areasLib.aimArea(square(10), { x: 100, y: 4 }, measured, false).angle === 0 &&
+          Math.round(areasLib.aimArea(square(10), { x: 100, y: 50 }, measured, false).angle) === 27 &&
+          areasLib.aimArea(square(10), { x: 300, y: 0 }, measured, false).radiusFt === 10,
+      );
+      const added = areasLib.newArea('line', { x: 5, y: 6 }, 'magic', { x: 0, y: -1 });
+      check(
+        'a new area takes its default size and points along the direction given',
+        added.radiusFt === areasLib.DEFAULT_AREA_FT.line &&
+          added.angle === 270 &&
+          added.x === 5 &&
+          added.kind === 'magic',
+        JSON.stringify(added),
+      );
+    }
+
+    // Rotation and mirroring: each way round undoes the other, for every orientation
+    {
+      let roundTrips = true;
+      for (const rotation of [0, 90, 180, 270]) {
+        for (const mirrorHorizontal of [false, true]) {
+          for (const mirrorVertical of [false, true]) {
+            const orientation = { rotation, mirrorHorizontal, mirrorVertical };
+            const media = { w: 400, h: 300 };
+            const point = { x: 37, y: 251 };
+            const back = geometryLib.orientedToMap(
+              geometryLib.mapToOriented(point, media, orientation),
+              media,
+              orientation,
+            );
+            const direction = geometryLib.screenToMapDirection(
+              geometryLib.mapToScreenDirection({ x: 3, y: -7 }, orientation),
+              orientation,
+            );
+            if (Math.abs(back.x - point.x) > 1e-9 || Math.abs(back.y - point.y) > 1e-9) roundTrips = false;
+            if (direction.x !== 3 || direction.y !== -7) roundTrips = false;
+          }
+        }
+      }
+      const turned = geometryLib.mapToOriented(
+        { x: 0, y: 0 },
+        { w: 400, h: 300 },
+        {
+          rotation: 90,
+          mirrorHorizontal: false,
+          mirrorVertical: false,
+        },
+      );
+      check(
+        'map and screen coordinates convert both ways in every orientation',
+        roundTrips && turned.x === 300 && turned.y === 0,
+        JSON.stringify(turned),
+      );
+    }
 
     check('a new map has no grid or circles', c.grid === null && c.circles.length === 0);
     check('saveMapGrid stores the grid', (await lib.saveMapGrid(c.id, measured)) === true);
@@ -978,7 +1062,7 @@ app.whenReady().then(async () => {
       calibrated.circles.length === 3 &&
         calibrated.circles[0].id === 'c1' &&
         calibrated.circles[1].kind === 'magic' &&
-        calibrated.circles[2].radiusFt === gridLib.MAX_RADIUS_FT,
+        calibrated.circles[2].radiusFt === areasLib.MAX_RADIUS_FT,
       JSON.stringify(calibrated.circles),
     );
     check(

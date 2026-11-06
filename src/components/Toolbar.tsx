@@ -25,15 +25,8 @@ import { Popover } from '../ui/Popover';
 import { clampZoom, MAX_ZOOM, MIN_ZOOM, stepZoom } from '../lib/geometry';
 import type { Tool } from './MapStage';
 import type { AreaShape, EffectKind, MovementRule } from '../types/map';
-import {
-  AREA_LABELS,
-  AREA_SHAPES,
-  DEFAULT_AREA_FT,
-  MAX_CIRCLES,
-  MOVEMENT_LABELS,
-  MOVEMENT_RULES,
-  MOVEMENT_TITLES,
-} from '../lib/grid';
+import { MOVEMENT_LABELS, MOVEMENT_RULES, MOVEMENT_TITLES } from '../lib/grid';
+import { AREA_LABELS, AREA_SHAPES, DEFAULT_AREA_FT, MAX_CIRCLES } from '../lib/areas';
 import { EFFECT_KINDS, EFFECT_STYLES } from '../lib/effects';
 import { keyLabel } from '../lib/platform';
 

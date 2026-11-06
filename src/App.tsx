@@ -5,7 +5,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   AreaShape,
-  AuraCircle,
   EffectKind,
   HandoutMeta,
   ImportResult,
@@ -33,30 +32,27 @@ import { useFog } from './hooks/useFog';
 import { useHandlers } from './hooks/useHandlers';
 import { useEffectLayer } from './hooks/useEffectLayer';
 import { useSettings } from './hooks/useSettings';
-import { clamp, clampZoom, MAX_ZOOM, MIN_ZOOM, orientedSize, stepZoom, type Size } from './lib/geometry';
+import { useAreas } from './hooks/useAreas';
+import {
+  clamp,
+  clampZoom,
+  MAX_ZOOM,
+  MIN_ZOOM,
+  orientedSize,
+  orientedToMap,
+  stepZoom,
+  type Size,
+} from './lib/geometry';
 import { keyLabel } from './lib/platform';
 import { smallerVideoSize } from './lib/video';
 import type { FrameColor } from './lib/frameColors';
-import {
-  clampRadius,
-  DEFAULT_AREA_FT,
-  DEFAULT_FEET_PER_CELL,
-  DEFAULT_LINE_WIDTH_FT,
-  gridFromCorners,
-  MAX_CIRCLES,
-  newCircleId,
-  pixelsToFeet,
-  toDiscs,
-} from './lib/grid';
+import { DEFAULT_FEET_PER_CELL, gridFromCorners } from './lib/grid';
+import { MAX_CIRCLES, toDiscs } from './lib/areas';
 import { GridCalibrationBar, type Calibration } from './components/GridCalibrationBar';
 import { Button } from './ui/controls';
 import { NotificationHost, confirmAction, notify, pressedControl, type Anchor } from './ui/notify';
 
 const VIEW_SAVE_DELAY_MS = 400;
-/** A square turned within this many degrees of the grid settles onto it. */
-const SQUARE_SNAP_DEG = 5;
-// Cones and lines aimed with Ctrl held keep to these steps
-const AIM_SNAP_DEG = 45;
 
 /** Pan and fog to apply once the map being loaded has finished loading. */
 interface PendingRestore {
@@ -160,10 +156,8 @@ export function App() {
 
   // ─── Grid and circles (per map) ─────────────────────────────────────────────
   const [grid, setGrid] = useState<MapGrid | null>(null);
-  const [circles, setCircles] = useState<AuraCircle[]>([]);
-  // While the DM drags a circle, players keep seeing it where it was
-  const [playerCircles, setPlayerCircles] = useState<AuraCircle[] | null>(null);
-  const [selectedCircleId, setSelectedCircleId] = useState<string | null>(null);
+  const areas = useAreas(grid, { rotation, mirrorHorizontal, mirrorVertical });
+  const { areas: circles, selectedId: selectedCircleId, select: setSelectedCircleId } = areas;
   const [calibration, setCalibration] = useState<Calibration | null>(null);
 
   // ─── Player screen ──────────────────────────────────────────────────────────
@@ -217,30 +211,6 @@ export function App() {
   );
 
   const frameSize = viewportSize ? { w: viewportSize.w / zoom, h: viewportSize.h / zoom } : null;
-
-  // ─── Circles ────────────────────────────────────────────────────────────────
-  //
-  // Dragging and wheel-resizing update the ref on every event; React renders
-  // (and the player screen is updated) at most once per animation frame.
-
-  const circlesRef = useRef<AuraCircle[]>([]);
-  const circlesFrameRequest = useRef<number | null>(null);
-
-  const updateCircles = useCallback((change: (current: AuraCircle[]) => AuraCircle[]) => {
-    circlesRef.current = change(circlesRef.current);
-    if (circlesFrameRequest.current === null) {
-      circlesFrameRequest.current = requestAnimationFrame(() => {
-        circlesFrameRequest.current = null;
-        setCircles(circlesRef.current);
-      });
-    }
-  }, []);
-
-  const replaceCircles = (next: AuraCircle[]) => {
-    circlesRef.current = next;
-    setCircles(next);
-    setPlayerCircles(null);
-  };
 
   const constrainPan = useCallback(
     (next: MapPan): MapPan => {
@@ -326,6 +296,7 @@ export function App() {
    * import and after deleting the current map. Per-map state is applied
    * together; pan and fog follow once the media has loaded.
    */
+  const loadAreas = areas.load;
   const loadMap = useCallback(
     async (meta: MapEntryMeta, options: { centerFrame?: boolean } = {}) => {
       const token = ++loadTokenRef.current;
@@ -370,12 +341,11 @@ export function App() {
       setMirrorHorizontal(meta.mirrorHorizontal);
       setMirrorVertical(meta.mirrorVertical);
       setGrid(meta.grid);
-      replaceCircles(meta.circles);
-      setSelectedCircleId(null);
+      loadAreas(meta.circles);
       setCalibration(null);
       setMediaUrl(url);
     },
-    [api, settleSaves],
+    [api, settleSaves, loadAreas],
   );
 
   const handleMediaLoad = useCallback(
@@ -492,8 +462,7 @@ export function App() {
     api?.sendFogReset();
     effects.release();
     setGrid(null);
-    replaceCircles([]);
-    setSelectedCircleId(null);
+    areas.load([]);
     setCalibration(null);
   };
 
@@ -669,7 +638,7 @@ export function App() {
 
   // While an area is dragged, players keep the copy from before the drag, so
   // this stays the same object and nothing is sent until it is dropped
-  const shownCircles = playerCircles ?? circles;
+  const shownCircles = areas.shownToPlayers;
   const playerDiscs = useMemo(() => toDiscs(shownCircles, grid), [shownCircles, grid]);
 
   useEffect(() => {
@@ -835,24 +804,7 @@ export function App() {
     } else if (after) addCircle(after);
   };
 
-  // ─── Circle actions ─────────────────────────────────────────────────────────
-
-  /** A direction on screen → the same direction on the map, undoing rotation and mirroring. */
-  const screenToMapDirection = ({ x, y }: Point): Point => {
-    if (rotation === 90) [x, y] = [y, -x];
-    else if (rotation === 180) [x, y] = [-x, -y];
-    else if (rotation === 270) [x, y] = [-y, x];
-    if (mirrorHorizontal) x = -x;
-    if (mirrorVertical) y = -y;
-    return { x, y };
-  };
-
-  /** A point in rotated-map coordinates (like the pan) → map natural pixels. */
-  const orientedToMap = (point: Point, media: Size): Point => {
-    const oriented = orientedSize(media, rotation);
-    const offset = screenToMapDirection({ x: point.x - oriented.w / 2, y: point.y - oriented.h / 2 });
-    return { x: offset.x + media.w / 2, y: offset.y + media.h / 2 };
-  };
+  // ─── Spell areas ────────────────────────────────────────────────────────────
 
   // What adding a shape needs first, explained beneath the shape's button
   const shapesNeed: ShapesNeed | null = !grid ? 'grid' : circles.length >= MAX_CIRCLES ? 'full' : null;
@@ -866,169 +818,35 @@ export function App() {
     } else addCircle(shape);
   };
 
+  /** A new area in the middle of what the players see, or of the map. */
   const addCircle = (shape: AreaShape) => {
-    if (!mediaSize || circlesRef.current.length >= MAX_CIRCLES) return;
-    // Cones and lines start pointing right on screen, whatever the map's orientation
-    const right = screenToMapDirection({ x: 1, y: 0 });
-    // In the middle of what the players see, or of the map
+    if (!mediaSize) return;
     const center =
       pan && frameSize
-        ? orientedToMap({ x: pan.x + frameSize.w / 2, y: pan.y + frameSize.h / 2 }, mediaSize)
+        ? orientedToMap({ x: pan.x + frameSize.w / 2, y: pan.y + frameSize.h / 2 }, mediaSize, {
+            rotation,
+            mirrorHorizontal,
+            mirrorVertical,
+          })
         : { x: mediaSize.w / 2, y: mediaSize.h / 2 };
-    const circle: AuraCircle = {
-      id: newCircleId(),
-      ...center,
-      radiusFt: DEFAULT_AREA_FT[shape],
-      kind: effectKind,
-      shape,
-      angle: ((Math.atan2(right.y, right.x) * 180) / Math.PI + 360) % 360,
-      widthFt: DEFAULT_LINE_WIDTH_FT,
-    };
-    replaceCircles([...circlesRef.current, circle]);
-    setSelectedCircleId(circle.id);
+    areas.add(shape, center, effectKind);
   };
-
-  // Players see the circle jump to where it is dropped, not slide across the map
-  const handleCircleDrag = useCallback((dragging: boolean) => {
-    if (dragging) {
-      setPlayerCircles(circlesRef.current);
-      return;
-    }
-    // Render the drop position now rather than on the pending frame
-    if (circlesFrameRequest.current !== null) {
-      cancelAnimationFrame(circlesFrameRequest.current);
-      circlesFrameRequest.current = null;
-    }
-    setCircles(circlesRef.current);
-    setPlayerCircles(null);
-  }, []);
-
-  const handleMoveCircle = useCallback(
-    (id: string, center: Point) =>
-      updateCircles((current) =>
-        current.map((circle) => (circle.id === id ? { ...circle, ...center } : circle)),
-      ),
-    [updateCircles],
-  );
-
-  /** The wheel: a line's width, any other template's size, in 5 ft steps. */
-  const handleResizeCircle = useCallback(
-    (id: string, notches: number) => {
-      const step = 5;
-      // Grow or shrink to the next multiple of the step, one step per notch
-      const stepped = (value: number) => {
-        for (let i = 0; i < Math.abs(notches); i++) {
-          value =
-            notches > 0 ? Math.floor(value / step) * step + step : Math.ceil(value / step) * step - step;
-        }
-        return clampRadius(Math.max(step, value));
-      };
-      updateCircles((current) =>
-        current.map((circle) => {
-          if (circle.id !== id) return circle;
-          return circle.shape === 'line'
-            ? { ...circle, widthFt: stepped(circle.widthFt) }
-            : { ...circle, radiusFt: stepped(circle.radiusFt) };
-        }),
-      );
-    },
-    [updateCircles],
-  );
-
-  const handleSetCircleWidth = useCallback(
-    (id: string, widthFt: number) =>
-      updateCircles((current) =>
-        current.map((circle) =>
-          circle.id === id ? { ...circle, widthFt: clampRadius(Math.round(widthFt)) } : circle,
-        ),
-      ),
-    [updateCircles],
-  );
-
-  /**
-   * Cones and lines: point the template at `point`; its length follows, in
-   * 5 ft steps; with `snap` (Ctrl held) the direction keeps to 45° steps.
-   * Squares only turn, and settle onto the grid near a right angle.
-   */
-  const handleAimCircle = useCallback(
-    (id: string, point: Point, snap: boolean) => {
-      if (!grid) return;
-      updateCircles((current) =>
-        current.map((circle) => {
-          if (circle.id !== id) return circle;
-          const dx = point.x - circle.x;
-          const dy = point.y - circle.y;
-          const angle = ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360;
-          if (circle.shape === 'square') {
-            const square = Math.round(angle / 90) * 90;
-            return { ...circle, angle: Math.abs(angle - square) <= SQUARE_SNAP_DEG ? square % 360 : angle };
-          }
-          const feet = pixelsToFeet(Math.hypot(dx, dy), grid);
-          return {
-            ...circle,
-            angle: snap ? (Math.round(angle / AIM_SNAP_DEG) * AIM_SNAP_DEG) % 360 : angle,
-            radiusFt: clampRadius(Math.max(5, Math.round(feet / 5) * 5)),
-          };
-        }),
-      );
-    },
-    [grid, updateCircles],
-  );
-
-  const handleDuplicateCircle = (id: string) => {
-    const source = circlesRef.current.find((circle) => circle.id === id);
-    if (!source || !grid) return;
-    if (circlesRef.current.length >= MAX_CIRCLES) {
-      notify(`A map can have at most ${MAX_CIRCLES} areas.`, 'error');
-      return;
-    }
-    const copy = { ...source, id: newCircleId(), x: source.x + grid.cell };
-    replaceCircles([...circlesRef.current, copy]);
-    setSelectedCircleId(copy.id);
-  };
-
-  const handleSetCircleRadius = useCallback(
-    (id: string, radiusFt: number) =>
-      updateCircles((current) =>
-        current.map((circle) =>
-          circle.id === id ? { ...circle, radiusFt: clampRadius(Math.round(radiusFt)) } : circle,
-        ),
-      ),
-    [updateCircles],
-  );
-
-  /** Arrow keys: one square, or 1 ft with Shift, in the direction shown on screen. */
-  const handleNudgeCircle = (id: string, direction: Point, fine: boolean) => {
-    if (!grid) return;
-    const step = fine ? grid.cell / grid.feetPerCell : grid.cell;
-    const move = screenToMapDirection(direction);
-    updateCircles((current) =>
-      current.map((circle) =>
-        circle.id === id ? { ...circle, x: circle.x + move.x * step, y: circle.y + move.y * step } : circle,
-      ),
-    );
-  };
-
-  const handleDeleteCircle = useCallback((id: string) => {
-    replaceCircles(circlesRef.current.filter((circle) => circle.id !== id));
-    setSelectedCircleId((selected) => (selected === id ? null : selected));
-  }, []);
-
-  const handleRecolorCircle = (id: string, kind: EffectKind) =>
-    replaceCircles(circlesRef.current.map((circle) => (circle.id === id ? { ...circle, kind } : circle)));
 
   // The colour picked in the Shapes tool also goes to the selected shape
   const handleEffectKindChange = (kind: EffectKind) => {
     setEffectKind(kind);
-    if (tool === 'shapes' && selectedCircleId) handleRecolorCircle(selectedCircleId, kind);
+    if (tool === 'shapes' && selectedCircleId) areas.recolor(selectedCircleId, kind);
   };
 
   // Areas can only be edited in the View and Shapes tools: leaving them
   // drops the selection, so Delete can't remove an area that isn't shown
-  const changeTool = useCallback((next: Tool) => {
-    setTool(next);
-    if (next !== 'view' && next !== 'shapes') setSelectedCircleId(null);
-  }, []);
+  const changeTool = useCallback(
+    (next: Tool) => {
+      setTool(next);
+      if (next !== 'view' && next !== 'shapes') setSelectedCircleId(null);
+    },
+    [setSelectedCircleId],
+  );
 
   // Kept in a ref, so a drag re-renders nothing here
   const handleRulerChange = useCallback((ruler: RulerState | null) => {
@@ -1073,7 +891,7 @@ export function App() {
     showEffectTools,
     selectedCircleId,
     calibrating: false,
-    deleteCircle: handleDeleteCircle,
+    deleteCircle: areas.remove,
     duplicateCircle: (_id: string) => {},
     nudgeCircle: (_id: string, _direction: Point, _fine: boolean) => {},
     selectedMapId: null as string | null,
@@ -1089,9 +907,9 @@ export function App() {
     showEffectTools,
     selectedCircleId,
     calibrating: !!calibration,
-    deleteCircle: handleDeleteCircle,
-    duplicateCircle: handleDuplicateCircle,
-    nudgeCircle: handleNudgeCircle,
+    deleteCircle: areas.remove,
+    duplicateCircle: areas.duplicate,
+    nudgeCircle: areas.nudge,
     selectedMapId,
     loadMap: handleLoadMap,
     addMaps: () => void handleAddMaps(),
@@ -1193,7 +1011,7 @@ export function App() {
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onBlur);
     };
-  }, [resizeBrush, changeTool]);
+  }, [resizeBrush, changeTool, setSelectedCircleId]);
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
@@ -1372,15 +1190,15 @@ export function App() {
             showEffectTools && !calibration && !shiftHeld && (altHeld || tool === 'view' || tool === 'shapes')
           }
           onSelectCircle={setSelectedCircleId}
-          onCircleDrag={handleCircleDrag}
-          onMoveCircle={handleMoveCircle}
-          onResizeCircle={handleResizeCircle}
-          onSetCircleRadius={handleSetCircleRadius}
-          onSetCircleWidth={handleSetCircleWidth}
-          onAimCircle={handleAimCircle}
-          onDuplicateCircle={handleDuplicateCircle}
-          onDeleteCircle={handleDeleteCircle}
-          onRecolorCircle={handleRecolorCircle}
+          onCircleDrag={areas.drag}
+          onMoveCircle={areas.move}
+          onResizeCircle={areas.resize}
+          onSetCircleRadius={areas.setSize}
+          onSetCircleWidth={areas.setWidth}
+          onAimCircle={areas.aim}
+          onDuplicateCircle={areas.duplicate}
+          onDeleteCircle={areas.remove}
+          onRecolorCircle={areas.recolor}
           calibrationPoints={calibration?.points ?? null}
           onCalibrationPoint={handleCalibrationPoint}
           viewControls={viewControls}

@@ -35,18 +35,11 @@ import type {
 import type { Fog } from '../hooks/useFog';
 import type { EffectLayer } from '../hooks/useEffectLayer';
 import { EFFECT_KINDS, EFFECT_OPACITY, EFFECT_STYLES } from '../lib/effects';
-import {
-  AREA_LABELS,
-  areaContains,
-  areaOutline,
-  areaHandle,
-  feetToPixels,
-  snapArea,
-  toDiscs,
-} from '../lib/grid';
+import { feetToPixels } from '../lib/grid';
+import { AREA_LABELS, areaContains, areaOutline, areaHandle, snapArea, toDiscs } from '../lib/areas';
 import { AuraDiscs } from './AuraDiscs';
 import { MeasureLayer } from './MeasureLayer';
-import { mapToOriented, orientedSize, wheelPixels, type Size } from '../lib/geometry';
+import { mapToOriented, orientedSize, screenToMapDirection, wheelPixels, type Size } from '../lib/geometry';
 import { keyLabel } from '../lib/platform';
 import { releaseVideo } from '../lib/video';
 import { FRAME_COLOR_STYLES, type FrameColor } from '../lib/frameColors';
@@ -272,18 +265,13 @@ export function MapStage(props: MapStageProps) {
       const rect = surface.getBoundingClientRect();
       const width = rotation % 180 === 0 ? rect.width : rect.height;
       const height = rotation % 180 === 0 ? rect.height : rect.width;
-      const x = clientX - rect.left - rect.width / 2;
-      const y = clientY - rect.top - rect.height / 2;
-      let mapX = x;
-      let mapY = y;
-      if (rotation === 90) [mapX, mapY] = [y, -x];
-      else if (rotation === 180) [mapX, mapY] = [-x, -y];
-      else if (rotation === 270) [mapX, mapY] = [-y, x];
-      if (mirrorHorizontal) mapX = -mapX;
-      if (mirrorVertical) mapY = -mapY;
+      const at = screenToMapDirection(
+        { x: clientX - rect.left - rect.width / 2, y: clientY - rect.top - rect.height / 2 },
+        { rotation, mirrorHorizontal, mirrorVertical },
+      );
       return {
-        x: (mapX + width / 2) * (mediaSize.w / width),
-        y: (mapY + height / 2) * (mediaSize.h / height),
+        x: (at.x + width / 2) * (mediaSize.w / width),
+        y: (at.y + height / 2) * (mediaSize.h / height),
       };
     },
     [mediaSize, rotation, mirrorHorizontal, mirrorVertical],
@@ -292,7 +280,7 @@ export function MapStage(props: MapStageProps) {
   /** Map natural pixels → position on the surface (CSS px), applying mirroring then rotation. */
   const mapToSurface = (point: Point): Point => {
     if (!mediaSize) return { x: 0, y: 0 };
-    const oriented = mapToOriented(point, mediaSize, rotation, mirrorHorizontal, mirrorVertical);
+    const oriented = mapToOriented(point, mediaSize, { rotation, mirrorHorizontal, mirrorVertical });
     return { x: oriented.x * displayScale, y: oriented.y * displayScale };
   };
   /** Keep a zoomed map covering the stage: it can be panned edge to edge, no further. */

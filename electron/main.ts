@@ -6,7 +6,8 @@ import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import * as library from './library.js';
 import { delayedMapSave } from './delayedSave.js';
-import { MAX_RULER_POINTS, normalizeDiscs } from '../src/lib/grid';
+import { MAX_RULER_POINTS } from '../src/lib/grid';
+import { normalizeDiscs } from '../src/lib/areas';
 import type {
   EffectSnapshot,
   FogSnapshot,

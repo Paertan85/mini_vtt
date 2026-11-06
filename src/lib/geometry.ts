@@ -11,26 +11,56 @@ export const clamp = (value: number, min: number, max: number) => Math.min(max, 
 export const orientedSize = (size: Size, rotation: number): Size =>
   rotation % 180 === 0 ? size : { w: size.h, h: size.w };
 
+interface Vector {
+  x: number;
+  y: number;
+}
+
+/** How a map is shown: turned clockwise in 90° steps, after mirroring. */
+export interface Orientation {
+  rotation: number;
+  mirrorHorizontal: boolean;
+  mirrorVertical: boolean;
+}
+
+/**
+ * A direction (or an offset from the map's centre) on the map → the same one
+ * on screen: mirrored first, then turned, as the windows' CSS transforms do.
+ */
+export function mapToScreenDirection({ x, y }: Vector, orientation: Orientation): Vector {
+  if (orientation.mirrorHorizontal) x = -x;
+  if (orientation.mirrorVertical) y = -y;
+  if (orientation.rotation === 90) return { x: -y, y: x };
+  if (orientation.rotation === 180) return { x: -x, y: -y };
+  if (orientation.rotation === 270) return { x: y, y: -x };
+  return { x, y };
+}
+
+/** A direction on screen → the same one on the map: the turn undone, then the mirroring. */
+export function screenToMapDirection({ x, y }: Vector, orientation: Orientation): Vector {
+  if (orientation.rotation === 90) [x, y] = [y, -x];
+  else if (orientation.rotation === 180) [x, y] = [-x, -y];
+  else if (orientation.rotation === 270) [x, y] = [-y, x];
+  if (orientation.mirrorHorizontal) x = -x;
+  if (orientation.mirrorVertical) y = -y;
+  return { x, y };
+}
+
 /**
  * A map point (natural pixels, unrotated) on the turned and mirrored map,
- * whose top-left corner is 0,0: mirroring first, then the rotation.
+ * whose top-left corner is 0,0.
  */
-export function mapToOriented(
-  point: { x: number; y: number },
-  media: Size,
-  rotation: number,
-  mirrorHorizontal: boolean,
-  mirrorVertical: boolean,
-): { x: number; y: number } {
-  let x = point.x - media.w / 2;
-  let y = point.y - media.h / 2;
-  if (mirrorHorizontal) x = -x;
-  if (mirrorVertical) y = -y;
-  if (rotation === 90) [x, y] = [-y, x];
-  else if (rotation === 180) [x, y] = [-x, -y];
-  else if (rotation === 270) [x, y] = [y, -x];
-  const oriented = orientedSize(media, rotation);
-  return { x: x + oriented.w / 2, y: y + oriented.h / 2 };
+export function mapToOriented(point: Vector, media: Size, orientation: Orientation): Vector {
+  const at = mapToScreenDirection({ x: point.x - media.w / 2, y: point.y - media.h / 2 }, orientation);
+  const oriented = orientedSize(media, orientation.rotation);
+  return { x: at.x + oriented.w / 2, y: at.y + oriented.h / 2 };
+}
+
+/** A point on the turned and mirrored map (like the player view's pan) → map natural pixels. */
+export function orientedToMap(point: Vector, media: Size, orientation: Orientation): Vector {
+  const oriented = orientedSize(media, orientation.rotation);
+  const at = screenToMapDirection({ x: point.x - oriented.w / 2, y: point.y - oriented.h / 2 }, orientation);
+  return { x: at.x + media.w / 2, y: at.y + media.h / 2 };
 }
 
 // ─── Player view zoom ────────────────────────────────────────────────────────

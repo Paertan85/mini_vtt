@@ -11,7 +11,7 @@ import { memo } from 'react';
 import type { AuraDisc } from '../types/map';
 import type { Size } from '../lib/geometry';
 import { EFFECT_KINDS, EFFECT_STYLES } from '../lib/effects';
-import { areaOutline } from '../lib/grid';
+import { areaOutline } from '../lib/areas';
 
 /** Fill strength of a template's body. */
 const DISC_OPACITY = 0.4;

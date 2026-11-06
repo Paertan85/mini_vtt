@@ -237,7 +237,7 @@ export function PlayerScreen() {
   /** Map natural pixels → this window's pixels */
   const toScreen = (point: { x: number; y: number }) => {
     if (!mediaSize || !pan) return point;
-    const at = mapToOriented(point, mediaSize, state.rotation, state.mirrorHorizontal, state.mirrorVertical);
+    const at = mapToOriented(point, mediaSize, state);
     return { x: (at.x - pan.x) * state.zoom, y: (at.y - pan.y) * state.zoom };
   };
   const oriented = mediaSize && (state.rotation % 180 === 0 ? mediaSize : { w: mediaSize.h, h: mediaSize.w });
