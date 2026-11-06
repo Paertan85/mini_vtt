@@ -8,6 +8,7 @@
 - Use native browser image/video rendering for media playback. Do not process every video frame in JavaScript or add background work that continues when it is not needed.
 - Keep caches and retained media bounded; release resources when maps are switched or removed.
 - For changes that affect rendering, playback, or memory usage, check that nothing keeps running when the feature is inactive, that listeners, timers, observers and media resources are released on map switch or removal, and that caches stay bounded. Say in the change summary what you checked.
+- When the user suggests a change that could noticeably affect performance or resource use (CPU, RAM, GPU, battery), tell them before building it: what it would cost, and a lighter way if there is one. Don't mention it when the effect is very minor, or when the change is just another way of doing the same work.
 
 ## Working on the code
 
