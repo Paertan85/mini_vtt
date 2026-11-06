@@ -130,6 +130,8 @@ const api = {
   /** DM window → player window: the framed area's top-left corner. */
   sendViewportPan: (x: number, y: number): void => ipcRenderer.send('viewport:pan', x, y),
   onViewportPan: (callback: (x: number, y: number) => void) => subscribe('viewport:pan', callback),
+  /** Player window, on start-up: the latest framed area, if one was sent. */
+  requestViewportPan: (): Promise<{ x: number; y: number } | null> => ipcRenderer.invoke('player:requestPan'),
 
   // ─── Full screen (the calling window) ───────────────────────────────────────
 

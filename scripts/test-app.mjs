@@ -287,6 +287,14 @@ app.whenReady().then(async () => {
       (await js(`${playerButton}.textContent`)).includes('live'),
     );
 
+    // A reloaded player window (Ctrl+R on it) reports the same size as
+    // before, so the DM window sends no new pan: it must still show the map
+    const playerShowsMap = () => js(`!!document.querySelector('main img')`, player);
+    check('the player screen shows the map', await waitFor(playerShowsMap));
+    player.webContents.reload();
+    await new Promise((resolve) => player.webContents.once('did-finish-load', resolve));
+    check('a reloaded player screen shows the map again', await waitFor(playerShowsMap));
+
     // The maps and handouts panel hides with its button and returns with Ctrl+B
     const panelShown = () =>
       js(`getComputedStyle(document.getElementById('library-panel')).display !== 'none'`);

@@ -65,6 +65,7 @@ let playerWindow: BrowserWindow | null = null;
 let latestMapState: MapState | null = null;
 let latestFogDataUrl: string | null = null;
 let latestEffects: EffectSnapshot | null = null;
+let latestPan: Point | null = null;
 
 const webPreferences = (): Electron.WebPreferences => ({
   preload: path.join(__dirname, 'preload.cjs'),
@@ -319,8 +320,13 @@ ipcMain.on('viewport:size', (_event, width: unknown, height: unknown) => {
   }
 });
 ipcMain.on('viewport:pan', (_event, x: unknown, y: unknown) => {
-  if (isFiniteNumber(x) && isFiniteNumber(y)) sendToPlayer('viewport:pan', x, y);
+  if (!isFiniteNumber(x) || !isFiniteNumber(y)) return;
+  latestPan = { x, y };
+  sendToPlayer('viewport:pan', x, y);
 });
+// Kept like the rest: a player window that reloads gets the same size as
+// before, so nothing in the DM window would send the pan again
+ipcMain.handle('player:requestPan', async () => latestPan);
 
 // ─── Full screen (applies to whichever window asks) ───────────────────────────
 

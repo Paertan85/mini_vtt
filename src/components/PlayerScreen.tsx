@@ -148,9 +148,13 @@ export function PlayerScreen() {
   useEffect(() => {
     const api = window.electronAPI;
     // The state must arrive first, or the snapshot would be dropped as stale
+    // A pan that arrives live is newer than the one asked for
+    let livePan = false;
     void (async () => {
       const latest = await api?.requestMapState();
       if (latest) receiveState(latest);
+      const latestPan = await api?.requestViewportPan();
+      if (latestPan && !livePan) setPan(latestPan);
       const fog = await api?.requestFogSnapshot();
       if (fog && !latestFogRef.current) receiveSnapshot(fog);
       const effects = await api?.requestEffectsSnapshot();
@@ -166,7 +170,10 @@ export function PlayerScreen() {
       }),
       api?.onFogSnapshot((snapshot) => receiveSnapshot(snapshot.dataUrl)),
       api?.onEffectsSnapshot((snapshot) => receiveEffects(snapshot.dataUrl)),
-      api?.onViewportPan((x, y) => setPan({ x, y })),
+      api?.onViewportPan((x, y) => {
+        livePan = true;
+        setPan({ x, y });
+      }),
       api?.onRuler(setRuler),
     ];
     return () => unsubscribe.forEach((stop) => stop?.());

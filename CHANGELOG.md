@@ -131,6 +131,8 @@ All notable changes to this project are documented here. The format is based on
   closing waits for a save that is under way, and a fog file that isn't
   complete, on disk or in a project file, is never used: the map starts
   fully fogged and a message says so.
+- Reloading the player screen (Ctrl+R on it) left it blank until the DM
+  moved or zoomed the player view. It now shows the map straight away.
 - Pressing Shift shows the fog brush straight away, where the pointer is,
   instead of on the next mouse move.
 - With the DM view zoomed in far, some lines of the teal grid in the
