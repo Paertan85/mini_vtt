@@ -679,9 +679,9 @@ app.whenReady().then(async () => {
         (await lib.loadSnapshot()).settings.lockZoom === true,
     );
     check(
-      'the player view frame is teal until another listed colour is chosen',
-      (await lib.loadSnapshot()).settings.frameColor === 'teal' &&
-        (await lib.saveSettings({ frameColor: 'gold' })) === false &&
+      'the player view frame is gold until another listed colour is chosen',
+      (await lib.loadSnapshot()).settings.frameColor === 'gold' &&
+        (await lib.saveSettings({ frameColor: 'indigo' })) === false &&
         (await lib.saveSettings({ frameColor: 'sky' })) === true &&
         (await lib.loadSnapshot()).settings.frameColor === 'sky',
     );

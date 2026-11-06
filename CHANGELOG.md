@@ -12,11 +12,12 @@ All notable changes to this project are documented here. The format is based on
   mouse wheel over the frame, the + and − keys, the zoom buttons, True
   scale and Fit 16:9 leave the zoom alone, so a stray scroll can't change
   what the players see. Space locks and unlocks it too. While it is
-  locked, a padlock with the zoom shows in the frame's corner. The lock is
+  locked, a padlock shows in the frame's corner. The lock is
   remembered across restarts.
 
-- **Player screen setup** can change the colour of the player view frame:
-  teal, white, magenta or sky blue, so it stands out on your maps.
+- The player view frame is gold now, and **Player screen setup** can change
+  its colour to crimson, teal (the old colour), white, magenta or sky blue,
+  so it stands out on your maps. The colours are swatches in one row.
 
 - Holding Ctrl while dragging a cone's or line's tip turns it in 45° steps.
   Without Ctrl it still aims freely.

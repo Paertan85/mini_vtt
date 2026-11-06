@@ -529,9 +529,8 @@ app.whenReady().then(async () => {
     await sleep(200);
     check('a locked zoom ignores the wheel, Alt + wheel and the + key', (await zoomText()) === lockedZoom);
     check(
-      'the frame shows a padlock with the locked zoom',
-      (await js(`document.querySelector('[aria-label^="Zoom locked at"]')?.textContent`)) ===
-        `${lockedZoom}%`,
+      'the frame shows a padlock',
+      await js(`!!document.querySelector('[aria-label="Player view"] [aria-label="Zoom locked"]')`),
     );
     check(
       'the lock is saved and the zoom buttons are off',
@@ -542,7 +541,7 @@ app.whenReady().then(async () => {
     await sleep(900);
     check(
       'unlocking takes the padlock away',
-      await js(`!document.querySelector('[aria-label^="Zoom locked at"]')`),
+      await js(`!document.querySelector('[aria-label="Zoom locked"]')`),
     );
     await press('f');
     await sleep(100);
@@ -1249,7 +1248,7 @@ app.whenReady().then(async () => {
     await clickText('Player screen setup…');
     await sleep(300);
     await clickText('Rotate right');
-    await clickText('Magenta');
+    await click('[aria-label="Magenta"]');
     await clickText('Save');
     await sleep(600);
     check(

@@ -775,12 +775,11 @@ export function MapStage(props: MapStageProps) {
               {/* A locked zoom shows as a padlock, like a locked layer in an image editor */}
               {props.zoomLocked && (
                 <span
-                  aria-label={`Zoom locked at ${Math.round(zoom * 100)}%`}
-                  className="pointer-events-none absolute right-1 top-1 flex items-center gap-1 rounded border bg-ground/85 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-ink"
+                  aria-label="Zoom locked"
+                  className="pointer-events-none absolute right-1 top-1 flex items-center rounded border bg-ground/85 p-1 text-ink"
                   style={{ borderColor: `rgb(${frameRgb})` }}
                 >
                   <Lock className="h-3 w-3" aria-hidden="true" />
-                  {Math.round(zoom * 100)}%
                 </span>
               )}
             </div>

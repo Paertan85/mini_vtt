@@ -152,23 +152,25 @@ export function PlayerSetupDialog({
           The frame on this window that shows what the players see. Pick one that stands out on your maps.
         </p>
         <div className="mt-2">
-          <ButtonGroup label="Player view frame colour">
+          {/* Equal swatches in one row; the chosen one is ringed (not gold, which is a choice itself) */}
+          <div role="group" aria-label="Player view frame colour" className="flex gap-2">
             {FRAME_COLORS.map((choice) => (
-              <Button
+              <button
                 key={choice}
-                tone={color === choice ? 'active' : 'default'}
+                type="button"
+                aria-label={FRAME_COLOR_STYLES[choice].label}
+                title={FRAME_COLOR_STYLES[choice].label}
                 aria-pressed={color === choice}
                 onClick={() => setColor(choice)}
-              >
-                <span
-                  aria-hidden="true"
-                  className="h-3 w-3 rounded-sm border border-black/40"
-                  style={{ backgroundColor: `rgb(${FRAME_COLOR_STYLES[choice].rgb})` }}
-                />
-                {FRAME_COLOR_STYLES[choice].label}
-              </Button>
+                className={`h-8 w-8 shrink-0 rounded border border-black/40 ${
+                  color === choice
+                    ? 'ring-2 ring-ink ring-offset-2 ring-offset-panel'
+                    : 'hover:brightness-110'
+                }`}
+                style={{ backgroundColor: `rgb(${FRAME_COLOR_STYLES[choice].rgb})` }}
+              />
             ))}
-          </ButtonGroup>
+          </div>
         </div>
       </div>
     </Dialog>
