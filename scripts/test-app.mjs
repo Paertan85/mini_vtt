@@ -661,6 +661,18 @@ app.whenReady().then(async () => {
     await drag({ x: canvas.x - 40, y: canvas.y + 20 }, 80, 0);
     check('painting an effect saves the layer', await waitFor(() => fs.existsSync(effectsFile)));
     check('the player screen shows the effect', await waitFor(async () => (await playerEffectsWidth()) > 0));
+    // A player window starting later gets everything in one go: map, pan, fog and effects
+    player.webContents.reload();
+    await new Promise((resolve) => player.webContents.once('did-finish-load', resolve));
+    check(
+      'a reloaded player screen gets the map, its fog and its effects back',
+      await waitFor(
+        async () =>
+          (await playerShowsMap()) &&
+          (await playerEffectsWidth()) > 0 &&
+          (await js(`document.querySelectorAll('canvas')[1].width > 0`, player)),
+      ),
+    );
     check('effects leave the fog alone', fogHash() === fogAfter);
     await press('z', { ctrlKey: true });
     await sleep(900);

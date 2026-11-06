@@ -15,11 +15,13 @@ import type {
   MapGrid,
   MapState,
   MapView,
+  PlayerSync,
   ProjectImportSummary,
   Point,
   ProjectResult,
   RulerState,
 } from '../src/types/map';
+import { mediaUrlOf } from '../src/lib/media';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -61,11 +63,9 @@ const HANDOUT_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'];
 let dmWindow: BrowserWindow | null = null;
 let playerWindow: BrowserWindow | null = null;
 
-// The latest state and fog mask, so a player window opened later starts in sync
-let latestMapState: MapState | null = null;
-let latestFogDataUrl: string | null = null;
-let latestEffects: EffectSnapshot | null = null;
-let latestPan: Point | null = null;
+// Everything the player screen shows, so a player window that opens or
+// reloads later starts in sync (see "Player window and relayed messages")
+const latest: PlayerSync = { state: null, pan: null, fog: null, effects: null };
 
 const webPreferences = (): Electron.WebPreferences => ({
   preload: path.join(__dirname, 'preload.cjs'),
@@ -189,6 +189,13 @@ const flushAllSaves = () => Promise.all([fogSaves.flush(), effectSaves.flush()])
 //
 // What the DM window sends for the player screen is checked before it is kept
 // or passed on, like everything else that arrives over IPC.
+//
+// One rule decides what reaches the player screen: a fog or effects snapshot
+// names its map, and is shown only while that map is on screen. Snapshots are
+// encoded in the background, so one can arrive after the DM has moved on: it
+// is still saved, but never shown over another map, where it would uncover
+// the wrong parts. The player window checks the same, and `latest` only ever
+// holds what belongs to the map on screen: a new map starts it afresh.
 
 const MEDIA_URL = /^map-media:\/\/[A-Za-z0-9_-]{1,64}$/;
 const PNG_DATA_URL = 'data:image/png;base64,';
@@ -241,13 +248,20 @@ ipcMain.handle('player:resize', async (_event, requestedWidth: number, requested
   return { width, height };
 });
 
+/** Whether `mapId` is the map on the player screen. */
+const isShown = (mapId: string) => latest.state?.mediaUrl === mediaUrlOf(mapId);
+
 ipcMain.on('player:state', (_event, value: unknown) => {
   const state = normalizeMapState(value);
   if (!state) return;
-  latestMapState = state;
+  // Another map: what was kept belongs to the old one, and the DM window
+  // sends the new map's pan, fog and effects once it has loaded
+  if (state.mediaUrl !== latest.state?.mediaUrl)
+    Object.assign(latest, { pan: null, fog: null, effects: null });
+  latest.state = state;
   sendToPlayer('player:state', state);
 });
-ipcMain.handle('player:requestState', async () => latestMapState);
+ipcMain.handle('player:requestSync', async (): Promise<PlayerSync> => ({ ...latest }));
 
 /** A valid ruler: 2 to MAX_RULER_POINTS points on the map and a distance in feet. */
 function normalizeRuler(value: unknown): RulerState | null {
@@ -274,13 +288,11 @@ ipcMain.on('ruler:update', (_event, value: unknown) => {
     if (ruler) sendToPlayer('ruler:update', ruler);
   }
 });
-ipcMain.handle('player:requestFog', async () => latestFogDataUrl);
-ipcMain.handle('player:requestEffects', async () => latestEffects?.dataUrl ?? null);
 
 ipcMain.on('handout:close', () => sendToDm('handout:close'));
 
 ipcMain.on('fog:reset', () => {
-  latestFogDataUrl = null;
+  latest.fog = null;
   sendToPlayer('fog:reset');
 });
 
@@ -291,11 +303,8 @@ ipcMain.on('fog:snapshot', (_event, value: FogSnapshot) => {
     dataUrl: value.dataUrl,
     persist: value.persist === true,
   };
-  // Snapshots are encoded in the background, so one can arrive after the DM
-  // has moved on to another map: it is still saved, but never shown on the
-  // player screen, where it would uncover the wrong parts of the new map
-  if (latestMapState?.mediaUrl === `map-media://${snapshot.mapId}`) {
-    latestFogDataUrl = snapshot.dataUrl;
+  if (isShown(snapshot.mapId)) {
+    latest.fog = snapshot;
     sendToPlayer('fog:snapshot', snapshot);
   }
   if (snapshot.persist) fogSaves.schedule(snapshot.mapId, snapshot.dataUrl);
@@ -309,8 +318,10 @@ ipcMain.on('effects:snapshot', (_event, value: EffectSnapshot) => {
     dataUrl: value.dataUrl,
     persist: value.persist === true,
   };
-  latestEffects = snapshot;
-  sendToPlayer('effects:snapshot', snapshot);
+  if (isShown(snapshot.mapId)) {
+    latest.effects = snapshot;
+    sendToPlayer('effects:snapshot', snapshot);
+  }
   if (snapshot.persist) effectSaves.schedule(snapshot.mapId, snapshot.dataUrl);
 });
 
@@ -321,12 +332,11 @@ ipcMain.on('viewport:size', (_event, width: unknown, height: unknown) => {
 });
 ipcMain.on('viewport:pan', (_event, x: unknown, y: unknown) => {
   if (!isFiniteNumber(x) || !isFiniteNumber(y)) return;
-  latestPan = { x, y };
+  // Kept like the rest: a player window that reloads reports the same size
+  // as before, so nothing in the DM window would send the pan again
+  latest.pan = { x, y };
   sendToPlayer('viewport:pan', x, y);
 });
-// Kept like the rest: a player window that reloads gets the same size as
-// before, so nothing in the DM window would send the pan again
-ipcMain.handle('player:requestPan', async () => latestPan);
 
 // ─── Full screen (applies to whichever window asks) ───────────────────────────
 
@@ -487,7 +497,7 @@ ipcMain.handle('library:importProject', async (): Promise<ProjectResult<ProjectI
 ipcMain.handle('library:importHandoutsFromDialog', async () => importFromDialog('handout'));
 ipcMain.handle('library:importHandouts', async (_e, paths: unknown) => importFiles(paths, 'handout'));
 ipcMain.handle('library:loadHandoutMedia', async (_e, id: string) =>
-  (await library.resolveHandoutPath(id)) ? `map-media://${id}` : null,
+  (await library.resolveHandoutPath(id)) ? mediaUrlOf(id) : null,
 );
 ipcMain.handle('library:loadHandoutThumb', async (_e, id: string) => library.loadHandoutThumb(id));
 ipcMain.handle('library:rotateHandout', async (_e, id: string, rotation: number) =>

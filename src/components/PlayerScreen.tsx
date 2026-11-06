@@ -7,7 +7,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Maximize2, Minimize2, X } from 'lucide-react';
-import type { MapState, RulerState } from '../types/map';
+import type { EffectSnapshot, FogSnapshot, MapState, RulerState } from '../types/map';
+import { mediaUrlOf } from '../lib/media';
 import { drawSnapshot, fillMask, fogMaskSize, loadImage } from '../lib/fog';
 import { EFFECT_OPACITY, showLayer } from '../lib/effects';
 import { AuraDiscs } from './AuraDiscs';
@@ -79,7 +80,14 @@ export function PlayerScreen() {
     }
   };
 
-  const receiveSnapshot = (dataUrl: string) => {
+  /**
+   * Whether a snapshot is for the map on screen. The main process sends
+   * only those, but one may still be on its way when the map changes.
+   */
+  const isShown = (mapId: string) => mediaUrlOf(mapId) === currentMediaUrlRef.current;
+
+  const receiveSnapshot = ({ mapId, dataUrl }: FogSnapshot) => {
+    if (!isShown(mapId)) return;
     latestFogRef.current = dataUrl;
     void applySnapshot(dataUrl);
   };
@@ -103,7 +111,8 @@ export function PlayerScreen() {
     }
   };
 
-  const receiveEffects = (dataUrl: string | null) => {
+  const receiveEffects = ({ mapId, dataUrl }: EffectSnapshot) => {
+    if (!isShown(mapId)) return;
     latestEffectsRef.current = dataUrl;
     void applyEffects();
   };
@@ -114,7 +123,8 @@ export function PlayerScreen() {
       currentMediaUrlRef.current = next.mediaUrl;
       latestFogRef.current = null;
       setRuler(null);
-      receiveEffects(null);
+      latestEffectsRef.current = null;
+      void applyEffects();
     }
     setState(next);
   };
@@ -147,31 +157,40 @@ export function PlayerScreen() {
 
   useEffect(() => {
     const api = window.electronAPI;
-    // The state must arrive first, or the snapshot would be dropped as stale
-    // A pan that arrives live is newer than the one asked for
-    let livePan = false;
+    // Everything as the main process has it, for one map. A part that has
+    // already arrived live is newer and wins; the state comes first, so the
+    // snapshots are checked against the right map.
+    const live = { state: false, pan: false, fog: false, effects: false };
     void (async () => {
-      const latest = await api?.requestMapState();
-      if (latest) receiveState(latest);
-      const latestPan = await api?.requestViewportPan();
-      if (latestPan && !livePan) setPan(latestPan);
-      const fog = await api?.requestFogSnapshot();
-      if (fog && !latestFogRef.current) receiveSnapshot(fog);
-      const effects = await api?.requestEffectsSnapshot();
-      if (effects && !latestEffectsRef.current) receiveEffects(effects);
+      const sync = await api?.requestPlayerSync();
+      if (!sync) return;
+      if (sync.state && !live.state) receiveState(sync.state);
+      if (sync.pan && !live.pan) setPan(sync.pan);
+      if (sync.fog && !live.fog) receiveSnapshot(sync.fog);
+      if (sync.effects && !live.effects) receiveEffects(sync.effects);
     })();
     const unsubscribe = [
-      api?.onMapState(receiveState),
+      api?.onMapState((state) => {
+        live.state = true;
+        receiveState(state);
+      }),
       api?.onFogReset(() => {
+        live.fog = true;
         snapshotSeqRef.current += 1;
         latestFogRef.current = null;
         const ctx = fogContext();
         if (ctx) fillMask(ctx, PLAYER_FOG_COLOR);
       }),
-      api?.onFogSnapshot((snapshot) => receiveSnapshot(snapshot.dataUrl)),
-      api?.onEffectsSnapshot((snapshot) => receiveEffects(snapshot.dataUrl)),
+      api?.onFogSnapshot((snapshot) => {
+        live.fog = true;
+        receiveSnapshot(snapshot);
+      }),
+      api?.onEffectsSnapshot((snapshot) => {
+        live.effects = true;
+        receiveEffects(snapshot);
+      }),
       api?.onViewportPan((x, y) => {
-        livePan = true;
+        live.pan = true;
         setPan({ x, y });
       }),
       api?.onRuler(setRuler),

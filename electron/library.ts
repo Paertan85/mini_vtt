@@ -21,6 +21,7 @@ import type {
 import { cellFromNames, DEFAULT_FEET_PER_CELL, NAME_FOLDER_LEVELS, normalizeGrid } from '../src/lib/grid';
 import { type AreaReport, normalizeCircles } from '../src/lib/areas';
 import { EFFECT_STYLES } from '../src/lib/effects';
+import { mediaUrlOf } from '../src/lib/media';
 import { cleanSettingsPatch, DEFAULT_SETTINGS, LIBRARY_ID, normalizeSettings } from '../src/lib/settings';
 
 // ─── On-disk map library ──────────────────────────────────────────────────────
@@ -854,7 +855,7 @@ export async function resolveMapMediaPath(id: string): Promise<string | null> {
 }
 
 export async function loadMapMediaUrl(id: string): Promise<string | null> {
-  return (await resolveMapMediaPath(id)) ? `map-media://${id}` : null;
+  return (await resolveMapMediaPath(id)) ? mediaUrlOf(id) : null;
 }
 
 export async function loadMapThumb(id: string): Promise<string | null> {

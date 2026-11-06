@@ -137,7 +137,9 @@ All notable changes to this project are documented here. The format is based on
   effects are encoded in the background, as fog has been since 1.2.0.
   Removing the loaded map now also frees its fog mask and undo steps.
 - Reloading the player screen (Ctrl+R on it) left it blank until the DM
-  moved or zoomed the player view. It now shows the map straight away.
+  moved or zoomed the player view. It now shows the map, its fog and its
+  effects straight away. A player screen opened just as the DM switched
+  maps could also show the previous map's painted effects for a moment.
 - Pressing Shift shows the fog brush straight away, where the pointer is,
   instead of on the next mouse move.
 - With the DM view zoomed in far, some lines of the teal grid in the

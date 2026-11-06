@@ -14,6 +14,7 @@ import type {
   MapGrid,
   MapState,
   MapView,
+  PlayerSync,
   ProjectImportSummary,
   ProjectResult,
   RulerState,
@@ -96,9 +97,8 @@ const api = {
   /** DM window → player window: the Measure tool's ruler, or null to hide it. */
   sendRuler: (ruler: RulerState | null): void => ipcRenderer.send('ruler:update', ruler),
   onRuler: (callback: (ruler: RulerState | null) => void) => subscribe('ruler:update', callback),
-  /** Player window, on start-up: the latest state and fog mask. */
-  requestMapState: (): Promise<MapState | null> => ipcRenderer.invoke('player:requestState'),
-  requestFogSnapshot: (): Promise<string | null> => ipcRenderer.invoke('player:requestFog'),
+  /** Player window, on start-up: everything it shows, for the map on screen. */
+  requestPlayerSync: (): Promise<PlayerSync> => ipcRenderer.invoke('player:requestSync'),
   /** Player window → DM window: the handout was dismissed (Esc or its button). */
   closeHandout: (): void => ipcRenderer.send('handout:close'),
   onHandoutClosed: (callback: () => void) => subscribe('handout:close', callback),
@@ -118,8 +118,6 @@ const api = {
   sendEffectsSnapshot: (snapshot: EffectSnapshot): void => ipcRenderer.send('effects:snapshot', snapshot),
   onEffectsSnapshot: (callback: (snapshot: EffectSnapshot) => void) =>
     subscribe('effects:snapshot', callback),
-  /** Player window, on start-up: the current effect layer. */
-  requestEffectsSnapshot: (): Promise<string | null> => ipcRenderer.invoke('player:requestEffects'),
 
   // ─── Player viewport ────────────────────────────────────────────────────────
 
@@ -129,8 +127,6 @@ const api = {
   /** DM window → player window: the framed area's top-left corner. */
   sendViewportPan: (x: number, y: number): void => ipcRenderer.send('viewport:pan', x, y),
   onViewportPan: (callback: (x: number, y: number) => void) => subscribe('viewport:pan', callback),
-  /** Player window, on start-up: the latest framed area, if one was sent. */
-  requestViewportPan: (): Promise<{ x: number; y: number } | null> => ipcRenderer.invoke('player:requestPan'),
 
   // ─── Full screen (the calling window) ───────────────────────────────────────
 

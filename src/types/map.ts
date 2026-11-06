@@ -239,6 +239,19 @@ export interface EffectSnapshot {
   persist: boolean;
 }
 
+/**
+ * Everything a player window needs when it starts (or reloads), as the main
+ * process has it: all for the same map. The ruler is not kept; it shows
+ * from its next change.
+ */
+export interface PlayerSync {
+  state: MapState | null;
+  /** The framed area's top-left corner, once it has been sent for this map */
+  pan: Point | null;
+  fog: FogSnapshot | null;
+  effects: EffectSnapshot | null;
+}
+
 /** A full copy of a map's fog mask, as a PNG data URL. */
 export interface FogSnapshot {
   mapId: string;
