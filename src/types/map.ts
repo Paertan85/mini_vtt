@@ -150,6 +150,27 @@ export interface LibrarySettings {
    * so they lie along a landscape player screen: 0 (none), 90 or 270
    */
   portraitRotation: number;
+  /** How the Measure tool's Movement ruler counts diagonal squares */
+  diagonalRule: MovementRule;
+  /** Whether the Measure tool's ruler is also shown on the player screen */
+  showRulerToPlayers: boolean;
+}
+
+/**
+ * How the Measure tool counts a diagonal: `alternate` makes every second
+ * diagonal square count double (5, 10, 5 ft…), `uniform` counts every square
+ * the same, `straight` is the straight-line distance, not counted in squares.
+ */
+export type DiagonalRule = 'alternate' | 'uniform' | 'straight';
+
+/** The rules that count squares, for the Measure tool's Movement ruler; a setting. */
+export type MovementRule = Exclude<DiagonalRule, 'straight'>;
+
+/** The Measure tool's ruler as the player screen draws it: map pixels, and the distance */
+export interface RulerState {
+  /** The start, any waypoints, and the end; at least two */
+  points: Point[];
+  feet: number;
 }
 
 /** The library plus settings, as returned on startup. */

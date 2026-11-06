@@ -5,7 +5,7 @@ import { createReadStream, existsSync } from 'node:fs';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import * as library from './library.js';
-import { normalizeDiscs } from '../src/lib/grid';
+import { MAX_RULER_POINTS, normalizeDiscs } from '../src/lib/grid';
 import type {
   EffectSnapshot,
   FogSnapshot,
@@ -15,7 +15,9 @@ import type {
   MapState,
   MapView,
   ProjectImportSummary,
+  Point,
   ProjectResult,
+  RulerState,
 } from '../src/types/map';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -274,6 +276,32 @@ ipcMain.on('player:state', (_event, value: unknown) => {
   sendToPlayer('player:state', state);
 });
 ipcMain.handle('player:requestState', async () => latestMapState);
+
+/** A valid ruler: 2 to MAX_RULER_POINTS points on the map and a distance in feet. */
+function normalizeRuler(value: unknown): RulerState | null {
+  if (!value || typeof value !== 'object') return null;
+  const { points, feet } = value as Record<string, unknown>;
+  if (!Array.isArray(points) || points.length < 2 || points.length > MAX_RULER_POINTS) return null;
+  if (!isFiniteNumber(feet) || feet < 0 || feet > 1_000_000) return null;
+  const clean: Point[] = [];
+  for (const raw of points) {
+    if (!raw || typeof raw !== 'object') return null;
+    const { x, y } = raw as Record<string, unknown>;
+    if (!isFiniteNumber(x) || !isFiniteNumber(y)) return null;
+    clean.push({ x, y });
+  }
+  return { points: clean, feet };
+}
+
+// The ruler is only relayed, never kept: a player screen opened later shows
+// it from the next change
+ipcMain.on('ruler:update', (_event, value: unknown) => {
+  if (value === null) sendToPlayer('ruler:update', null);
+  else {
+    const ruler = normalizeRuler(value);
+    if (ruler) sendToPlayer('ruler:update', ruler);
+  }
+});
 ipcMain.handle('player:requestFog', async () => latestFogDataUrl);
 ipcMain.handle('player:requestEffects', async () => latestEffects?.dataUrl ?? null);
 

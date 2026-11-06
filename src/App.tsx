@@ -14,7 +14,9 @@ import type {
   MapPan,
   MapView,
   MediaType,
+  MovementRule,
   Point,
+  RulerState,
 } from './types/map';
 import { MapLibraryPanel, forgetThumb, type OrientationChange } from './components/MapLibraryPanel';
 import { MapStage, type Tool, type ViewControls } from './components/MapStage';
@@ -36,6 +38,7 @@ import { smallerVideoSize } from './lib/video';
 import {
   clampRadius,
   DEFAULT_AREA_FT,
+  DEFAULT_MOVEMENT_RULE,
   DEFAULT_FEET_PER_CELL,
   DEFAULT_LINE_WIDTH_FT,
   gridFromCorners,
@@ -130,6 +133,15 @@ export function App() {
   const [showLibrary, setShowLibrary] = useState(true);
   // Fog tool: freehand shapes instead of the brush
   const [fogLasso, setFogLasso] = useState(false);
+  // Measure tool: how the Movement ruler counts diagonals (a setting), and
+  // whether the toolbar picked the straight line instead
+  const [movementRule, setMovementRule] = useState<MovementRule>(DEFAULT_MOVEMENT_RULE);
+  const [measureStraight, setMeasureStraight] = useState(false);
+  // The ruler can be shown on the player screen too; it is sent as it changes
+  const [showRulerToPlayers, setShowRulerToPlayers] = useState(false);
+  const showRulerRef = useRef(false);
+  showRulerRef.current = showRulerToPlayers;
+  const rulerRef = useRef<RulerState | null>(null);
 
   // ─── Grid and circles (per map) ─────────────────────────────────────────────
   const [grid, setGrid] = useState<MapGrid | null>(null);
@@ -387,6 +399,8 @@ export function App() {
         setPortraitRotation(snapshot.settings.portraitRotation);
         setShowEffectTools(snapshot.settings.showEffectTools);
         setShowLibrary(snapshot.settings.showLibrary);
+        setMovementRule(snapshot.settings.diagonalRule);
+        setShowRulerToPlayers(snapshot.settings.showRulerToPlayers);
         const last = snapshot.maps.find((entry) => entry.id === snapshot.settings.currentMapId);
         if (last) await loadMap(last);
       }
@@ -1000,8 +1014,27 @@ export function App() {
   // drops the selection, so Delete can't remove an area that isn't shown
   const changeTool = useCallback((next: Tool) => {
     setTool(next);
-    if (next === 'fog' || next === 'effect') setSelectedCircleId(null);
+    if (next !== 'view' && next !== 'shapes') setSelectedCircleId(null);
   }, []);
+
+  // Kept in a ref, so a drag re-renders nothing here
+  const handleRulerChange = useCallback((ruler: RulerState | null) => {
+    if (ruler === rulerRef.current) return;
+    rulerRef.current = ruler;
+    if (showRulerRef.current) window.electronAPI?.sendRuler(ruler);
+  }, []);
+
+  const handleShowRulerToPlayers = (show: boolean) => {
+    setShowRulerToPlayers(show);
+    showRulerRef.current = show;
+    api?.sendRuler(show ? rulerRef.current : null);
+    void api?.saveSettings({ showRulerToPlayers: show });
+  };
+
+  const handleMovementRuleChange = (rule: MovementRule) => {
+    setMovementRule(rule);
+    void api?.saveSettings({ diagonalRule: rule });
+  };
 
   const handleToggleLibrary = useCallback(() => {
     setShowLibrary((shown) => {
@@ -1130,6 +1163,7 @@ export function App() {
         setFogLasso((lasso) => !lasso);
       } else if (key === 'e' && hasMap && current.showEffectTools) changeTool('effect');
       else if (key === 's' && hasMap && current.showEffectTools) changeTool('shapes');
+      else if (key === 'm' && hasMap) changeTool('measure');
       else if (key === 'b') setBlackout((value) => !value);
     };
     const onKeyUp = (event: KeyboardEvent) => {
@@ -1173,6 +1207,9 @@ export function App() {
     onEffectKindChange: handleEffectKindChange,
     onToggleEffectTools: handleToggleEffectTools,
     onCalibrateGrid: startCalibration,
+    onMovementRuleChange: handleMovementRuleChange,
+    onMeasureStraightChange: setMeasureStraight,
+    onShowRulerToPlayersChange: handleShowRulerToPlayers,
     onRevealAll: handleRevealAll,
     onZoomChange: (next: number) => setZoom(clampZoom(next)),
     onToggleFit16by9: handleToggleFit16by9,
@@ -1244,6 +1281,10 @@ export function App() {
           atTrueScale={atTrueScale}
           trueScaleNeeds={trueScaleNeeds}
           shapesNeed={shapesNeed}
+          movementRule={movementRule}
+          measureStraight={measureStraight}
+          showRulerToPlayers={showRulerToPlayers}
+          measureNeedsGrid={!grid}
           playerOpen={playerOpen}
           blackout={blackout}
         />
@@ -1304,6 +1345,8 @@ export function App() {
           onPanChange={(next) => applyPan(next, frameSize)}
           onZoomWheel={(factor) => setZoom((current) => clampZoom(current * factor))}
           grid={grid}
+          diagonalRule={measureStraight ? 'straight' : movementRule}
+          onRulerChange={handleRulerChange}
           gridPreview={calibrationPreview}
           circles={circles}
           selectedCircleId={selectedCircleId}

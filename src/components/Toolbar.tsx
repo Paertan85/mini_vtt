@@ -1,7 +1,8 @@
 // The DM window's toolbar, in three groups:
-//   left    tools (view / fog / effects / shapes), brush size, undo and
-//           redo, and the active tool's options: the fog menu, the effect
-//           colours and Clear, or the colours and the shapes to add
+//   left    tools (view / fog / effects / shapes / measure), brush size,
+//           undo and redo, and the active tool's options: the fog menu, the
+//           effect colours and Clear, the colours and the shapes to add, or
+//           how the Measure tool counts diagonals
 //   centre  player view zoom and 16:9 fit
 //   right   player screen status, blackout, and the settings menu
 
@@ -21,8 +22,16 @@ import { Menu } from '../ui/Menu';
 import { Popover } from '../ui/Popover';
 import { clampZoom, MAX_ZOOM, MIN_ZOOM, stepZoom } from '../lib/geometry';
 import type { Tool } from './MapStage';
-import type { AreaShape, EffectKind } from '../types/map';
-import { AREA_LABELS, AREA_SHAPES, DEFAULT_AREA_FT, MAX_CIRCLES } from '../lib/grid';
+import type { AreaShape, EffectKind, MovementRule } from '../types/map';
+import {
+  AREA_LABELS,
+  AREA_SHAPES,
+  DEFAULT_AREA_FT,
+  MAX_CIRCLES,
+  MOVEMENT_LABELS,
+  MOVEMENT_RULES,
+  MOVEMENT_TITLES,
+} from '../lib/grid';
 import { EFFECT_KINDS, EFFECT_STYLES } from '../lib/effects';
 import { keyLabel } from '../lib/platform';
 
@@ -53,6 +62,17 @@ interface ToolbarProps {
   showEffectTools: boolean;
   onToggleEffectTools: () => void;
   onCalibrateGrid: () => void;
+  /** How the Measure tool's Movement ruler counts diagonals; set in the settings menu */
+  movementRule: MovementRule;
+  onMovementRuleChange: (rule: MovementRule) => void;
+  /** The Measure tool measures a straight line instead of movement */
+  measureStraight: boolean;
+  onMeasureStraightChange: (straight: boolean) => void;
+  /** Whether players see the ruler too */
+  showRulerToPlayers: boolean;
+  onShowRulerToPlayersChange: (show: boolean) => void;
+  /** The loaded map has no grid yet, so distances can't be measured */
+  measureNeedsGrid: boolean;
   onRevealAll: () => void;
   onCoverAll: () => void;
 
@@ -188,6 +208,15 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
             </Button>
           </>
         )}
+        <Button
+          tone={tool === 'measure' ? 'active' : 'default'}
+          aria-pressed={tool === 'measure'}
+          onClick={() => props.onToolChange('measure')}
+          disabled={!hasMap}
+          title="Measure (M): drag on the map to see the distance in feet, or click point by point to measure a path round corners (double-click or Enter finishes it)."
+        >
+          Measure
+        </Button>
       </ButtonGroup>
 
       <label
@@ -303,6 +332,46 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
           </Popover>
         </>
       )}
+      {tool === 'measure' &&
+        (props.measureNeedsGrid ? (
+          <span className="flex items-center gap-2 text-[13px] text-muted">
+            Measuring needs this map’s grid.
+            <Button tone="active" onClick={props.onCalibrateGrid}>
+              Measure grid
+            </Button>
+          </span>
+        ) : (
+          <>
+            <ButtonGroup label="Measure">
+              <Button
+                tone={props.measureStraight ? 'default' : 'active'}
+                aria-pressed={!props.measureStraight}
+                onClick={() => props.onMeasureStraightChange(false)}
+                title={`Movement: counted in squares, from the middle of one to the middle of another; ${MOVEMENT_TITLES[props.movementRule]}. Settings switch how diagonals count.`}
+              >
+                Movement
+              </Button>
+              <Button
+                tone={props.measureStraight ? 'active' : 'default'}
+                aria-pressed={props.measureStraight}
+                onClick={() => props.onMeasureStraightChange(true)}
+                title={keyLabel(
+                  'Straight line: the distance as the crow flies, not counted in squares (Ctrl snaps the ends to square centres)',
+                )}
+              >
+                Straight line
+              </Button>
+            </ButtonGroup>
+            <Button
+              tone={props.showRulerToPlayers ? 'active' : 'default'}
+              aria-pressed={props.showRulerToPlayers}
+              onClick={() => props.onShowRulerToPlayersChange(!props.showRulerToPlayers)}
+              title="Show the ruler on the player screen too, as you drag it"
+            >
+              Show players
+            </Button>
+          </>
+        ))}
       {(tool === 'view' || tool === 'fog') && (
         <>
           {tool === 'fog' && (
@@ -424,6 +493,12 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
             onSelect: props.onToggleEffectTools,
             checked: props.showEffectTools,
           },
+          ...MOVEMENT_RULES.map((rule, index) => ({
+            label: MOVEMENT_LABELS[rule],
+            onSelect: () => props.onMovementRuleChange(rule),
+            checked: props.movementRule === rule,
+            separated: index === 0,
+          })),
           { label: 'Export project…', onSelect: props.onExportProject, separated: true },
           { label: 'Import project…', onSelect: props.onImportProject },
           { label: 'Open library folder', onSelect: props.onRevealLibraryFolder },

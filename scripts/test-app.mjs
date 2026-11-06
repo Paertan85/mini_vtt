@@ -790,6 +790,116 @@ app.whenReady().then(async () => {
     check('near a right angle the square settles onto the grid', settled?.angle === 0, `${settled?.angle}°`);
     await press('Delete');
     await sleep(600);
+
+    // The Measure tool: a drag shows the distance in feet. Movement counts
+    // diagonals 5/10 until the settings menu says otherwise, and players only
+    // see the ruler when it is shown to them
+    await press('m');
+    await sleep(200);
+    const pressedMeasure = () =>
+      js(`document.querySelector('[aria-label="Measure"] [aria-pressed="true"]')?.textContent.trim()`);
+    check('M picks the Measure tool, measuring movement', (await pressedMeasure()) === 'Movement');
+    const mapBox = await js(`(() => { const r = document.querySelector('main img').getBoundingClientRect();
+      return { x: r.x, y: r.y, w: r.width, h: r.height }; })()`);
+    const { cell: measureCell, feetPerCell } = alpha().grid;
+    const squarePx = (measureCell * mapBox.w) / 800;
+    const measureFrom = { x: mapBox.x + mapBox.w / 2, y: mapBox.y + mapBox.h / 2 };
+    const playerRuler = () =>
+      js(
+        `document.querySelector('[aria-label="Ruler"] output[aria-label="Distance"]')?.textContent ?? null`,
+        player,
+      );
+    await drag(measureFrom, 3 * squarePx, 3 * squarePx);
+    await sleep(300);
+    const distance = () => js(`document.querySelector('output[aria-label="Distance"]')?.textContent`);
+    check(
+      'three squares diagonally count 5, 10, 5',
+      (await distance()) === `${4 * feetPerCell} ft`,
+      `${await distance()}, ${squarePx.toFixed(1)} px squares`,
+    );
+    check('players don’t see the ruler unless it is shown to them', (await playerRuler()) === null);
+    await click('[aria-label="Settings"]');
+    await sleep(200);
+    await clickText('Movement: every square');
+    await sleep(600);
+    check(
+      'the settings menu makes every square count the same: 15 ft',
+      (await distance()) === `${3 * feetPerCell} ft`,
+    );
+    check('that is saved', readIndex().settings.diagonalRule === 'uniform');
+    await clickText('Show players');
+    check(
+      'Show players puts the ruler on the player screen',
+      (await waitFor(async () => (await playerRuler()) === `${3 * feetPerCell} ft`)) === true,
+      String(await playerRuler()),
+    );
+    await drag(measureFrom, 2 * squarePx, 0);
+    check(
+      'it follows a new measurement',
+      (await waitFor(async () => (await playerRuler()) === `${2 * feetPerCell} ft`)) === true,
+      String(await playerRuler()),
+    );
+    check('and stays on after a restart', readIndex().settings.showRulerToPlayers === true);
+    // Clicks build a path round a corner: three squares right, then three down
+    const corner = { x: measureFrom.x + 3 * squarePx, y: measureFrom.y };
+    const end = { x: corner.x, y: corner.y + 3 * squarePx };
+    for (const at of [measureFrom, corner, end]) {
+      mouse('mouseDown', at.x, at.y);
+      mouse('mouseUp', at.x, at.y);
+      await sleep(150);
+    }
+    check(
+      'clicks measure a path round a corner: 6 squares',
+      (await distance()) === `${6 * feetPerCell} ft`,
+      String(await distance()),
+    );
+    await press('Enter');
+    main.webContents.sendInputEvent({
+      type: 'mouseMove',
+      x: Math.round(measureFrom.x),
+      y: Math.round(end.y),
+    });
+    await sleep(300);
+    check(
+      'Enter finishes it: the mouse no longer moves its end',
+      (await distance()) === `${6 * feetPerCell} ft`,
+      String(await distance()),
+    );
+    check('and Enter didn’t load another map', readIndex().settings.currentMapId === 'm_alpha');
+    check(
+      'players see the path',
+      (await waitFor(async () => (await playerRuler()) === `${6 * feetPerCell} ft`)) === true,
+      String(await playerRuler()),
+    );
+    await press('Escape');
+    await sleep(200);
+    check('Esc clears it', (await distance()) === undefined);
+    // Right-click takes back the last point of a path
+    for (const at of [measureFrom, corner, end]) {
+      mouse('mouseDown', at.x, at.y);
+      mouse('mouseUp', at.x, at.y);
+      await sleep(150);
+    }
+    mouse('mouseDown', end.x, end.y, 'right');
+    mouse('mouseUp', end.x, end.y, 'right');
+    // The leg to the mouse now ends one square further on, off the taken-back point
+    main.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(corner.x), y: Math.round(corner.y) });
+    await sleep(300);
+    check(
+      'right-click takes back the last point',
+      (await distance()) === `${3 * feetPerCell} ft`,
+      String(await distance()),
+    );
+    await press('Backspace');
+    await sleep(300);
+    check('Backspace clears it', (await distance()) === undefined);
+    // A new drag for the checks below
+    await drag(measureFrom, 2 * squarePx, 0);
+    await sleep(200);
+    await press('v');
+    await sleep(200);
+    check('leaving the tool clears the ruler', (await distance()) === undefined);
+    check('on the player screen too', (await waitFor(async () => (await playerRuler()) === null)) === true);
     await press('v');
 
     // Blackout reaches the player screen

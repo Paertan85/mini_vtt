@@ -17,6 +17,7 @@ import type {
   MapView,
   ProjectImportSummary,
   ProjectResult,
+  RulerState,
   VideoCodec,
 } from '../src/types/map';
 
@@ -93,6 +94,9 @@ const api = {
   /** DM window → player window: the full render state. */
   sendMapState: (state: MapState): void => ipcRenderer.send('player:state', state),
   onMapState: (callback: (state: MapState) => void) => subscribe('player:state', callback),
+  /** DM window → player window: the Measure tool's ruler, or null to hide it. */
+  sendRuler: (ruler: RulerState | null): void => ipcRenderer.send('ruler:update', ruler),
+  onRuler: (callback: (ruler: RulerState | null) => void) => subscribe('ruler:update', callback),
   /** Player window, on start-up: the latest state and fog mask. */
   requestMapState: (): Promise<MapState | null> => ipcRenderer.invoke('player:requestState'),
   requestFogSnapshot: (): Promise<string | null> => ipcRenderer.invoke('player:requestFog'),

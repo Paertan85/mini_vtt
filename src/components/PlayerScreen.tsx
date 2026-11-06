@@ -7,11 +7,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Maximize2, Minimize2, X } from 'lucide-react';
-import type { MapState } from '../types/map';
+import type { MapState, RulerState } from '../types/map';
 import { drawSnapshot, fillMask, fogMaskSize, loadImage } from '../lib/fog';
 import { EFFECT_OPACITY, showLayer } from '../lib/effects';
 import { AuraDiscs } from './AuraDiscs';
-import { clamp, wheelPixels, type Size } from '../lib/geometry';
+import { RulerGraphic } from './MeasureLayer';
+import { clamp, mapToOriented, wheelPixels, type Size } from '../lib/geometry';
 import { keyLabel } from '../lib/platform';
 import { releaseVideo } from '../lib/video';
 
@@ -39,6 +40,8 @@ export function PlayerScreen() {
   const [mediaSize, setMediaSize] = useState<Size | null>(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
+  // The DM's ruler, when they show it to players (map pixels)
+  const [ruler, setRuler] = useState<RulerState | null>(null);
 
   const mainRef = useRef<HTMLElement>(null);
   const fogCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -110,6 +113,7 @@ export function PlayerScreen() {
     if (next.mediaUrl !== currentMediaUrlRef.current) {
       currentMediaUrlRef.current = next.mediaUrl;
       latestFogRef.current = null;
+      setRuler(null);
       receiveEffects(null);
     }
     setState(next);
@@ -163,6 +167,7 @@ export function PlayerScreen() {
       api?.onFogSnapshot((snapshot) => receiveSnapshot(snapshot.dataUrl)),
       api?.onEffectsSnapshot((snapshot) => receiveEffects(snapshot.dataUrl)),
       api?.onViewportPan((x, y) => setPan({ x, y })),
+      api?.onRuler(setRuler),
     ];
     return () => unsubscribe.forEach((stop) => stop?.());
     // Registered once; the handlers only touch refs and state setters
@@ -222,6 +227,12 @@ export function PlayerScreen() {
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
+  /** Map natural pixels → this window's pixels */
+  const toScreen = (point: { x: number; y: number }) => {
+    if (!mediaSize || !pan) return point;
+    const at = mapToOriented(point, mediaSize, state.rotation, state.mirrorHorizontal, state.mirrorVertical);
+    return { x: (at.x - pan.x) * state.zoom, y: (at.y - pan.y) * state.zoom };
+  };
   const oriented = mediaSize && (state.rotation % 180 === 0 ? mediaSize : { w: mediaSize.h, h: mediaSize.w });
   const controlClass = `absolute z-30 flex h-9 w-9 items-center justify-center rounded border border-white/15 bg-black/60 text-white/80 transition-opacity duration-300 hover:text-white ${
     controlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
@@ -294,6 +305,13 @@ export function PlayerScreen() {
       ) : (
         <div className="flex h-full items-center justify-center">
           <p className="font-display text-2xl tracking-wider text-[#3b3430]">Mini VTT</p>
+        </div>
+      )}
+
+      {/* Over the fog, in screen pixels, so it reads the same at any zoom */}
+      {ruler && mediaSize && pan && state.mediaUrl && !state.handoutUrl && (
+        <div aria-label="Ruler" className="pointer-events-none absolute inset-0">
+          <RulerGraphic points={ruler.points.map(toScreen)} feet={ruler.feet} large />
         </div>
       )}
 

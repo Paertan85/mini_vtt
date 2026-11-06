@@ -205,6 +205,19 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     ],
   },
   {
+    title: 'Measuring',
+    note: 'Players see it only with Show players on',
+    shortcuts: [
+      ['Measure tool', ['M']],
+      ['Measure a distance', ['Drag']],
+      ['Measure a path round corners', ['Click each point']],
+      ['Finish the path', ['Double-click', 'Enter']],
+      ['Take back the last point', ['Right-click']],
+      ['Clear the ruler', ['Esc', 'Backspace']],
+      ['Snap the points to squares', ['Ctrl + click'], 'Straight line; Movement always snaps'],
+    ],
+  },
+  {
     title: 'Effects',
     shortcuts: [
       ['Paint', ['Drag']],

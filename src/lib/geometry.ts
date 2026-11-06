@@ -11,6 +11,28 @@ export const clamp = (value: number, min: number, max: number) => Math.min(max, 
 export const orientedSize = (size: Size, rotation: number): Size =>
   rotation % 180 === 0 ? size : { w: size.h, h: size.w };
 
+/**
+ * A map point (natural pixels, unrotated) on the turned and mirrored map,
+ * whose top-left corner is 0,0: mirroring first, then the rotation.
+ */
+export function mapToOriented(
+  point: { x: number; y: number },
+  media: Size,
+  rotation: number,
+  mirrorHorizontal: boolean,
+  mirrorVertical: boolean,
+): { x: number; y: number } {
+  let x = point.x - media.w / 2;
+  let y = point.y - media.h / 2;
+  if (mirrorHorizontal) x = -x;
+  if (mirrorVertical) y = -y;
+  if (rotation === 90) [x, y] = [-y, x];
+  else if (rotation === 180) [x, y] = [-x, -y];
+  else if (rotation === 270) [x, y] = [y, -x];
+  const oriented = orientedSize(media, rotation);
+  return { x: x + oriented.w / 2, y: y + oriented.h / 2 };
+}
+
 // ─── Player view zoom ────────────────────────────────────────────────────────
 
 export const MIN_ZOOM = 0.1;

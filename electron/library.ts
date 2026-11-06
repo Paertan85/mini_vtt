@@ -18,7 +18,13 @@ import type {
   ProjectImportSummary,
   VideoCodec,
 } from '../src/types/map';
-import { type AreaReport, normalizeCircles, normalizeGrid } from '../src/lib/grid';
+import {
+  type AreaReport,
+  DEFAULT_MOVEMENT_RULE,
+  isMovementRule,
+  normalizeCircles,
+  normalizeGrid,
+} from '../src/lib/grid';
 import { EFFECT_STYLES } from '../src/lib/effects';
 
 // ─── On-disk map library ──────────────────────────────────────────────────────
@@ -259,6 +265,8 @@ function normalizeSettings(stored: unknown): LibrarySettings {
     portraitRotation: isPortraitRotation(raw.portraitRotation)
       ? raw.portraitRotation
       : DEFAULT_SETTINGS.portraitRotation,
+    showRulerToPlayers: raw.showRulerToPlayers === true,
+    diagonalRule: isMovementRule(raw.diagonalRule) ? raw.diagonalRule : DEFAULT_SETTINGS.diagonalRule,
     ...(mapOrder ? { mapOrder } : {}),
   };
 }
@@ -271,6 +279,8 @@ const DEFAULT_SETTINGS: LibrarySettings = {
   showLibrary: true,
   // Turned left: how most tables with the screen lying flat play
   portraitRotation: 270,
+  diagonalRule: DEFAULT_MOVEMENT_RULE,
+  showRulerToPlayers: false,
 };
 
 /** Turns a new portrait map or handout can get: none, right or left. */
@@ -1011,6 +1021,8 @@ export async function saveSettings(patch: Partial<LibrarySettings>): Promise<boo
   if (typeof patch.showEffectTools === 'boolean') clean.showEffectTools = patch.showEffectTools;
   if (typeof patch.showLibrary === 'boolean') clean.showLibrary = patch.showLibrary;
   if (isPortraitRotation(patch.portraitRotation)) clean.portraitRotation = patch.portraitRotation;
+  if (typeof patch.showRulerToPlayers === 'boolean') clean.showRulerToPlayers = patch.showRulerToPlayers;
+  if (isMovementRule(patch.diagonalRule)) clean.diagonalRule = patch.diagonalRule;
   if (Object.keys(clean).length === 0) return false;
   await mutateIndex((index) => {
     index.settings = { ...index.settings, ...clean };

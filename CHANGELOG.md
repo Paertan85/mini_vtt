@@ -8,6 +8,18 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **Measure** tool (M): drag across the map to see the distance in feet,
+  or click point by point to measure a path round corners: double-click
+  or Enter finishes it, right-click takes back a point, and Esc or
+  Backspace clears it. The ruler stays until the next measurement or another tool.
+  On a path, 5/10 diagonals are counted across all its legs. **Movement** counts
+  squares, from the middle of one to the middle of another, with diagonals
+  alternating 5/10 ft; **Settings → Movement: every square** counts every
+  square the same instead, and is remembered. **Straight line** measures as
+  the crow flies, and Ctrl snaps its ends to square centres. Only the DM
+  sees the ruler until **Show players** puts it on the player screen too,
+  large enough to read across the table. A map without a grid offers to
+  measure it first.
 - A handout on the player screen can be dragged with the mouse to move it,
   and the mouse wheel zooms in on the spot under the pointer. Zooming used
   to need Ctrl and went to the handout's middle.

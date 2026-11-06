@@ -565,6 +565,55 @@ app.whenReady().then(async () => {
     check('feet convert to pixels', gridLib.feetToPixels(15, measured) === 300);
     check('a zero-size grid is rejected', gridLib.normalizeGrid({ cell: 0, feetPerCell: 5 }) === null);
 
+    // Measuring: squares counted from the start square to the end square
+    const along = (rule, to) => gridLib.measureFeet({ x: 160, y: 110 }, to, measured, rule);
+    check(
+      'three squares diagonally: 5/10 diagonals 20 ft, every square 15 ft',
+      along('alternate', { x: 460, y: 410 }) === 20 && along('uniform', { x: 460, y: 410 }) === 15,
+    );
+    check(
+      'four across and two down: 5/10 diagonals 25 ft, every square 20 ft',
+      along('alternate', { x: 560, y: 310 }) === 25 && along('uniform', { x: 560, y: 310 }) === 20,
+    );
+    check('anywhere in the end square counts the same', along('alternate', { x: 499, y: 360 }) === 20);
+    check('a straight line is the distance as the crow flies', along('straight', { x: 460, y: 510 }) === 25);
+    const zigzag = [
+      { x: 160, y: 110 },
+      { x: 260, y: 210 },
+      { x: 360, y: 110 },
+    ];
+    check(
+      'a path counts 5/10 diagonals across its legs: 5 + 10 ft',
+      gridLib.measurePathFeet(zigzag, measured, 'alternate') === 15 &&
+        gridLib.measurePathFeet(zigzag, measured, 'uniform') === 10,
+    );
+    check(
+      'a path round a corner adds its legs',
+      gridLib.measurePathFeet(
+        [
+          { x: 160, y: 110 },
+          { x: 460, y: 110 },
+          { x: 460, y: 410 },
+        ],
+        measured,
+        'alternate',
+      ) === 30 && gridLib.measurePathFeet(zigzag, measured, 'straight') === 14,
+    );
+    check(
+      'movement is a setting, counting 5/10 diagonals until changed',
+      (await lib.loadSnapshot()).settings.diagonalRule === 'alternate' &&
+        (await lib.saveSettings({ diagonalRule: 'straight' })) === false &&
+        (await lib.saveSettings({ diagonalRule: 'uniform' })) === true &&
+        (await lib.loadSnapshot()).settings.diagonalRule === 'uniform',
+    );
+    check(
+      'players see the ruler only once it is shown to them',
+      (await lib.loadSnapshot()).settings.showRulerToPlayers === false &&
+        (await lib.saveSettings({ showRulerToPlayers: 'yes' })) === false &&
+        (await lib.saveSettings({ showRulerToPlayers: true })) === true &&
+        (await lib.loadSnapshot()).settings.showRulerToPlayers === true,
+    );
+
     // Area templates: old circles load unchanged, shapes have the D&D outlines
     const discs = gridLib.normalizeDiscs([
       { x: 1, y: 2, radius: 30, kind: 'fire', shape: 'cone', angle: 90, width: 10 },

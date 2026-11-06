@@ -3,6 +3,7 @@
 // Mouse:  fog tool      left button reveals, right button covers
 //         effects tool  left button paints the chosen effect, right button erases
 //         frame tool    drag the frame to move the player view
+//         measure tool  drag to measure a distance in feet
 //         any tool      Shift + left/right paints fog
 //
 // Wheel:  Ctrl or Alt   zooms the DM view around the pointer (touchpad pinch
@@ -18,7 +19,16 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Copy, Trash2 } from 'lucide-react';
-import type { AuraCircle, EffectKind, MapGrid, MapPan, MediaType, Point } from '../types/map';
+import type {
+  AuraCircle,
+  DiagonalRule,
+  EffectKind,
+  MapGrid,
+  MapPan,
+  MediaType,
+  Point,
+  RulerState,
+} from '../types/map';
 import type { Fog } from '../hooks/useFog';
 import type { EffectLayer } from '../hooks/useEffectLayer';
 import { EFFECT_KINDS, EFFECT_OPACITY, EFFECT_STYLES } from '../lib/effects';
@@ -32,11 +42,12 @@ import {
   toDiscs,
 } from '../lib/grid';
 import { AuraDiscs } from './AuraDiscs';
-import { orientedSize, wheelPixels, type Size } from '../lib/geometry';
+import { MeasureLayer } from './MeasureLayer';
+import { mapToOriented, orientedSize, wheelPixels, type Size } from '../lib/geometry';
 import { keyLabel } from '../lib/platform';
 import { releaseVideo } from '../lib/video';
 
-export type Tool = 'view' | 'fog' | 'effect' | 'shapes';
+export type Tool = 'view' | 'fog' | 'effect' | 'shapes' | 'measure';
 
 interface MapStageProps {
   mediaUrl: string | null;
@@ -73,6 +84,10 @@ interface MapStageProps {
 
   /** The map's measured grid, needed to size and snap circles */
   grid: MapGrid | null;
+  /** How the Measure tool counts diagonal squares */
+  diagonalRule: DiagonalRule;
+  /** The Measure tool's ruler changed, or went (null) */
+  onRulerChange: (ruler: RulerState | null) => void;
   /** A grid drawn over the map, while calibrating */
   gridPreview: MapGrid | null;
   circles: AuraCircle[];
@@ -153,6 +168,7 @@ export function MapStage(props: MapStageProps) {
     zoom,
     gridCell,
     grid,
+    diagonalRule,
     gridPreview,
     circles,
     selectedCircleId,
@@ -263,14 +279,8 @@ export function MapStage(props: MapStageProps) {
   /** Map natural pixels → position on the surface (CSS px), applying mirroring then rotation. */
   const mapToSurface = (point: Point): Point => {
     if (!mediaSize) return { x: 0, y: 0 };
-    let x = (point.x - mediaSize.w / 2) * displayScale;
-    let y = (point.y - mediaSize.h / 2) * displayScale;
-    if (mirrorHorizontal) x = -x;
-    if (mirrorVertical) y = -y;
-    if (rotation === 90) [x, y] = [-y, x];
-    else if (rotation === 180) [x, y] = [-x, -y];
-    else if (rotation === 270) [x, y] = [y, -x];
-    return { x: x + surfaceSize.w / 2, y: y + surfaceSize.h / 2 };
+    const oriented = mapToOriented(point, mediaSize, rotation, mirrorHorizontal, mirrorVertical);
+    return { x: oriented.x * displayScale, y: oriented.y * displayScale };
   };
   /** Keep a zoomed map covering the stage: it can be panned edge to edge, no further. */
   const clampView = (next: ViewZoom): ViewZoom => {
@@ -876,6 +886,18 @@ export function MapStage(props: MapStageProps) {
                 </div>
               );
             })}
+
+          {tool === 'measure' && grid && !calibrationPoints && (
+            <MeasureLayer
+              key={mediaUrl}
+              passThrough={shiftHeld}
+              grid={grid}
+              rule={diagonalRule}
+              toMapPoint={toMapPoint}
+              mapToSurface={mapToSurface}
+              onChange={props.onRulerChange}
+            />
+          )}
 
           {calibrationPoints && (
             <div

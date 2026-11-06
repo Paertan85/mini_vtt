@@ -5,7 +5,16 @@
 // everything that arrives over IPC or from a project file, and both windows
 // use the geometry. All coordinates are map natural pixels, unrotated.
 
-import type { AreaShape, AuraCircle, AuraDisc, EffectKind, MapGrid, Point } from '../types/map';
+import type {
+  AreaShape,
+  AuraCircle,
+  AuraDisc,
+  DiagonalRule,
+  EffectKind,
+  MapGrid,
+  MovementRule,
+  Point,
+} from '../types/map';
 import { EFFECT_KINDS, nearestEffectKind } from './effects';
 
 export const MAX_CIRCLES = 50;
@@ -148,6 +157,56 @@ export function snapArea(point: Point, area: AuraCircle, grid: MapGrid): Point {
   }
   return snapToCorner(point, grid);
 }
+
+export const MOVEMENT_RULES: readonly MovementRule[] = ['alternate', 'uniform'];
+export const DEFAULT_MOVEMENT_RULE: MovementRule = 'alternate';
+/** The settings menu's names for the Movement ruler's rules */
+export const MOVEMENT_LABELS: Record<MovementRule, string> = {
+  alternate: 'Movement: 5/10 diagonals',
+  uniform: 'Movement: every square',
+};
+/** How each rule counts, for tooltips */
+export const MOVEMENT_TITLES: Record<MovementRule, string> = {
+  alternate: 'every second diagonal square counts double: 5, 10, 5 ft…',
+  uniform: 'diagonal squares count like any other',
+};
+export const isMovementRule = (value: unknown): value is MovementRule =>
+  MOVEMENT_RULES.includes(value as MovementRule);
+
+/** The most points a measured path can have */
+export const MAX_RULER_POINTS = 100;
+
+/**
+ * The length in feet of a path through `points` (map pixels). The rules that
+ * count squares count the squares moved from the one holding each point to
+ * the one holding the next, and the 5/10 rule counts diagonals across the
+ * whole path, so two single diagonal steps round a corner are 5 + 10 ft. A
+ * straight line is rounded to the foot.
+ */
+export function measurePathFeet(points: readonly Point[], grid: MapGrid, rule: DiagonalRule): number {
+  if (rule === 'straight') {
+    let pixels = 0;
+    for (let i = 1; i < points.length; i++) {
+      pixels += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+    }
+    return Math.round(pixelsToFeet(pixels, grid));
+  }
+  const square = (value: number, offset: number) => Math.floor((value - offset) / grid.cell);
+  let straight = 0;
+  let diagonal = 0;
+  for (let i = 1; i < points.length; i++) {
+    const dx = Math.abs(square(points[i].x, grid.offsetX) - square(points[i - 1].x, grid.offsetX));
+    const dy = Math.abs(square(points[i].y, grid.offsetY) - square(points[i - 1].y, grid.offsetY));
+    diagonal += Math.min(dx, dy);
+    straight += Math.max(dx, dy) - Math.min(dx, dy);
+  }
+  const squares = rule === 'uniform' ? straight + diagonal : straight + diagonal + Math.floor(diagonal / 2);
+  return squares * grid.feetPerCell;
+}
+
+/** The distance in feet from `a` to `b` (map pixels); see `measurePathFeet`. */
+export const measureFeet = (a: Point, b: Point, grid: MapGrid, rule: DiagonalRule) =>
+  measurePathFeet([a, b], grid, rule);
 
 export const feetToPixels = (feet: number, grid: MapGrid) => (feet / grid.feetPerCell) * grid.cell;
 export const pixelsToFeet = (pixels: number, grid: MapGrid) => (pixels / grid.cell) * grid.feetPerCell;
