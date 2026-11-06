@@ -1,7 +1,8 @@
 /** @type {import('tailwindcss').Config} */
 
 // Mini VTT's palette: warm stone neutrals, gold for the active choice, crimson
-// for anything players can see change, and arcane teal for the player frame.
+// for anything players can see change, and arcane teal for the player frame (its default;
+// Player screen setup can change it).
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {

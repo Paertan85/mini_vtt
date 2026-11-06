@@ -427,7 +427,7 @@ app.whenReady().then(async () => {
     await press('z', { ctrlKey: true });
     await sleep(900);
 
-    // Alt + wheel zooms the DM view only, around the pointer, in any tool
+    // Ctrl + wheel zooms the DM view only, around the pointer, in any tool
     const fogRect = () =>
       js(`(() => { const r = document.querySelector('canvas[aria-label="Fog of war"]').getBoundingClientRect();
         return { x: r.x, y: r.y, w: r.width, h: r.height }; })()`);
@@ -435,10 +435,10 @@ app.whenReady().then(async () => {
     const pointer = { x: fitRect.x + fitRect.w * 0.3, y: fitRect.y + fitRect.h * 0.6 };
     const playerZoomBefore = await zoomText();
     await js(`document.querySelector('canvas[aria-label="Fog of war"]').dispatchEvent(new WheelEvent('wheel',
-      { deltaY: -400, altKey: true, clientX: ${pointer.x}, clientY: ${pointer.y}, bubbles: true, cancelable: true }))`);
+      { deltaY: -400, ctrlKey: true, clientX: ${pointer.x}, clientY: ${pointer.y}, bubbles: true, cancelable: true }))`);
     await sleep(300);
     const zoomedRect = await fogRect();
-    check('Alt + wheel zooms the DM view', zoomedRect.w > fitRect.w * 1.5, `${fitRect.w} → ${zoomedRect.w}`);
+    check('Ctrl + wheel zooms the DM view', zoomedRect.w > fitRect.w * 1.5, `${fitRect.w} → ${zoomedRect.w}`);
     check(
       'the spot under the pointer stays put',
       Math.abs((pointer.x - zoomedRect.x) / zoomedRect.w - 0.3) < 0.01 &&
@@ -482,16 +482,13 @@ app.whenReady().then(async () => {
     await sleep(200);
     check('− zooms it back', (await zoomText()) === playerZoomBefore);
 
-    // Space + drag pans a zoomed DM view
+    // Middle-drag pans a zoomed DM view
     await wheelAt(pointer, { deltaY: -400, ctrlKey: true });
     await sleep(300);
     const zoomedStart = await fogRect();
-    await js(`window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }))`);
-    await sleep(100);
-    await drag(pointer, 80, 0);
-    await js(`window.dispatchEvent(new KeyboardEvent('keyup', { key: ' ' }))`);
+    await drag(pointer, 80, 0, 'middle');
     await sleep(300);
-    check('Space + drag pans the zoomed view', Math.abs((await fogRect()).x - zoomedStart.x - 80) < 2);
+    check('middle-drag pans the zoomed view', Math.abs((await fogRect()).x - zoomedStart.x - 80) < 2);
     await press('0', { ctrlKey: true });
     await sleep(300);
 
@@ -503,7 +500,140 @@ app.whenReady().then(async () => {
     await sleep(200);
     check('the wheel over the frame zooms the player view', (await zoomText()) !== playerZoomBefore);
     await press('-');
+    await sleep(200);
+
+    // Alt + wheel zooms the player view in 1% steps, and never the DM view
+    const percent = Number(await zoomText());
+    const dmViewWidth = (await fogRect()).w;
+    await wheelAt(frameCenter, { deltaY: -100, altKey: true });
+    await sleep(200);
+    check(
+      'Alt + wheel zooms the player view by 1%',
+      Number(await zoomText()) === percent + 1,
+      `${percent} → ${await zoomText()}`,
+    );
+    await wheelAt(frameCenter, { deltaY: 100, altKey: true });
+    await sleep(200);
+    check(
+      'and back, leaving the DM view alone',
+      Number(await zoomText()) === percent && (await fogRect()).w === dmViewWidth,
+    );
+
+    // Locking the zoom (Space): the wheel over the frame and the + key leave it alone
+    await press(' ');
+    await sleep(200);
+    const lockedZoom = await zoomText();
+    await wheelAt(frameCenter, { deltaY: -100 });
+    await wheelAt(frameCenter, { deltaY: -100, altKey: true });
+    await press('+');
+    await sleep(200);
+    check('a locked zoom ignores the wheel, Alt + wheel and the + key', (await zoomText()) === lockedZoom);
+    check(
+      'the frame shows a padlock with the locked zoom',
+      (await js(`document.querySelector('[aria-label^="Zoom locked at"]')?.textContent`)) ===
+        `${lockedZoom}%`,
+    );
+    check(
+      'the lock is saved and the zoom buttons are off',
+      (await waitFor(() => readIndex().settings.lockZoom === true)) &&
+        (await js(`document.querySelector('[aria-label="Zoom in"]').disabled`)) === true,
+    );
+    await click('[aria-label="Lock zoom"]');
     await sleep(900);
+    check(
+      'unlocking takes the padlock away',
+      await js(`!document.querySelector('[aria-label^="Zoom locked at"]')`),
+    );
+    await press('f');
+    await sleep(100);
+
+    // Fog tool, DM view zoomed in: Alt + drag moves the player frame, not
+    // the view, and paints nothing
+    await wheelAt(await centerOf('[aria-label="Player view"]'), { deltaY: -200, ctrlKey: true });
+    await sleep(300);
+    const viewBeforeAlt = await fogRect();
+    const panBeforeAlt = readIndex().maps.find((m) => m.id === 'm_alpha').pan;
+    // Real key and mouse input, with Alt held throughout, as a person does it
+    main.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Alt', modifiers: ['alt'] });
+    await sleep(100);
+    check(
+      'holding Alt shows the move cursor over the frame',
+      (await js(`document.querySelector('[aria-label="Player view"]').className`)).includes('cursor-move'),
+    );
+    const altFrame = await centerOf('[aria-label="Player view"]');
+    const altMouse = (type, dx, dy) =>
+      main.webContents.sendInputEvent({
+        type,
+        x: Math.round(altFrame.x + dx),
+        y: Math.round(altFrame.y + dy),
+        button: 'left',
+        clickCount: 1,
+        modifiers: type === 'mouseUp' ? ['alt'] : ['alt', 'leftButtonDown'],
+      });
+    altMouse('mouseMove', 0, 0);
+    await sleep(30);
+    altMouse('mouseDown', 0, 0);
+    for (let i = 1; i <= 5; i++) {
+      altMouse('mouseMove', -6 * i, -4 * i);
+      await sleep(30);
+    }
+    altMouse('mouseUp', -30, -20);
+    await sleep(50);
+    main.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Alt' });
+    await sleep(900);
+    check(
+      'and letting go of Alt brings the Fog tool back',
+      !(await js(`document.querySelector('[aria-label="Player view"]').className`)).includes('cursor-move'),
+    );
+    const panAfterAlt = readIndex().maps.find((m) => m.id === 'm_alpha').pan;
+    check(
+      'Alt + drag moves the player frame from the Fog tool',
+      panAfterAlt.x !== panBeforeAlt.x || panAfterAlt.y !== panBeforeAlt.y,
+      `${JSON.stringify(panBeforeAlt)} → ${JSON.stringify(panAfterAlt)}`,
+    );
+    check('and leaves the zoomed DM view where it was', (await fogRect()).x === viewBeforeAlt.x);
+    await press('0', { ctrlKey: true });
+    await sleep(300);
+
+    // A bare Alt press and release leaves the hidden menu alone: the next
+    // key still reaches the page
+    main.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Alt', modifiers: ['alt'] });
+    await sleep(50);
+    main.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Alt' });
+    await sleep(200);
+    main.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'V' });
+    main.webContents.sendInputEvent({ type: 'char', keyCode: 'v' });
+    main.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'V' });
+    await sleep(200);
+    check(
+      'a bare Alt press keeps the menu bar hidden and the keyboard on the page',
+      !main.isMenuBarVisible() &&
+        (await js(
+          `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'View').getAttribute('aria-pressed')`,
+        )) === 'true',
+    );
+
+    // View tool: pressing Shift shows the fog brush where the pointer already is
+    await press('v');
+    await sleep(100);
+    const brushVisible = () =>
+      js(
+        `[...document.querySelectorAll('div.rounded-full.border-gold')].some((el) => el.style.visibility === 'visible')`,
+      );
+    const overMap = await fogRect();
+    main.webContents.sendInputEvent({
+      type: 'mouseMove',
+      x: Math.round(overMap.x + overMap.w * 0.5),
+      y: Math.round(overMap.y + overMap.h * 0.5),
+    });
+    await sleep(100);
+    const brushBeforeShift = await brushVisible();
+    await js(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Shift', shiftKey: true }))`);
+    await sleep(200);
+    check('Shift shows the brush without moving the mouse', !brushBeforeShift && (await brushVisible()));
+    await js(`window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Shift' }))`);
+    await sleep(200);
+    check('and letting go hides it again', !(await brushVisible()));
     await press('f');
     await sleep(100);
 
@@ -631,7 +761,7 @@ app.whenReady().then(async () => {
       (await js(`document.querySelector('button[aria-label^="Circle,"]').getAttribute('aria-label')`)) ===
         'Circle, 20 ft',
     );
-    // Typing a radius, arrow nudges, Ctrl+D and Alt + drag
+    // Typing a radius, arrow nudges, Ctrl+D, and Alt + drag (no copy)
     await js(`(() => {
       const input = document.querySelector('input[aria-label="Radius in feet"]');
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, '17');
@@ -680,12 +810,10 @@ app.whenReady().then(async () => {
     });
     await sleep(900);
     check(
-      'Alt + drag leaves a copy behind',
-      alpha().circles.length === 2 && alpha().circles.some((c) => c.x === beforeNudge.x + cell),
+      'Alt + drag moves the circle without leaving a copy',
+      alpha().circles.length === 1 && alpha().circles[0].x > beforeNudge.x + cell,
       JSON.stringify(alpha().circles),
     );
-    await press('Delete');
-    await sleep(900);
 
     // A dragged circle stays put for players until it is dropped
     const playerCircleX = () => js(`document.querySelector('svg circle').getAttribute('cx')`, player);
@@ -1121,12 +1249,20 @@ app.whenReady().then(async () => {
     await clickText('Player screen setup…');
     await sleep(300);
     await clickText('Rotate right');
+    await clickText('Magenta');
     await clickText('Save');
     await sleep(600);
     check(
       'player screen setup saves how new portrait maps and handouts are turned',
       readIndex().settings.portraitRotation === 90,
       JSON.stringify(readIndex().settings),
+    );
+    check(
+      'and the colour of the player view frame',
+      readIndex().settings.frameColor === 'magenta' &&
+        (await js(`document.querySelector('[aria-label="Player view"]')?.style.borderColor`)) ===
+          'rgb(222, 76, 200)',
+      await js(`document.querySelector('[aria-label="Player view"]')?.style.borderColor`),
     );
 
     // ? opens the keyboard shortcuts, grouped, with the General group first

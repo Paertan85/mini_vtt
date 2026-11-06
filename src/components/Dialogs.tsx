@@ -5,14 +5,22 @@ import { Dialog } from '../ui/Dialog';
 import { Button, ButtonGroup, Kbd, inputClass } from '../ui/controls';
 import type { Size } from '../lib/geometry';
 import { keyLabel } from '../lib/platform';
+import { FRAME_COLORS, FRAME_COLOR_STYLES, type FrameColor } from '../lib/frameColors';
 
 interface PlayerSetupDialogProps {
   diagonal: number | null;
   gridSize: number;
   /** Rotation for new maps and handouts taller than wide: 0, 90 or 270 */
   portraitRotation: number;
+  /** Colour of the player view frame in the DM window */
+  frameColor: FrameColor;
   viewportSize: Size | null;
-  onSave: (diagonal: number | null, gridSize: number, portraitRotation: number) => void;
+  onSave: (
+    diagonal: number | null,
+    gridSize: number,
+    portraitRotation: number,
+    frameColor: FrameColor,
+  ) => void;
   onClose: () => void;
 }
 
@@ -33,6 +41,7 @@ export function PlayerSetupDialog({
   diagonal,
   gridSize,
   portraitRotation,
+  frameColor,
   viewportSize,
   onSave,
   onClose,
@@ -40,6 +49,7 @@ export function PlayerSetupDialog({
   const [diagonalText, setDiagonalText] = useState(diagonal === null ? '' : String(diagonal));
   const [gridText, setGridText] = useState(String(gridSize));
   const [rotation, setRotation] = useState(portraitRotation);
+  const [color, setColor] = useState(frameColor);
 
   const parsedDiagonal = parseFloat(diagonalText);
   const validDiagonal = Number.isFinite(parsedDiagonal) && parsedDiagonal > 0 ? parsedDiagonal : null;
@@ -48,7 +58,7 @@ export function PlayerSetupDialog({
   const dimensions = validDiagonal && viewportSize ? screenDimensions(validDiagonal, viewportSize) : null;
 
   const save = () => {
-    onSave(validDiagonal, validGrid ?? gridSize, rotation);
+    onSave(validDiagonal, validGrid ?? gridSize, rotation, color);
     onClose();
   };
 
@@ -136,6 +146,31 @@ export function PlayerSetupDialog({
           </ButtonGroup>
         </div>
       </div>
+      <div className="mt-5">
+        <p className="text-[13px] text-ink">Player view frame colour</p>
+        <p className="mt-1 text-xs leading-relaxed text-muted">
+          The frame on this window that shows what the players see. Pick one that stands out on your maps.
+        </p>
+        <div className="mt-2">
+          <ButtonGroup label="Player view frame colour">
+            {FRAME_COLORS.map((choice) => (
+              <Button
+                key={choice}
+                tone={color === choice ? 'active' : 'default'}
+                aria-pressed={color === choice}
+                onClick={() => setColor(choice)}
+              >
+                <span
+                  aria-hidden="true"
+                  className="h-3 w-3 rounded-sm border border-black/40"
+                  style={{ backgroundColor: `rgb(${FRAME_COLOR_STYLES[choice].rgb})` }}
+                />
+                {FRAME_COLOR_STYLES[choice].label}
+              </Button>
+            ))}
+          </ButtonGroup>
+        </div>
+      </div>
     </Dialog>
   );
 }
@@ -184,10 +219,12 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     title: 'Player view',
     shortcuts: [
       ['Move it', ['Drag the frame'], 'View tool'],
-      ['Move it from any tool', ['Space + drag']],
+      ['Move it from any tool', ['Alt + drag']],
       ['Zoom in', ['+']],
       ['Zoom out', ['−']],
       ['Zoom', ['Wheel over the frame'], 'View tool'],
+      ['Zoom in 1% steps', ['Alt + wheel'], 'Any tool'],
+      ['Lock or unlock the zoom', ['Space']],
       ['Full screen', ['F11']],
     ],
   },
@@ -201,7 +238,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
       ['Aim a cone or line', ['Drag its tip']],
       ['Aim in 45° steps', ['Ctrl + drag its tip']],
       ['Turn a square', ['Drag the edge handle']],
-      ['Duplicate', ['Ctrl+D', 'Alt + drag']],
+      ['Duplicate', ['Ctrl+D']],
       ['Delete', ['Del']],
     ],
   },
@@ -234,7 +271,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
       ['Zoom in', ['Ctrl+=']],
       ['Zoom out', ['Ctrl+−']],
       ['Fit the map', ['Ctrl+0']],
-      ['Pan when zoomed in', ['Space + drag', 'Middle-drag']],
+      ['Pan when zoomed in', ['Middle-drag']],
     ],
   },
   {

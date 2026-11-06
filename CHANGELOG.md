@@ -8,6 +8,16 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- A lock button next to the player view zoom. While it is locked, the
+  mouse wheel over the frame, the + and − keys, the zoom buttons, True
+  scale and Fit 16:9 leave the zoom alone, so a stray scroll can't change
+  what the players see. Space locks and unlocks it too. While it is
+  locked, a padlock with the zoom shows in the frame's corner. The lock is
+  remembered across restarts.
+
+- **Player screen setup** can change the colour of the player view frame:
+  teal, white, magenta or sky blue, so it stands out on your maps.
+
 - Holding Ctrl while dragging a cone's or line's tip turns it in 45° steps.
   Without Ctrl it still aims freely.
 
@@ -66,6 +76,14 @@ All notable changes to this project are documented here. The format is based on
 
 ### Changed
 
+- Alt + drag on the player frame moves it from any tool, also when your
+  own view is zoomed in. Space + drag did this before (Space now locks the
+  zoom); your zoomed view pans with the middle mouse button.
+  Alt + drag on a spell area's dot no longer leaves a copy behind; Ctrl+D
+  and the Duplicate button still do.
+- Alt + mouse wheel zooms the player view in 1% steps, from any tool, for
+  fine adjustment; it used to zoom your own view, which is now Ctrl + wheel
+  (or a pinch) only.
 - A new app icon: a table seen from above, with the screen on it and
   the players around it.
 - The keyboard shortcuts list is easier to read: grouped by tool and task
@@ -104,6 +122,10 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
+- Pressing Shift shows the fog brush straight away, where the pointer is,
+  instead of on the next mouse move.
+- With the DM view zoomed in far, some lines of the teal grid in the
+  player frame, and of the gold grid while measuring one, disappeared.
 - A video map could fill with garbled blocks, or keep jumping back to its
   start every few seconds, after it had looped or when switching back to
   it; closing and reopening the player screen cleared it. When a window

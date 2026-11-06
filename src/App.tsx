@@ -35,6 +35,7 @@ import { useEffectLayer } from './hooks/useEffectLayer';
 import { clamp, clampZoom, MAX_ZOOM, MIN_ZOOM, orientedSize, stepZoom, type Size } from './lib/geometry';
 import { keyLabel } from './lib/platform';
 import { smallerVideoSize } from './lib/video';
+import { DEFAULT_FRAME_COLOR, type FrameColor } from './lib/frameColors';
 import {
   clampRadius,
   DEFAULT_AREA_FT,
@@ -124,7 +125,7 @@ export function App() {
 
   // ─── Tools ──────────────────────────────────────────────────────────────────
   const [tool, setTool] = useState<Tool>('view');
-  const [spaceHeld, setSpaceHeld] = useState(false);
+  const [altHeld, setAltHeld] = useState(false);
   const [shiftHeld, setShiftHeld] = useState(false);
   const [brushSize, setBrushSize] = useState(80);
   const fog = useFog();
@@ -144,6 +145,8 @@ export function App() {
   const showRulerRef = useRef(false);
   showRulerRef.current = showRulerToPlayers;
   const rulerRef = useRef<RulerState | null>(null);
+  // Locks the player view zoom: the wheel, the keys and the toolbar leave it alone
+  const [zoomLocked, setZoomLocked] = useState(false);
 
   // ─── Grid and circles (per map) ─────────────────────────────────────────────
   const [grid, setGrid] = useState<MapGrid | null>(null);
@@ -165,6 +168,7 @@ export function App() {
   const [gridSize, setGridSize] = useState(1);
   // New maps and handouts taller than wide are turned this much (the main process applies it)
   const [portraitRotation, setPortraitRotation] = useState(270);
+  const [frameColor, setFrameColor] = useState<FrameColor>(DEFAULT_FRAME_COLOR);
   const [dialog, setDialog] = useState<'setup' | 'shortcuts' | null>(null);
 
   // Suppresses view saves while a map is being restored, so the restore can't
@@ -399,10 +403,12 @@ export function App() {
         setScreenDiagonal(snapshot.settings.playerScreenDiagonal);
         setGridSize(snapshot.settings.gridSize);
         setPortraitRotation(snapshot.settings.portraitRotation);
+        setFrameColor(snapshot.settings.frameColor);
         setShowEffectTools(snapshot.settings.showEffectTools);
         setShowLibrary(snapshot.settings.showLibrary);
         setMovementRule(snapshot.settings.diagonalRule);
         setShowRulerToPlayers(snapshot.settings.showRulerToPlayers);
+        setZoomLocked(snapshot.settings.lockZoom);
         const last = snapshot.maps.find((entry) => entry.id === snapshot.settings.currentMapId);
         if (last) await loadMap(last);
       }
@@ -646,6 +652,9 @@ export function App() {
   // ─── Player window ──────────────────────────────────────────────────────────
 
   useEffect(() => api?.onViewportSize((w, h) => setViewportSize({ w, h })), [api]);
+  // The bare Alt key's release never reaches the page (it would open the
+  // hidden menu); the main process says when it happens instead
+  useEffect(() => api?.onAltReleased(() => setAltHeld(false)), [api]);
   useEffect(
     () =>
       api?.onPlayerWindowClosed(() => {
@@ -756,11 +765,22 @@ export function App() {
     } else if (!trueScaleNeeds && trueScaleZoom !== null) applyTrueScale(trueScaleZoom);
   };
 
-  const handleSavePlayerSetup = (diagonal: number | null, grid: number, rotation: number) => {
+  const handleSavePlayerSetup = (
+    diagonal: number | null,
+    grid: number,
+    rotation: number,
+    color: FrameColor,
+  ) => {
     setScreenDiagonal(diagonal);
     setGridSize(grid);
     setPortraitRotation(rotation);
-    void api?.saveSettings({ playerScreenDiagonal: diagonal, gridSize: grid, portraitRotation: rotation });
+    setFrameColor(color);
+    void api?.saveSettings({
+      playerScreenDiagonal: diagonal,
+      gridSize: grid,
+      portraitRotation: rotation,
+      frameColor: color,
+    });
   };
 
   const handleRevealAll = async () => {
@@ -980,13 +1000,6 @@ export function App() {
     [updateCircles],
   );
 
-  /** Alt + drag: a copy stays where the circle was, the original moves. */
-  const handleCopyCircleInPlace = (id: string) => {
-    const source = circlesRef.current.find((circle) => circle.id === id);
-    if (!source || circlesRef.current.length >= MAX_CIRCLES) return;
-    replaceCircles([...circlesRef.current, { ...source, id: newCircleId() }]);
-  };
-
   /** Arrow keys: one square, or 1 ft with Shift, in the direction shown on screen. */
   const handleNudgeCircle = (id: string, direction: Point, fine: boolean) => {
     if (!grid) return;
@@ -1034,6 +1047,12 @@ export function App() {
     void api?.saveSettings({ showRulerToPlayers: show });
   };
 
+  const handleToggleZoomLock = () => {
+    const next = !zoomLocked;
+    setZoomLocked(next);
+    void api?.saveSettings({ lockZoom: next });
+  };
+
   const handleMovementRuleChange = (rule: MovementRule) => {
     setMovementRule(rule);
     void api?.saveSettings({ diagonalRule: rule });
@@ -1078,6 +1097,8 @@ export function App() {
     loadMap: (_id: string) => {},
     addMaps: () => {},
     toggleLibrary: () => {},
+    zoomLocked: false,
+    toggleZoomLock: () => {},
   });
   shortcutState.current = {
     hasMap: !!mediaUrl,
@@ -1092,12 +1113,16 @@ export function App() {
     loadMap: handleLoadMap,
     addMaps: () => void handleAddMaps(),
     toggleLibrary: handleToggleLibrary,
+    zoomLocked,
+    toggleZoomLock: handleToggleZoomLock,
   };
   const viewControls = useRef<ViewControls | null>(null);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Shift') setShiftHeld(true);
+      // Held Alt moves the player frame from any tool (AltGr reports AltGraph, so typing is unaffected)
+      if (event.key === 'Alt') setAltHeld(true);
       if (isTypingTarget(event.target) || document.querySelector('[role="dialog"]')) return;
       const current = shortcutState.current;
       const { hasMap, history: currentHistory } = current;
@@ -1153,11 +1178,11 @@ export function App() {
         return;
       }
       if (event.key === '?') setDialog('shortcuts');
-      else if ((event.key === '+' || event.key === '=') && hasMap) setZoom((zoom) => stepZoom(zoom, 1));
-      else if (event.key === '-' && hasMap) setZoom((zoom) => stepZoom(zoom, -1));
-      else if (event.key === ' ') {
+      else if (event.key === '+' || event.key === '=' || event.key === '-') {
+        if (hasMap && !current.zoomLocked) setZoom((zoom) => stepZoom(zoom, event.key === '-' ? -1 : 1));
+      } else if (event.key === ' ') {
         event.preventDefault();
-        setSpaceHeld(true);
+        if (!event.repeat) current.toggleZoomLock();
       } else if (key === 'v') changeTool('view');
       else if (key === 'f' && hasMap) changeTool('fog');
       else if (key === 'l' && hasMap) {
@@ -1171,11 +1196,11 @@ export function App() {
     };
     const onKeyUp = (event: KeyboardEvent) => {
       if (event.key === 'Shift') setShiftHeld(false);
-      if (event.key === ' ') setSpaceHeld(false);
+      if (event.key === 'Alt') setAltHeld(false);
     };
     const onBlur = () => {
       setShiftHeld(false);
-      setSpaceHeld(false);
+      setAltHeld(false);
     };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
@@ -1215,6 +1240,7 @@ export function App() {
     onShowRulerToPlayersChange: handleShowRulerToPlayers,
     onRevealAll: handleRevealAll,
     onZoomChange: (next: number) => setZoom(clampZoom(next)),
+    onToggleZoomLock: handleToggleZoomLock,
     onToggleFit16by9: handleToggleFit16by9,
     onTrueScale: handleTrueScale,
     onOpenPlayer: handleOpenPlayer,
@@ -1280,6 +1306,7 @@ export function App() {
           onFogLassoChange={setFogLasso}
           onCoverAll={fog.coverAll}
           zoom={zoom}
+          zoomLocked={zoomLocked}
           fit16by9={fit16by9}
           atTrueScale={atTrueScale}
           trueScaleNeeds={trueScaleNeeds}
@@ -1334,10 +1361,10 @@ export function App() {
           fog={fog}
           effects={effects}
           effectKind={effectKind}
-          tool={spaceHeld ? 'view' : tool}
+          tool={altHeld ? 'view' : tool}
           shiftHeld={shiftHeld}
           fogLasso={fogLasso}
-          spaceHeld={spaceHeld}
+          altHeld={altHeld}
           brushSize={brushSize}
           onBrushResize={resizeBrush}
           pan={pan}
@@ -1346,7 +1373,12 @@ export function App() {
           gridCell={gridCell}
           constrainPan={constrainPan}
           onPanChange={(next) => applyPan(next, frameSize)}
+          zoomLocked={zoomLocked}
+          frameColor={frameColor}
           onZoomWheel={(factor) => setZoom((current) => clampZoom(current * factor))}
+          onZoomPercentStep={(steps) =>
+            setZoom((current) => clampZoom((Math.round(current * 100) + steps) / 100))
+          }
           grid={grid}
           diagonalRule={measureStraight ? 'straight' : movementRule}
           onRulerChange={handleRulerChange}
@@ -1354,10 +1386,7 @@ export function App() {
           circles={circles}
           selectedCircleId={selectedCircleId}
           circlesInteractive={
-            showEffectTools &&
-            !calibration &&
-            !shiftHeld &&
-            (spaceHeld || tool === 'view' || tool === 'shapes')
+            showEffectTools && !calibration && !shiftHeld && (altHeld || tool === 'view' || tool === 'shapes')
           }
           onSelectCircle={setSelectedCircleId}
           onCircleDrag={handleCircleDrag}
@@ -1367,7 +1396,6 @@ export function App() {
           onSetCircleWidth={handleSetCircleWidth}
           onAimCircle={handleAimCircle}
           onDuplicateCircle={handleDuplicateCircle}
-          onCopyCircleInPlace={handleCopyCircleInPlace}
           onDeleteCircle={handleDeleteCircle}
           onRecolorCircle={handleRecolorCircle}
           calibrationPoints={calibration?.points ?? null}
@@ -1381,6 +1409,7 @@ export function App() {
           diagonal={screenDiagonal}
           gridSize={gridSize}
           portraitRotation={portraitRotation}
+          frameColor={frameColor}
           viewportSize={viewportSize}
           onSave={handleSavePlayerSetup}
           onClose={() => setDialog(null)}

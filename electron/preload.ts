@@ -137,6 +137,8 @@ const api = {
   isFullScreen: (): Promise<boolean> => ipcRenderer.invoke('window:isFullScreen'),
   onFullScreenChanged: (callback: (isFullScreen: boolean) => void) =>
     subscribe('window:fullScreenChanged', callback),
+  /** The bare Alt key was released; the main process keeps that keyup from the page. */
+  onAltReleased: (callback: () => void) => subscribe('window:altReleased', callback),
   reloadWindow: (): void => ipcRenderer.send('window:reload'),
   toggleDevTools: (): void => ipcRenderer.send('window:toggleDevTools'),
   quitApp: (): void => ipcRenderer.send('app:quit'),

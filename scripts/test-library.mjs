@@ -671,6 +671,20 @@ app.whenReady().then(async () => {
         (await lib.saveSettings({ showRulerToPlayers: true })) === true &&
         (await lib.loadSnapshot()).settings.showRulerToPlayers === true,
     );
+    check(
+      'the player view zoom is unlocked until locked',
+      (await lib.loadSnapshot()).settings.lockZoom === false &&
+        (await lib.saveSettings({ lockZoom: 1 })) === false &&
+        (await lib.saveSettings({ lockZoom: true })) === true &&
+        (await lib.loadSnapshot()).settings.lockZoom === true,
+    );
+    check(
+      'the player view frame is teal until another listed colour is chosen',
+      (await lib.loadSnapshot()).settings.frameColor === 'teal' &&
+        (await lib.saveSettings({ frameColor: 'gold' })) === false &&
+        (await lib.saveSettings({ frameColor: 'sky' })) === true &&
+        (await lib.loadSnapshot()).settings.frameColor === 'sky',
+    );
 
     // Area templates: old circles load unchanged, shapes have the D&D outlines
     const discs = gridLib.normalizeDiscs([

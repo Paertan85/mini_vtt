@@ -9,6 +9,8 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import {
   ChevronDown,
+  Lock,
+  LockOpen,
   Minus,
   PanelLeftClose,
   PanelLeftOpen,
@@ -78,6 +80,9 @@ interface ToolbarProps {
 
   zoom: number;
   onZoomChange: (zoom: number) => void;
+  /** The player view zoom is locked against the wheel, the keys and the zoom controls */
+  zoomLocked: boolean;
+  onToggleZoomLock: () => void;
   fit16by9: boolean;
   onToggleFit16by9: () => void;
   /** Whether the player view is at true scale: the map's squares the size set in Player screen setup */
@@ -131,7 +136,7 @@ const TRUE_SCALE_NOTES: Record<TrueScaleNeed, { text: string; action: string }> 
 // Memoized: the DM window re-renders on every frame of a drag, and the toolbar
 // never depends on that
 export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
-  const { hasMap, tool, zoom, trueScaleNeeds } = props;
+  const { hasMap, tool, zoom, zoomLocked, trueScaleNeeds } = props;
   const layerName = tool === 'effect' ? 'effects' : 'fog';
 
   // The note beneath True scale saying what it still needs
@@ -173,7 +178,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
           tone={tool === 'view' ? 'active' : 'default'}
           aria-pressed={tool === 'view'}
           onClick={() => props.onToolChange('view')}
-          title="View: drag the frame to move the player view (V). Hold Space to move it while painting."
+          title="View: drag the frame to move the player view (V). Hold Alt to move it while painting."
         >
           View
         </Button>
@@ -412,12 +417,27 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
       <Divider />
 
       {/* Player view zoom */}
-      <ZoomControl zoom={zoom} onChange={props.onZoomChange} disabled={!hasMap} />
+      <ZoomControl zoom={zoom} onChange={props.onZoomChange} disabled={!hasMap || zoomLocked} />
+      <Button
+        square
+        tone={zoomLocked ? 'active' : 'default'}
+        aria-pressed={zoomLocked}
+        aria-label="Lock zoom"
+        onClick={props.onToggleZoomLock}
+        title={
+          zoomLocked
+            ? 'Player view zoom is locked: the mouse wheel, the + and − keys and the zoom buttons leave it alone. Click or press Space to unlock.'
+            : 'Lock the player view zoom (Space), so the mouse wheel or the + and − keys can’t change it by accident'
+        }
+      >
+        {zoomLocked ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}
+      </Button>
       <Button
         tone={props.fit16by9 ? 'active' : 'default'}
         aria-pressed={props.fit16by9}
         onClick={props.onToggleFit16by9}
-        disabled={!hasMap || !props.playerOpen}
+        // Turning it on zooms the player view; turning it off doesn't
+        disabled={!hasMap || !props.playerOpen || (zoomLocked && !props.fit16by9)}
         title="Resize the player window to 16:9 and fill it with the map"
       >
         Fit 16:9
@@ -429,7 +449,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         aria-haspopup={trueScaleNeeds ? 'dialog' : undefined}
         aria-expanded={trueScaleNeeds ? trueScaleNote : undefined}
         onClick={() => (trueScaleNeeds ? setTrueScaleNote((shown) => !shown) : props.onTrueScale())}
-        disabled={!hasMap}
+        disabled={!hasMap || zoomLocked}
         title="Zoom the player view so the map’s squares are the grid square size from Player screen setup, for miniatures. A map without a grid gets it measured first."
       >
         True scale
@@ -548,7 +568,7 @@ function ZoomControl({
   return (
     <div
       className="flex items-center gap-2"
-      title="Player view zoom: + and − keys, or mouse wheel over the player frame in the View tool"
+      title="Player view zoom: + and − keys, mouse wheel over the player frame in the View tool, or Alt + mouse wheel in 1% steps"
     >
       <span className="text-[13px] text-muted">Zoom</span>
       <ButtonGroup label="Player view zoom">

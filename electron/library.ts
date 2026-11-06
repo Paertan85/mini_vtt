@@ -29,6 +29,7 @@ import {
   normalizeGrid,
 } from '../src/lib/grid';
 import { EFFECT_STYLES } from '../src/lib/effects';
+import { DEFAULT_FRAME_COLOR, isFrameColor } from '../src/lib/frameColors';
 
 // ─── On-disk map library ──────────────────────────────────────────────────────
 //
@@ -269,6 +270,8 @@ function normalizeSettings(stored: unknown): LibrarySettings {
       ? raw.portraitRotation
       : DEFAULT_SETTINGS.portraitRotation,
     showRulerToPlayers: raw.showRulerToPlayers === true,
+    lockZoom: raw.lockZoom === true,
+    frameColor: isFrameColor(raw.frameColor) ? raw.frameColor : DEFAULT_FRAME_COLOR,
     diagonalRule: isMovementRule(raw.diagonalRule) ? raw.diagonalRule : DEFAULT_SETTINGS.diagonalRule,
     ...(mapOrder ? { mapOrder } : {}),
   };
@@ -284,6 +287,8 @@ const DEFAULT_SETTINGS: LibrarySettings = {
   portraitRotation: 270,
   diagonalRule: DEFAULT_MOVEMENT_RULE,
   showRulerToPlayers: false,
+  lockZoom: false,
+  frameColor: DEFAULT_FRAME_COLOR,
 };
 
 /** Turns a new portrait map or handout can get: none, right or left. */
@@ -1043,6 +1048,8 @@ export async function saveSettings(patch: Partial<LibrarySettings>): Promise<boo
   if (typeof patch.showLibrary === 'boolean') clean.showLibrary = patch.showLibrary;
   if (isPortraitRotation(patch.portraitRotation)) clean.portraitRotation = patch.portraitRotation;
   if (typeof patch.showRulerToPlayers === 'boolean') clean.showRulerToPlayers = patch.showRulerToPlayers;
+  if (typeof patch.lockZoom === 'boolean') clean.lockZoom = patch.lockZoom;
+  if (isFrameColor(patch.frameColor)) clean.frameColor = patch.frameColor;
   if (isMovementRule(patch.diagonalRule)) clean.diagonalRule = patch.diagonalRule;
   if (Object.keys(clean).length === 0) return false;
   await mutateIndex((index) => {

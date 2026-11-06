@@ -90,16 +90,19 @@ function loadPage(target: BrowserWindow, mode?: 'view') {
 }
 
 /**
- * Hide a window's menu bar for good. Its shortcuts still work, but Alt (snap,
- * zoom the DM view) must not pop it up: over the DM window's layout, or on the
- * table screen. On Windows a hidden menu still takes focus when Alt is
- * released, so the bare Alt key is swallowed; mouse and wheel events still
- * report Alt as held.
+ * Hide a window's menu bar for good. Its shortcuts still work, but Alt (move
+ * and zoom the player view) must not pop it up: over the DM window's layout,
+ * or on the table screen. On Windows a hidden menu still takes focus when Alt
+ * is released, so the bare Alt release is swallowed and the page is told
+ * instead. The press goes through: swallowing it would also drop its release
+ * before this handler sees it, and the page would think Alt stays held.
  */
 function hideMenuBar(target: BrowserWindow) {
   target.setMenuBarVisibility(false);
   target.webContents.on('before-input-event', (event, input) => {
-    if (input.key === 'Alt' && !input.control && !input.shift && !input.meta) event.preventDefault();
+    if (input.key !== 'Alt' || input.type !== 'keyUp' || input.control || input.shift || input.meta) return;
+    event.preventDefault();
+    target.webContents.send('window:altReleased');
   });
 }
 

@@ -1,5 +1,7 @@
 // Types shared by the main process, the preload bridge and both windows.
 
+import type { FrameColor } from '../lib/frameColors';
+
 export type MediaType = 'image' | 'video';
 
 /** What a fog stroke does: `reveal` erases fog, `cover` paints it back. */
@@ -154,6 +156,10 @@ export interface LibrarySettings {
   diagonalRule: MovementRule;
   /** Whether the Measure tool's ruler is also shown on the player screen */
   showRulerToPlayers: boolean;
+  /** Whether the player view zoom is locked, so a stray wheel or key can't change it */
+  lockZoom: boolean;
+  /** Colour of the player view frame in the DM window */
+  frameColor: FrameColor;
 }
 
 /**

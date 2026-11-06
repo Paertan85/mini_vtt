@@ -6,19 +6,22 @@
 //         measure tool  drag to measure a distance in feet
 //         any tool      Shift + left/right paints fog
 //
-// Wheel:  Ctrl or Alt   zooms the DM view around the pointer (touchpad pinch
+// Wheel:  Ctrl          zooms the DM view around the pointer (touchpad pinch
 //                       too); players are unaffected
+//         Alt           zooms the player view in 1% steps, in any tool
 //         plain         resizes what you work with: the selected circle under
 //                       the pointer (5 ft per notch), else the brush (Fog and
 //                       Effects tools, or while Shift is held), else the player
-//                       view when over the frame (View tool)
+//                       view when over the frame (View tool, unless its zoom
+//                       is locked)
 //
-// Panning a zoomed DM view: middle-button drag, or Space + drag.
+// Panning a zoomed DM view: middle-button drag. Alt + drag on the player
+// frame moves it from any tool, zoomed in or not.
 // Circles (View and Shapes tools): drag the centre dot to move (Ctrl: snap
-// to square centres; Alt: leave a copy behind).
+// to square centres).
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Copy, Trash2 } from 'lucide-react';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Copy, Lock, Trash2 } from 'lucide-react';
 import type {
   AuraCircle,
   DiagonalRule,
@@ -46,6 +49,7 @@ import { MeasureLayer } from './MeasureLayer';
 import { mapToOriented, orientedSize, wheelPixels, type Size } from '../lib/geometry';
 import { keyLabel } from '../lib/platform';
 import { releaseVideo } from '../lib/video';
+import { FRAME_COLOR_STYLES, type FrameColor } from '../lib/frameColors';
 
 export type Tool = 'view' | 'fog' | 'effect' | 'shapes' | 'measure';
 
@@ -67,8 +71,8 @@ interface MapStageProps {
   shiftHeld: boolean;
   /** Fog tool draws outlines whose inside is revealed or covered, not brush strokes */
   fogLasso: boolean;
-  /** Space + drag pans a zoomed DM view (otherwise it moves the player frame) */
-  spaceHeld: boolean;
+  /** Alt held: the player frame can be dragged from any tool */
+  altHeld: boolean;
   brushSize: number;
   onBrushResize: (direction: 1 | -1) => void;
 
@@ -80,7 +84,13 @@ interface MapStageProps {
   gridCell: number;
   constrainPan: (pan: MapPan) => MapPan;
   onPanChange: (pan: MapPan) => void;
+  /** The player view zoom is locked: the wheel over the frame leaves it alone */
+  zoomLocked: boolean;
+  /** Colour of the player view frame */
+  frameColor: FrameColor;
   onZoomWheel: (factor: number) => void;
+  /** Alt + wheel: the player view zoom, by whole percent steps (positive zooms in) */
+  onZoomPercentStep: (steps: number) => void;
 
   /** The map's measured grid, needed to size and snap circles */
   grid: MapGrid | null;
@@ -110,8 +120,6 @@ interface MapStageProps {
    */
   onAimCircle: (id: string, point: Point, snap: boolean) => void;
   onDuplicateCircle: (id: string) => void;
-  /** Alt + drag: leave a copy where the circle was */
-  onCopyCircleInPlace: (id: string) => void;
   onDeleteCircle: (id: string) => void;
   onRecolorCircle: (id: string, kind: EffectKind) => void;
 
@@ -164,7 +172,7 @@ export function MapStage(props: MapStageProps) {
     tool,
     shiftHeld,
     fogLasso,
-    spaceHeld,
+    altHeld,
     brushSize,
     pan,
     viewportSize,
@@ -192,7 +200,9 @@ export function MapStage(props: MapStageProps) {
   const circleDragRef = useRef<{ id: string; pointerId: number; aim: boolean } | null>(null);
   const wheelRemainderRef = useRef(0);
   const brushWheelRef = useRef(0);
+  const playerWheelRef = useRef(0);
   const viewDragRef = useRef<{ start: Point; startView: ViewZoom; pointerId: number } | null>(null);
+  const altFrameDragRef = useRef<{ start: Point; startPan: MapPan; pointerId: number } | null>(null);
   const [available, setAvailable] = useState<Size>({ w: 0, h: 0 });
   // DM-only zoom and pan; the player screen never sees it
   const [view, setView] = useState<ViewZoom>(FIT_VIEW);
@@ -314,8 +324,13 @@ export function MapStage(props: MapStageProps) {
   const hideCursor = () => {
     if (cursorRef.current) cursorRef.current.style.visibility = 'hidden';
   };
+  // Where the pointer last was over the map, so pressing Shift shows the brush
+  // straight away instead of on the next move
+  const lastPointerRef = useRef<Point | null>(null);
   useEffect(() => {
+    const last = lastPointerRef.current;
     if (!canPaint || drawsLasso) hideCursor();
+    else if (last) moveCursor(last.x, last.y);
   }, [canPaint, drawsLasso]);
 
   // ─── Painting ──────────────────────────────────────────────────────────────
@@ -392,9 +407,9 @@ export function MapStage(props: MapStageProps) {
     const onWheel = (event: WheelEvent) => {
       const current = latest.current;
       if (!current.mediaUrl) return;
-      // Ctrl, Cmd or Alt + wheel zooms the DM view in any tool, keeping the spot
+      // Ctrl or Cmd + wheel zooms the DM view in any tool, keeping the spot
       // under the pointer. A touchpad pinch arrives as Ctrl + wheel.
-      if (event.ctrlKey || event.metaKey || event.altKey) {
+      if (event.ctrlKey || event.metaKey) {
         event.preventDefault();
         const rect = container.getBoundingClientRect();
         hideCursor(); // it would sit off the pointer until the next move
@@ -412,6 +427,15 @@ export function MapStage(props: MapStageProps) {
         remainder.current = total - notches * WHEEL_NOTCH;
         return notches;
       };
+      // Alt + wheel, like Alt + drag, works on the player view: its zoom in
+      // 1% steps, anywhere over the map and in any tool, unless it is locked
+      if (event.altKey) {
+        event.preventDefault();
+        if (current.zoomLocked) return;
+        const notches = notchesFrom(playerWheelRef);
+        if (notches !== 0) current.onZoomPercentStep(notches);
+        return;
+      }
       // The wheel over the selected circle resizes it
       const selected = current.circlesInteractive
         ? current.circles.find((circle) => circle.id === current.selectedCircleId)
@@ -439,7 +463,7 @@ export function MapStage(props: MapStageProps) {
       // View tool, pointer over the player frame: the player view zoom. Not in
       // the Shapes tool, where a wheel that just misses a shape would zoom it.
       const { pan: framePan, viewportSize: viewport, zoom: playerZoom } = current;
-      if (current.tool === 'view' && framePan && viewport && surface) {
+      if (current.tool === 'view' && !current.zoomLocked && framePan && viewport && surface) {
         const { displayScale: scale } = geometry.current;
         const rect = surface.getBoundingClientRect();
         const x = (event.clientX - rect.left) / scale - framePan.x;
@@ -454,23 +478,57 @@ export function MapStage(props: MapStageProps) {
     return () => container.removeEventListener('wheel', onWheel);
   }, []);
 
-  // ─── DM view: middle-button drag (or Space + drag) pans a zoomed map ───────
+  // ─── DM view: middle-button drag pans a zoomed map; Alt + drag the frame ───
 
-  /** Runs in the capture phase, so a pan never also paints or drags the frame. */
+  /**
+   * Runs in the capture phase, so a pan never also paints or drags the frame.
+   * Alt + drag also moves the player frame from any tool. Alt is read from the
+   * press itself as well as the key: Windows doesn't always deliver the Alt
+   * keydown before the press.
+   */
   const handleViewPointerDown = (event: React.PointerEvent<HTMLElement>) => {
-    const pans = event.button === 1 || (event.button === 0 && spaceHeld);
-    if (!pans || shownView.zoom <= 1) return;
+    const alt = event.button === 0 && (altHeld || event.altKey);
+    if (event.button === 1 && shownView.zoom > 1) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      viewDragRef.current = {
+        start: { x: event.clientX, y: event.clientY },
+        startView: shownView,
+        pointerId: event.pointerId,
+      };
+      return;
+    }
+    // Alt + drag on the frame moves it, whatever the tool; an area's own
+    // handles still drag the area
+    const surface = surfaceRef.current;
+    if (!alt || !pan || !viewportSize || !surface) return;
+    if (event.target instanceof Element && event.target.closest('button')) return;
+    const rect = surface.getBoundingClientRect();
+    const x = (event.clientX - rect.left) / displayScale - pan.x;
+    const y = (event.clientY - rect.top) / displayScale - pan.y;
+    if (x < 0 || y < 0 || x > viewportSize.w / zoom || y > viewportSize.h / zoom) return;
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
-    viewDragRef.current = {
+    altFrameDragRef.current = {
       start: { x: event.clientX, y: event.clientY },
-      startView: shownView,
+      startPan: pan,
       pointerId: event.pointerId,
     };
   };
 
   const handleViewPointerMove = (event: React.PointerEvent<HTMLElement>) => {
+    const frameDrag = altFrameDragRef.current;
+    if (frameDrag?.pointerId === event.pointerId) {
+      props.onPanChange(
+        props.constrainPan({
+          x: frameDrag.startPan.x + (event.clientX - frameDrag.start.x) / displayScale,
+          y: frameDrag.startPan.y + (event.clientY - frameDrag.start.y) / displayScale,
+        }),
+      );
+      return;
+    }
     const drag = viewDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     setView(
@@ -484,6 +542,7 @@ export function MapStage(props: MapStageProps) {
 
   const endViewDrag = (event: React.PointerEvent<HTMLElement>) => {
     if (viewDragRef.current?.pointerId === event.pointerId) viewDragRef.current = null;
+    if (altFrameDragRef.current?.pointerId === event.pointerId) altFrameDragRef.current = null;
   };
 
   // ─── Player frame dragging ────────────────────────────────────────────────
@@ -520,7 +579,6 @@ export function MapStage(props: MapStageProps) {
     event.currentTarget.setPointerCapture(event.pointerId);
     circleDragRef.current = { id, pointerId: event.pointerId, aim };
     wheelRemainderRef.current = 0;
-    if (event.altKey && !aim) props.onCopyCircleInPlace(id);
     props.onSelectCircle(id);
     props.onCircleDrag(true);
   };
@@ -564,6 +622,7 @@ export function MapStage(props: MapStageProps) {
   const discs = useMemo(() => toDiscs(circles, grid), [circles, grid]);
   const previewCell = gridPreview ? gridPreview.cell * displayScale : 0;
   const gridPx = gridCell * displayScale;
+  const frameRgb = FRAME_COLOR_STYLES[props.frameColor].rgb;
   const handleMediaLoad = (event: React.SyntheticEvent<HTMLImageElement | HTMLVideoElement>) => {
     const size = mediaSizeOf(event.currentTarget);
     if (size.w && size.h) props.onMediaLoad(size);
@@ -590,7 +649,13 @@ export function MapStage(props: MapStageProps) {
             height: surfaceSize.h,
             transform: shownView.zoom > 1 ? `translate(${shownView.x}px, ${shownView.y}px)` : undefined,
           }}
-          onPointerLeave={hideCursor}
+          onPointerMove={(event) => {
+            lastPointerRef.current = { x: event.clientX, y: event.clientY };
+          }}
+          onPointerLeave={() => {
+            lastPointerRef.current = null;
+            hideCursor();
+          }}
           onPointerDownCapture={(event) => {
             const target = event.target as HTMLElement;
             if (event.button === 1) return; // panning the view keeps the selection
@@ -649,16 +714,12 @@ export function MapStage(props: MapStageProps) {
             />
             <AuraDiscs discs={discs} media={mediaSize} />
             {gridPreview && previewCell > 1 && (
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0 z-10"
-                style={{
-                  backgroundImage:
-                    'linear-gradient(to right, rgb(212 175 55 / 0.8) 0 1px, transparent 1px),' +
-                    'linear-gradient(to bottom, rgb(212 175 55 / 0.8) 0 1px, transparent 1px)',
-                  backgroundSize: `${previewCell}px ${previewCell}px`,
-                  backgroundPosition: `${gridPreview.offsetX * displayScale}px ${gridPreview.offsetY * displayScale}px`,
-                }}
+              <GridLines
+                cell={previewCell}
+                color="rgb(212 175 55 / 0.8)"
+                offsetX={gridPreview.offsetX * displayScale}
+                offsetY={gridPreview.offsetY * displayScale}
+                className="z-10"
               />
             )}
             <canvas
@@ -696,25 +757,33 @@ export function MapStage(props: MapStageProps) {
           {pan && viewportSize && (
             <div
               aria-label="Player view"
-              className={`absolute z-10 border-2 border-arcane bg-arcane/10 ${
-                frameDraggable ? 'cursor-move' : 'pointer-events-none'
-              }`}
+              className={`absolute z-10 border-2 ${frameDraggable ? 'cursor-move' : 'pointer-events-none'}`}
               style={{
                 left: pan.x * displayScale,
                 top: pan.y * displayScale,
                 width: (viewportSize.w / zoom) * displayScale,
                 height: (viewportSize.h / zoom) * displayScale,
-                backgroundImage:
-                  gridPx > 2
-                    ? `repeating-linear-gradient(to right, rgb(74 168 160 / 0.35) 0 1px, transparent 1px ${gridPx}px),` +
-                      `repeating-linear-gradient(to bottom, rgb(74 168 160 / 0.35) 0 1px, transparent 1px ${gridPx}px)`
-                    : undefined,
+                borderColor: `rgb(${frameRgb})`,
+                backgroundColor: `rgb(${frameRgb} / 0.1)`,
               }}
               onPointerDown={handleFramePointerDown}
               onPointerMove={handleFramePointerMove}
               onPointerUp={endFrameDrag}
               onPointerCancel={endFrameDrag}
-            />
+            >
+              {gridPx > 2 && <GridLines cell={gridPx} color={`rgb(${frameRgb} / 0.35)`} />}
+              {/* A locked zoom shows as a padlock, like a locked layer in an image editor */}
+              {props.zoomLocked && (
+                <span
+                  aria-label={`Zoom locked at ${Math.round(zoom * 100)}%`}
+                  className="pointer-events-none absolute right-1 top-1 flex items-center gap-1 rounded border bg-ground/85 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-ink"
+                  style={{ borderColor: `rgb(${frameRgb})` }}
+                >
+                  <Lock className="h-3 w-3" aria-hidden="true" />
+                  {Math.round(zoom * 100)}%
+                </span>
+              )}
+            </div>
           )}
 
           {circlesInteractive &&
@@ -786,7 +855,7 @@ export function MapStage(props: MapStageProps) {
                     type="button"
                     aria-label={`${label}, ${sizeText}`}
                     title={keyLabel(
-                      `Drag to move (Ctrl: snap to the grid, Alt: leave a copy). Mouse wheel over it changes the ${
+                      `Drag to move (Ctrl: snap to the grid). Mouse wheel over it changes the ${
                         circle.shape === 'line' ? 'width' : 'size'
                       }; arrow keys nudge it.`,
                     )}
@@ -948,7 +1017,7 @@ export function MapStage(props: MapStageProps) {
         <button
           type="button"
           title={keyLabel(
-            'DM view only; players are unaffected. Alt + mouse wheel zooms, middle-drag pans. Click to fit the map.',
+            'DM view only; players are unaffected. Ctrl + mouse wheel zooms, middle-drag pans. Click to fit the map.',
           )}
           onClick={() => setView(FIT_VIEW)}
           className="absolute bottom-3 right-3 z-50 rounded border border-line bg-panel/90 px-2 py-1 text-[12px] tabular-nums text-ink hover:bg-raised"
@@ -957,5 +1026,43 @@ export function MapStage(props: MapStageProps) {
         </button>
       )}
     </main>
+  );
+}
+
+/**
+ * Square grid lines, `cell` screen px apart, the first at (offsetX, offsetY).
+ * An SVG pattern rather than a CSS gradient: Chromium samples a gradient's
+ * colours at a limited resolution, so a 1px line in a square hundreds of
+ * pixels wide (a DM view zoomed far in) falls between samples and vanishes.
+ */
+function GridLines({
+  cell,
+  color,
+  offsetX = 0,
+  offsetY = 0,
+  className = '',
+}: {
+  cell: number;
+  color: string;
+  offsetX?: number;
+  offsetY?: number;
+  className?: string;
+}) {
+  // useId's colons would need escaping inside url()
+  const id = `grid-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  return (
+    <svg aria-hidden="true" className={`pointer-events-none absolute inset-0 h-full w-full ${className}`}>
+      <defs>
+        <pattern id={id} patternUnits="userSpaceOnUse" x={offsetX} y={offsetY} width={cell} height={cell}>
+          <path
+            d={`M0 0.5H${cell}M0.5 0V${cell}`}
+            stroke={color}
+            strokeWidth={1}
+            shapeRendering="crispEdges"
+          />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill={`url(#${id})`} />
+    </svg>
   );
 }
