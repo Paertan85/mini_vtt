@@ -56,6 +56,7 @@ app.whenReady().then(async () => {
   const saveLib = await import('../dist-electron/delayedSave.test.mjs');
   const areasLib = await import('../dist-electron/areas.test.mjs');
   const geometryLib = await import('../dist-electron/geometry.test.mjs');
+  const shortcutsLib = await import('../dist-electron/shortcuts.test.mjs');
   const fixtures = path.join(tmp, 'fixtures');
   await fs.mkdir(fixtures, { recursive: true });
   const fixture = async (name, bytes) => {
@@ -992,6 +993,53 @@ app.whenReady().then(async () => {
           added.x === 5 &&
           added.kind === 'magic',
         JSON.stringify(added),
+      );
+    }
+
+    // Keyboard shortcuts: one table for the key handler and the shortcuts list
+    {
+      const press = (key, modifiers = {}) =>
+        shortcutsLib.commandFor({
+          key,
+          ctrlKey: false,
+          metaKey: false,
+          altKey: false,
+          shiftKey: false,
+          ...modifiers,
+        });
+      check(
+        'keys find their commands, with and without modifiers',
+        press('z', { ctrlKey: true }) === 'undo' &&
+          press('Z', { ctrlKey: true, shiftKey: true }) === 'redo' &&
+          press('y', { metaKey: true }) === 'redo' &&
+          press('b') === 'blackout' &&
+          press('b', { ctrlKey: true }) === 'toggleLibrary' &&
+          press('V', { shiftKey: true }) === 'viewTool' &&
+          press('?', { shiftKey: true }) === 'showShortcuts' &&
+          press('ArrowUp', { shiftKey: true }) === 'nudgeArea',
+      );
+      check(
+        'AltGr still sizes the brush, but Alt keeps plain keys from acting',
+        press(']', { ctrlKey: true, altKey: true }) === 'brushSize' &&
+          press('v', { altKey: true }) === null &&
+          press('q') === null,
+      );
+      const listed = new Set(
+        shortcutsLib.SHORTCUT_GROUPS.flatMap((group) =>
+          group.shortcuts.flatMap(([, ways]) =>
+            ways.filter((way) => typeof way !== 'string').map((way) => way.keys),
+          ),
+        ),
+      );
+      const labelled = new Set(
+        shortcutsLib.KEY_BINDINGS.filter((binding) => binding.label).map((binding) => binding.command),
+      );
+      const commands = new Set(shortcutsLib.KEY_BINDINGS.map((binding) => binding.command));
+      check(
+        'the shortcuts list shows every command, each with its keys',
+        [...commands].every((command) => listed.has(command) && labelled.has(command)) &&
+          [...listed].every((command) => commands.has(command)),
+        [...commands].filter((command) => !listed.has(command) || !labelled.has(command)).join(', '),
       );
     }
 

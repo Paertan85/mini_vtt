@@ -91,7 +91,9 @@ All notable changes to this project are documented here. The format is based on
   (General, Fog, Player view, Spell areas and so on), with the most used
   first and one action per line. Keys show as key caps and mouse actions
   as words, with "or" between alternatives. It fits the window without
-  scrolling, on a Steam Deck too.
+  scrolling, on a Steam Deck too. It now also names Esc, which deselects a
+  spell area, and its keys come from the same table as the shortcuts
+  themselves, so the list always matches what the keys do.
 - Messages show right beneath the button you pressed (Save grid, Export
   project, Add maps, Remove and the rest) instead of in the bottom right
   corner. Only those with nothing to point at, such as a keyboard

@@ -34,6 +34,7 @@ import { useEffectLayer } from './hooks/useEffectLayer';
 import { useSettings } from './hooks/useSettings';
 import { useAreas } from './hooks/useAreas';
 import { useLoadedMap } from './hooks/useLoadedMap';
+import { commandFor, type Command } from './lib/shortcuts';
 import {
   clamp,
   clampZoom,
@@ -54,6 +55,14 @@ import { Button } from './ui/controls';
 import { NotificationHost, confirmAction, notify, pressedControl, type Anchor } from './ui/notify';
 
 const VIEW_SAVE_DELAY_MS = 400;
+
+/** The arrow keys' directions on screen, for nudging an area. */
+const ARROW_DIRECTIONS: Record<string, Point> = {
+  ArrowLeft: { x: -1, y: 0 },
+  ArrowRight: { x: 1, y: 0 },
+  ArrowUp: { x: 0, y: -1 },
+  ArrowDown: { x: 0, y: 1 },
+};
 
 /** Pan and fog to apply once the map being loaded has finished loading. */
 interface PendingRestore {
@@ -882,39 +891,51 @@ export function App() {
 
   // Undo and redo apply to the layer of the active tool
   const history = tool === 'effect' ? effects : fog;
-  const shortcutState = useRef({
-    hasMap: false,
-    history,
-    showEffectTools,
-    selectedCircleId,
-    calibrating: false,
-    deleteCircle: areas.remove,
-    duplicateCircle: (_id: string) => {},
-    nudgeCircle: (_id: string, _direction: Point, _fine: boolean) => {},
-    selectedMapId: null as string | null,
-    loadMap: (_id: string) => {},
-    addMaps: () => {},
-    toggleLibrary: () => {},
-    zoomLocked: false,
-    toggleZoomLock: () => {},
-  });
-  shortcutState.current = {
-    hasMap: !!mediaUrl,
-    history,
-    showEffectTools,
-    selectedCircleId,
-    calibrating: !!calibration,
-    deleteCircle: areas.remove,
-    duplicateCircle: areas.duplicate,
-    nudgeCircle: areas.nudge,
-    selectedMapId,
-    loadMap: handleLoadMap,
-    addMaps: () => void handleAddMaps(),
-    toggleLibrary: handleToggleLibrary,
-    zoomLocked,
-    toggleZoomLock: handleToggleZoomLock,
-  };
   const viewControls = useRef<ViewControls | null>(null);
+  const hasMap = !!mediaUrl;
+
+  // What each shortcut does (the keys are in lib/shortcuts.ts). A handler
+  // that returns false didn't apply, so the key keeps its usual effect.
+  const commands: Record<Command, (event: KeyboardEvent) => boolean | void> = {
+    cancel: () => (calibration ? setCalibration(null) : setSelectedCircleId(null)),
+    deleteArea: () => !!selectedCircleId && areas.remove(selectedCircleId),
+    brushSize: (event) => hasMap && resizeBrush(event.key === ']' ? 1 : -1),
+    undo: () => history.undo(),
+    redo: () => history.redo(),
+    viewZoomIn: () => viewControls.current?.zoomBy(1.25),
+    viewZoomOut: () => viewControls.current?.zoomBy(0.8),
+    viewFit: () => viewControls.current?.fit(),
+    duplicateArea: () => !!selectedCircleId && areas.duplicate(selectedCircleId),
+    addMaps: () => void handleAddMaps(),
+    toggleLibrary: () => handleToggleLibrary(),
+    nudgeArea: (event) =>
+      !!selectedCircleId && areas.nudge(selectedCircleId, ARROW_DIRECTIONS[event.key], event.shiftKey),
+    // A focused button handles Enter itself
+    loadSelectedMap: (event) =>
+      !!selectedMapId && !(event.target instanceof HTMLButtonElement) && handleLoadMap(selectedMapId),
+    showShortcuts: () => setDialog('shortcuts'),
+    zoomIn: () => hasMap && !zoomLocked && setZoom((current) => stepZoom(current, 1)),
+    zoomOut: () => hasMap && !zoomLocked && setZoom((current) => stepZoom(current, -1)),
+    // A held Space keeps its first toggle (and never scrolls or presses a button)
+    toggleZoomLock: (event) => {
+      if (!event.repeat) handleToggleZoomLock();
+    },
+    viewTool: () => changeTool('view'),
+    fogTool: () => hasMap && changeTool('fog'),
+    // Switches the Fog tool between brush and lasso
+    lasso: () => {
+      if (!hasMap) return false;
+      changeTool('fog');
+      setFogLasso((lasso) => !lasso);
+    },
+    effectsTool: () => hasMap && showEffectTools && changeTool('effect'),
+    shapesTool: () => hasMap && showEffectTools && changeTool('shapes'),
+    measureTool: () => hasMap && changeTool('measure'),
+    blackout: () => setBlackout((value) => !value),
+  };
+  // Read by the key listener, which is registered once
+  const commandsRef = useRef(commands);
+  commandsRef.current = commands;
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -922,75 +943,8 @@ export function App() {
       // Held Alt moves the player frame from any tool (AltGr reports AltGraph, so typing is unaffected)
       if (event.key === 'Alt') setAltHeld(true);
       if (isTypingTarget(event.target) || document.querySelector('[role="dialog"]')) return;
-      const current = shortcutState.current;
-      const { hasMap, history: currentHistory } = current;
-      const key = event.key.toLowerCase();
-      if (event.key === 'Escape') {
-        if (current.calibrating) setCalibration(null);
-        else setSelectedCircleId(null);
-        return;
-      }
-      if ((event.key === 'Delete' || event.key === 'Backspace') && current.selectedCircleId) {
-        event.preventDefault();
-        current.deleteCircle(current.selectedCircleId);
-        return;
-      }
-      // Before the modifier checks: on Nordic keyboards [ and ] are typed with AltGr (Ctrl+Alt)
-      if ((event.key === '[' || event.key === ']') && hasMap) {
-        event.preventDefault();
-        resizeBrush(event.key === ']' ? 1 : -1);
-        return;
-      }
-      if (event.ctrlKey || event.metaKey) {
-        if (key === 'z' && !event.shiftKey) currentHistory.undo();
-        else if (key === 'y' || (key === 'z' && event.shiftKey)) currentHistory.redo();
-        // Your own view, like a browser or Photoshop; the player view is untouched
-        else if (key === '=' || key === '+') viewControls.current?.zoomBy(1.25);
-        else if (key === '-' || key === '_') viewControls.current?.zoomBy(0.8);
-        else if (key === '0') viewControls.current?.fit();
-        else if (key === 'd' && current.selectedCircleId) current.duplicateCircle(current.selectedCircleId);
-        else if (key === 'o') current.addMaps();
-        else if (key === 'b')
-          current.toggleLibrary(); // the sidebar toggle in editors and file browsers
-        else return;
-        event.preventDefault();
-        return;
-      }
-      if (event.altKey) return;
-      const arrows: Record<string, Point> = {
-        ArrowLeft: { x: -1, y: 0 },
-        ArrowRight: { x: 1, y: 0 },
-        ArrowUp: { x: 0, y: -1 },
-        ArrowDown: { x: 0, y: 1 },
-      };
-      if (arrows[event.key] && current.selectedCircleId) {
-        event.preventDefault();
-        current.nudgeCircle(current.selectedCircleId, arrows[event.key], event.shiftKey);
-        return;
-      }
-      if (event.key === 'Enter' && current.selectedMapId) {
-        // A focused button handles Enter itself
-        if (event.target instanceof HTMLButtonElement) return;
-        event.preventDefault();
-        current.loadMap(current.selectedMapId);
-        return;
-      }
-      if (event.key === '?') setDialog('shortcuts');
-      else if (event.key === '+' || event.key === '=' || event.key === '-') {
-        if (hasMap && !current.zoomLocked) setZoom((zoom) => stepZoom(zoom, event.key === '-' ? -1 : 1));
-      } else if (event.key === ' ') {
-        event.preventDefault();
-        if (!event.repeat) current.toggleZoomLock();
-      } else if (key === 'v') changeTool('view');
-      else if (key === 'f' && hasMap) changeTool('fog');
-      else if (key === 'l' && hasMap) {
-        // L for lasso, as in Photoshop: switches the Fog tool between brush and lasso
-        changeTool('fog');
-        setFogLasso((lasso) => !lasso);
-      } else if (key === 'e' && hasMap && current.showEffectTools) changeTool('effect');
-      else if (key === 's' && hasMap && current.showEffectTools) changeTool('shapes');
-      else if (key === 'm' && hasMap) changeTool('measure');
-      else if (key === 'b') setBlackout((value) => !value);
+      const command = commandFor(event);
+      if (command && commandsRef.current[command](event) !== false) event.preventDefault();
     };
     const onKeyUp = (event: KeyboardEvent) => {
       if (event.key === 'Shift') setShiftHeld(false);
@@ -1008,7 +962,7 @@ export function App() {
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onBlur);
     };
-  }, [resizeBrush, changeTool, setSelectedCircleId, setZoom]);
+  }, []);
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 

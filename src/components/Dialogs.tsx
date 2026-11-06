@@ -6,6 +6,7 @@ import { Button, ButtonGroup, Kbd, inputClass } from '../ui/controls';
 import type { Size } from '../lib/geometry';
 import { keyLabel } from '../lib/platform';
 import { FRAME_COLORS, FRAME_COLOR_STYLES, type FrameColor } from '../lib/frameColors';
+import { SHORTCUT_GROUPS, waysOf } from '../lib/shortcuts';
 
 interface PlayerSetupDialogProps {
   diagonal: number | null;
@@ -177,123 +178,7 @@ export function PlayerSetupDialog({
   );
 }
 
-/**
- * One row: what it does, the ways to do it (shown with "or" between them) and
- * an optional note. In a way, " + " joins a held key to a mouse action; parts
- * naming a mouse action are shown as text, the rest as keys.
- */
-type Shortcut = [action: string, ways: string[], note?: string];
-
-interface ShortcutGroup {
-  title: string;
-  note?: string;
-  shortcuts: Shortcut[];
-}
-
-// Laid out the way GNOME's guidelines for shortcut windows suggest: a General
-// group first, then groups in order of how often they come up at the table, the
-// most used shortcuts first in each, 3 to 8 per group and one action per row.
-const SHORTCUT_GROUPS: ShortcutGroup[] = [
-  {
-    title: 'General',
-    shortcuts: [
-      ['View tool', ['V']],
-      ['Fog tool', ['F']],
-      ['Effects tool', ['E']],
-      ['Shapes tool', ['S']],
-      ['Blackout the player screen', ['B']],
-      ['Undo', ['Ctrl+Z'], 'Fog, or effects in the Effects tool'],
-      ['Redo', ['Ctrl+Y', 'Ctrl+Shift+Z']],
-      ['Show this list', ['?']],
-    ],
-  },
-  {
-    title: 'Fog',
-    shortcuts: [
-      ['Reveal', ['Drag']],
-      ['Cover', ['Right-drag']],
-      ['Lasso on or off', ['L'], 'Draw around a room to reveal or cover it all'],
-      ['Brush size', ['Wheel', '[ ]']],
-      ['Paint fog from any tool', ['Shift + drag']],
-    ],
-  },
-  {
-    title: 'Player view',
-    shortcuts: [
-      ['Move it', ['Drag the frame'], 'View tool'],
-      ['Move it from any tool', ['Alt + drag']],
-      ['Zoom in', ['+']],
-      ['Zoom out', ['−']],
-      ['Zoom', ['Wheel over the frame'], 'View tool'],
-      ['Zoom in 1% steps', ['Alt + wheel'], 'Any tool'],
-      ['Lock or unlock the zoom', ['Space']],
-      ['Full screen', ['F11']],
-    ],
-  },
-  {
-    title: 'Spell areas',
-    shortcuts: [
-      ['Move', ['Drag its dot']],
-      ['Move and snap to the grid', ['Ctrl + drag']],
-      ['Nudge one square', ['Arrow keys'], 'With Shift: 1 ft'],
-      ['Resize in 5 ft steps', ['Wheel over it'], 'A line: its width'],
-      ['Aim a cone or line', ['Drag its tip']],
-      ['Aim in 45° steps', ['Ctrl + drag its tip']],
-      ['Turn a square', ['Drag the edge handle']],
-      ['Duplicate', ['Ctrl+D']],
-      ['Delete', ['Del']],
-    ],
-  },
-  {
-    title: 'Measuring',
-    note: 'Players see it only with Show players on',
-    shortcuts: [
-      ['Measure tool', ['M']],
-      ['Measure a distance', ['Drag']],
-      ['Measure a path round corners', ['Click each point']],
-      ['Finish the path', ['Double-click', 'Enter']],
-      ['Take back the last point', ['Right-click']],
-      ['Clear the ruler', ['Esc', 'Backspace']],
-      ['Snap the points to squares', ['Ctrl + click'], 'Straight line; Movement always snaps'],
-    ],
-  },
-  {
-    title: 'Effects',
-    shortcuts: [
-      ['Paint', ['Drag']],
-      ['Erase', ['Right-drag']],
-      ['Brush size', ['Wheel', '[ ]']],
-    ],
-  },
-  {
-    title: 'Your own view',
-    note: 'Players see no change',
-    shortcuts: [
-      ['Zoom', ['Ctrl + wheel', 'Pinch']],
-      ['Zoom in', ['Ctrl+=']],
-      ['Zoom out', ['Ctrl+−']],
-      ['Fit the map', ['Ctrl+0']],
-      ['Pan when zoomed in', ['Middle-drag']],
-    ],
-  },
-  {
-    title: 'Maps and handouts',
-    shortcuts: [
-      ['Load a map', ['Double-click', 'Enter']],
-      ['Show or hide a handout', ['Double-click']],
-      ['Add maps', ['Ctrl+O']],
-      ['Hide or show their panel', ['Ctrl+B']],
-    ],
-  },
-  {
-    title: 'Handout on the player screen',
-    shortcuts: [
-      ['Move', ['Drag', 'Arrow keys'], 'Arrow keys with Shift: bigger steps'],
-      ['Zoom at the pointer', ['Wheel', 'Pinch']],
-      ['Close', ['Esc']],
-    ],
-  },
-];
+// Rows come from lib/shortcuts.ts, which also drives the key handler.
 
 const MOUSE_ACTION = /drag|click|wheel|pinch/i;
 
@@ -337,7 +222,7 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
                   </dt>
                   {/* A fixed height and line height, so rows with key caps are as tall as the rest */}
                   <dd className="flex h-6 shrink-0 items-center justify-end gap-x-1.5 leading-4">
-                    {ways.map((way, index) => (
+                    {ways.flatMap(waysOf).map((way, index) => (
                       <span key={way} className="flex items-center gap-1.5">
                         {index > 0 && <span className="text-faint">or</span>}
                         <Way way={way} />
