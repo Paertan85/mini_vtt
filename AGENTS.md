@@ -7,23 +7,23 @@
 - Avoid unnecessary full-resolution copies, canvas readbacks, repeated encoding/decoding, and duplicated media buffers. Keep large map and video data out of React state when a URL or ref is sufficient.
 - Use native browser image/video rendering for media playback. Do not process every video frame in JavaScript or add background work that continues when it is not needed.
 - Keep caches and retained media bounded; release resources when maps are switched or removed.
-- For changes that affect rendering, playback, or memory usage, consider their cost on low-end hardware and validate behavior under realistic constraints.
+- For changes that affect rendering, playback, or memory usage, check that nothing keeps running when the feature is inactive, that listeners, timers, observers and media resources are released on map switch or removal, and that caches stay bounded. Say in the change summary what you checked.
 
 ## Working on the code
 
-- Run `npm run typecheck`, `npm run lint`, `npm test` and `npm run test:app` before finishing a change, or `npm run check` for all of them plus the format check (prefix the tests with `xvfb-run -a` on headless Linux).
+- Before finishing a change, run `npm run check` (typecheck, lint, format check, `npm test` and `npm run test:app`). On headless Linux, run `xvfb-run -a npm run check`.
 - All changes to `index.json` go through `mutateIndex()` in `electron/library.ts`; never read-modify-write the index directly.
 - Map loading in the DM window goes through `loadMap()` in `src/App.tsx`, so every per-map setting is restored in one place. Fog changes go through `useFog`, which sends one snapshot per change; the main process relays and saves it.
 - The `ElectronAPI` type is derived from `electron/preload.ts`; add bridge calls there, never in a separate declaration. IPC channels are named `domain:action`, with the same name on both legs of a relay.
-- Validate everything that arrives over IPC in the main process; the renderer is sandboxed and has no Node access.
-- Only change the version when making a release, following "Releasing" in `CONTRIBUTING.md`. Pushing the version tag makes CI draft the GitHub release.
+- Validate every IPC payload in the main process before using it: check shape, types and allowed values, and never trust renderer-supplied paths or ids. Reuse the guards in `electron/main.ts` (`isFiniteNumber`, `isMediaUrl`, `isPngDataUrl`) before writing new ones. The renderer is sandboxed and has no Node access.
+- Only change the version (the `version` field in `package.json`) when making a release, following "Releasing" in `CONTRIBUTING.md`. Pushing the version tag makes CI draft the GitHub release.
 
 ## Art
 
 - Never create art, by any means (AI tools, code or by hand): no pictures (icons, illustrations, maps, textures), no sound or music, no video. When a change needs art, ask the user to supply it.
 - Drawing the interface is not art: controls, the fog, effects and spell area shapes are fine.
 - If a test needs anything that could count as art (an image, a sound, a video), ask the user first. They approve it or supply an alternative themselves.
-- Already approved: the plain grey map images and the plain grey BMP handout that `scripts/test-app.mjs` builds, and in `scripts/test-library.mjs` the solid-colour images (one of them a JPEG with an EXIF orientation tag), the half-fogged mask, and the header-only bytes for WebM, WebP, GIF and BMP files.
+- Already approved: the plain grey map images and the plain grey BMP handout that `scripts/test-app.mjs` builds, and in `scripts/test-library.mjs` the solid-colour images (one of them a JPEG with an EXIF orientation tag), the half-fogged mask, and the header-only bytes for WebM, WebP, GIF and BMP files. Anything not listed here needs approval first.
 
 ## Plans and ideas
 
