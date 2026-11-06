@@ -133,6 +133,9 @@ All notable changes to this project are documented here. The format is based on
   closing waits for a save that is under way, and a fog file that isn't
   complete, on disk or in a project file, is never used: the map starts
   fully fogged and a message says so.
+- The DM window no longer pauses for a moment when an effects stroke ends:
+  effects are encoded in the background, as fog has been since 1.2.0.
+  Removing the loaded map now also frees its fog mask and undo steps.
 - Reloading the player screen (Ctrl+R on it) left it blank until the DM
   moved or zoomed the player view. It now shows the map straight away.
 - Pressing Shift shows the fog brush straight away, where the pointer is,

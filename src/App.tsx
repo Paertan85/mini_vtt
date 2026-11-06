@@ -142,8 +142,9 @@ export function App() {
   const [shiftHeld, setShiftHeld] = useState(false);
   const [brushSize, setBrushSize] = useState(80);
   const fog = useFog();
-  const fogIdle = fog.whenIdle;
   const effects = useEffectLayer();
+  const { whenIdle: fogIdle } = fog;
+  const { whenIdle: effectsIdle } = effects;
   const [effectKind, setEffectKind] = useState<EffectKind>('fire');
   // Fog tool: freehand shapes instead of the brush
   const [fogLasso, setFogLasso] = useState(false);
@@ -276,14 +277,14 @@ export function App() {
   }, [saveView]);
 
   /**
-   * Send everything still on its way: a fog change being encoded and a view
-   * change waiting out its delay. Before a map is switched, the library is
+   * Send everything still on its way: a fog or effects change being encoded
+   * and a view change waiting out its delay. Before a map is switched, the library is
    * exported, or the window reloads or quits.
    */
   const settleSaves = useCallback(async () => {
-    await fogIdle();
+    await Promise.all([fogIdle(), effectsIdle()]);
     flushViewSave();
-  }, [fogIdle, flushViewSave]);
+  }, [fogIdle, effectsIdle, flushViewSave]);
 
   useEffect(() => {
     if (!currentMapId || restoringRef.current) return;
@@ -466,7 +467,7 @@ export function App() {
     restoringRef.current = false;
     loadedMap.unload();
     applyPan(null, null);
-    api?.sendFogReset();
+    fog.release();
     effects.release();
     areas.load([]);
     setCalibration(null);
