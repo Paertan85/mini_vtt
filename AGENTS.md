@@ -13,7 +13,7 @@
 ## Working on the code
 
 - Before finishing a change, run `npm run check` (typecheck, lint, format check, `npm test` and `npm run test:app`). On headless Linux, run `xvfb-run -a npm run check`.
-- All changes to `index.json` go through `mutateIndex()` in `electron/library.ts`; never read-modify-write the index directly.
+- All changes to `index.json` go through `mutateIndex()` in `electron/libraryStore.ts`; never read-modify-write the index directly.
 - A new setting is its field in `LibrarySettings` plus one rule (default and check) in `src/lib/settings.ts`; the main process validates with those rules, and the DM window reads and changes it through `useSettings`.
 - Map loading in the DM window goes through `loadMap()` in `src/App.tsx`, so every per-map setting is restored in one place. A new per-map value the DM window keeps goes in `LoadedMap` (`src/hooks/useLoadedMap.ts`), which is replaced whole on load and unload. Fog changes go through `useFog`, which sends one snapshot per change; the main process relays and saves it.
 - The `ElectronAPI` type is derived from `electron/preload.ts`; add bridge calls there, never in a separate declaration. IPC channels are named `domain:action`, with the same name on both legs of a relay.

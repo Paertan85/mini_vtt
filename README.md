@@ -157,24 +157,35 @@ On Linux without a display, run the tests under `xvfb-run -a`.
 
 ```
 electron/
-  main.ts        Main process: windows, IPC relays, fog saving, the map-media:// protocol
-  preload.ts     The window.electronAPI bridge (its type is derived from here)
-  library.ts     On-disk library: index.json, media, thumbnails, fog masks
+  main.ts           Main process: windows, IPC relays, the map-media:// protocol
+  preload.ts        The window.electronAPI bridge (its type is derived from here)
+  library.ts        Maps and handouts: adding, changing, removing, fog and effect files
+  libraryStore.ts   The library folder and index.json (every change through mutateIndex)
+  mediaFiles.ts     Reading media files: type, size, orientation, thumbnails
+  project.ts        Project files: the whole library in one .minivtt file
+  delayedSave.ts    Saving fog and effects a moment after each change
 src/
   App.tsx                      DM window: library, loaded map, player window, shortcuts
-  hooks/useFog.ts              Fog mask, painting, undo/redo and sync
+  hooks/useLoadedMap.ts        The loaded map's state, replaced whole on load and unload
+  hooks/useFog.ts              Fog mask and painting
+  hooks/useEffectLayer.ts      Painted effects
+  hooks/useLayerHistory.ts     Undo, redo and sync, shared by fog and effects
+  hooks/useAreas.ts            Spell areas: the list, the selection and every edit
+  hooks/useSettings.ts         The DM's settings, saved as they change
   components/MapStage.tsx      Map, fog canvas, player frame and brush
+  components/AreaHandles.tsx   Spell areas' handles and toolbar
   components/Toolbar.tsx       Tools, zoom and player screen controls
   components/MapLibraryPanel.tsx
   components/PlayerScreen.tsx  The player window
   components/Dialogs.tsx       Player screen setup and keyboard shortcuts
   ui/                          Buttons, menus, dialogs, toasts and confirmations
-  lib/                         Geometry and fog helpers shared by both windows
+  lib/                         Pure helpers shared by the windows and the main process:
+                               grid, spell areas, settings, shortcuts, fog, geometry
   types/                       Types shared by all processes
-scripts/         Tests and the Windows icon patch used by electron-builder
+scripts/            Tests and the Windows icon patch used by electron-builder
 ```
 
-Both windows load the same page; the player screen is opened with `?mode=view`. The DM window owns all state and pushes it to the player screen over IPC. Fog strokes are painted in the DM window only; at the end of each stroke the DM window encodes the mask once, and the main process relays that snapshot to the player screen and saves it to disk. Players therefore see a whole stroke appear at once, never the brush moving.
+Both windows load the same page; the player screen is opened with `?mode=view`. The DM window owns all state and pushes it to the player screen over IPC. Fog strokes are painted in the DM window only; at the end of each stroke the DM window encodes the mask once, and the main process relays that snapshot to the player screen and saves it to disk. Players therefore see a whole stroke appear at once, never the brush moving. Each fog or effects snapshot names its map and is shown only while that map is on screen, and a player window that opens or reloads gets everything it shows from the main process in one request.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. The design rules for keeping the app light on low-end laptops are in [AGENTS.md](AGENTS.md). Plans, and ideas not decided on yet, are collected in [ROADMAP.md](ROADMAP.md).
 

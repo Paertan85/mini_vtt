@@ -49,9 +49,9 @@ A few guidelines:
 - **Keep the look consistent.** Use the colour tokens in `tailwind.config.js`
   and the controls in `src/ui/`: gold marks the active choice, crimson is only
   for things players can see change.
-- **Go through the index queue.** Changes to `index.json` belong in
-  `electron/library.ts` and must use `mutateIndex()`, so concurrent saves
-  can't overwrite each other.
+- **Go through the index queue.** Changes to `index.json` must use
+  `mutateIndex()` from `electron/libraryStore.ts`, so concurrent saves can't
+  overwrite each other.
 - **Add a test** for library changes in `scripts/test-library.mjs`, and for
   user-visible behaviour in `scripts/test-app.mjs` where practical.
 - **Update the changelog** under "Unreleased" for anything user-facing.
