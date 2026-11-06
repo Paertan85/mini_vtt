@@ -124,6 +124,7 @@ Corner cases Mini VTT doesn't handle, so they don't come as a surprise.
 
 **Grid from the file name.** When a name gives no grid that fits, the map is added without one, and you measure it with **Settings → Measure map grid…**.
 
+- A size may be given across × down or down × across; whichever fits the image is used.
 - The squares across and down must give square cells: the width and the height may differ by at most 2%. A 2250 × 4500 map named `22x45` is 2.3% off (102 px across, 100 px down), so it gets no grid.
 - A pair that fits the image neither way round is passed over, as is one that is the image's own size (`4200x4760` on a 4200 × 4760 image) or is marked `px`.
 - Only the file name and the three folders above it are read; a size further up is not.
