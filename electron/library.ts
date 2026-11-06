@@ -8,7 +8,7 @@ import zlib from 'node:zlib';
 import * as yauzl from 'yauzl';
 import * as yazl from 'yazl';
 import type {
-  AuraCircle,
+  SpellArea,
   HandoutMeta,
   LibrarySettings,
   LibrarySnapshot,
@@ -19,7 +19,7 @@ import type {
   VideoCodec,
 } from '../src/types/map';
 import { cellFromNames, DEFAULT_FEET_PER_CELL, NAME_FOLDER_LEVELS, normalizeGrid } from '../src/lib/grid';
-import { type AreaReport, normalizeCircles } from '../src/lib/areas';
+import { type AreaReport, normalizeAreas } from '../src/lib/areas';
 import { EFFECT_STYLES } from '../src/lib/effects';
 import { mediaUrlOf } from '../src/lib/media';
 import { cleanSettingsPatch, DEFAULT_SETTINGS, LIBRARY_ID, normalizeSettings } from '../src/lib/settings';
@@ -207,7 +207,7 @@ async function readIndex(): Promise<IndexShape> {
             mirrorHorizontal: m.mirrorHorizontal === true,
             mirrorVertical: m.mirrorVertical === true,
             grid: normalizeGrid(m.grid),
-            circles: normalizeCircles(m.circles),
+            circles: normalizeAreas(m.circles),
           };
         }),
     };
@@ -803,7 +803,6 @@ export async function addMap(sourcePath: string): Promise<MapEntryMeta | null> {
   await mutateIndex((index) => {
     entry.rotation = rotationForNew(size, index.settings);
     index.maps.push(entry);
-    index.settings = { ...index.settings, currentMapId: id };
   });
   return entry;
 }
@@ -953,7 +952,7 @@ export async function saveMapView(id: string, view: MapView): Promise<boolean> {
     map.rotation = normalizeRotation(rotation);
     map.mirrorHorizontal = mirrorHorizontal === true;
     map.mirrorVertical = mirrorVertical === true;
-    if (Array.isArray(view.circles)) map.circles = normalizeCircles(view.circles);
+    if (Array.isArray(view.circles)) map.circles = normalizeAreas(view.circles);
     return true;
   });
 }
@@ -1034,7 +1033,7 @@ export async function saveSettings(patch: unknown): Promise<boolean> {
 //   - `requires` names features a reader must have to read the file right. A
 //     file requiring one this version lacks is refused, naming it.
 //   - Anything else unknown is ignored: fields, files, `extensions`. Unknown
-//     areas are handled as normalizeCircles describes, and fog that can't be
+//     areas are handled as normalizeAreas describes, and fog that can't be
 //     read means full fog, never a revealed map.
 //   - Files from 1.1 and 1.2, in the format before ZIP, still import.
 
@@ -1060,7 +1059,7 @@ const DAMAGED = 'The project file is incomplete or damaged.';
 /** A failure with a message that can be shown to the user as is. */
 export class ProjectError extends Error {}
 
-interface ProjectArea extends AuraCircle {
+interface ProjectArea extends SpellArea {
   /** The kind's colour, so a version without that kind can show it alike */
   color: string;
 }
@@ -1162,7 +1161,7 @@ export async function exportProject(destPath: string): Promise<{ maps: number; h
       mirrorHorizontal: map.mirrorHorizontal,
       mirrorVertical: map.mirrorVertical,
       grid: map.grid,
-      circles: map.circles.map((circle) => ({ ...circle, color: EFFECT_STYLES[circle.kind].color })),
+      circles: map.circles.map((area) => ({ ...area, color: EFFECT_STYLES[area.kind].color })),
       media,
       ...(thumb ? { thumb } : {}),
       ...(fog ? { fog } : {}),
@@ -1635,7 +1634,7 @@ export async function importProject(sourcePath: string): Promise<ProjectImportSu
         hasFog: fog === true,
         // Optional fields: files from before calibration simply have none
         grid: normalizeGrid(record.grid),
-        circles: normalizeCircles(record.circles, areas),
+        circles: normalizeAreas(record.circles, areas),
         addedAt: now,
       });
     }

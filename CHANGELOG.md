@@ -133,6 +133,10 @@ All notable changes to this project are documented here. The format is based on
   closing waits for a save that is under way, and a fog file that isn't
   complete, on disk or in a project file, is never used: the map starts
   fully fogged and a message says so.
+- After dropping maps on the library, the next start opened the last
+  dropped map instead of the one that was loaded. Dropping maps now leaves
+  the loaded map alone; with none loaded, it loads the first dropped one,
+  as Add maps… does.
 - The DM window no longer pauses for a moment when an effects stroke ends:
   effects are encoded in the background, as fog has been since 1.2.0.
   Removing the loaded map now also frees its fog mask and undo steps.

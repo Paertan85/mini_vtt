@@ -9,7 +9,7 @@
 // Wheel:  Ctrl          zooms the DM view around the pointer (touchpad pinch
 //                       too); players are unaffected
 //         Alt           zooms the player view in 1% steps, in any tool
-//         plain         resizes what you work with: the selected circle under
+//         plain         resizes what you work with: the selected area under
 //                       the pointer (5 ft per notch), else the brush (Fog and
 //                       Effects tools, or while Shift is held), else the player
 //                       view when over the frame (View tool, unless its zoom
@@ -21,9 +21,9 @@
 // to square centres).
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Copy, Lock, Trash2 } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import type {
-  AuraCircle,
+  SpellArea,
   DiagonalRule,
   EffectKind,
   MapGrid,
@@ -34,10 +34,10 @@ import type {
 } from '../types/map';
 import type { Fog } from '../hooks/useFog';
 import type { EffectLayer } from '../hooks/useEffectLayer';
-import { EFFECT_KINDS, EFFECT_OPACITY, EFFECT_STYLES } from '../lib/effects';
-import { feetToPixels } from '../lib/grid';
-import { AREA_LABELS, areaContains, areaOutline, areaHandle, snapArea, toDiscs } from '../lib/areas';
-import { AuraDiscs } from './AuraDiscs';
+import { EFFECT_OPACITY, EFFECT_STYLES } from '../lib/effects';
+import { areaContains, toDrawnAreas } from '../lib/areas';
+import { AreaHandles } from './AreaHandles';
+import { DrawnAreas } from './DrawnAreas';
 import { MeasureLayer } from './MeasureLayer';
 import { mapToOriented, orientedSize, screenToMapDirection, wheelPixels, type Size } from '../lib/geometry';
 import { keyLabel } from '../lib/platform';
@@ -85,7 +85,7 @@ interface MapStageProps {
   /** Alt + wheel: the player view zoom, by whole percent steps (positive zooms in) */
   onZoomPercentStep: (steps: number) => void;
 
-  /** The map's measured grid, needed to size and snap circles */
+  /** The map's measured grid, needed to size and snap spell areas */
   grid: MapGrid | null;
   /** How the Measure tool counts diagonal squares */
   diagonalRule: DiagonalRule;
@@ -93,28 +93,28 @@ interface MapStageProps {
   onRulerChange: (ruler: RulerState | null) => void;
   /** A grid drawn over the map, while calibrating */
   gridPreview: MapGrid | null;
-  circles: AuraCircle[];
-  selectedCircleId: string | null;
-  /** Whether circle handles are shown and respond to the mouse */
-  circlesInteractive: boolean;
-  onSelectCircle: (id: string | null) => void;
-  /** A circle drag started (true) or ended (false); players only see where it lands. */
-  onCircleDrag: (dragging: boolean) => void;
-  onMoveCircle: (id: string, center: Point) => void;
+  areas: SpellArea[];
+  selectedAreaId: string | null;
+  /** Whether the areas' handles are shown and respond to the mouse */
+  areasInteractive: boolean;
+  onSelectArea: (id: string | null) => void;
+  /** An area drag started (true) or ended (false); players only see where it lands. */
+  onAreaDrag: (dragging: boolean) => void;
+  onMoveArea: (id: string, center: Point) => void;
   /** Wheel notches: positive grows, 5 ft per notch */
-  onResizeCircle: (id: string, notches: number) => void;
+  onResizeArea: (id: string, notches: number) => void;
   /** A size typed into the template's toolbar: radius, side or length */
-  onSetCircleRadius: (id: string, radiusFt: number) => void;
+  onSetAreaSize: (id: string, radiusFt: number) => void;
   /** A line width typed into its toolbar */
-  onSetCircleWidth: (id: string, widthFt: number) => void;
+  onSetAreaWidth: (id: string, widthFt: number) => void;
   /**
    * Cones and lines: the aim handle was dragged to `point` (direction and
    * length); `snap` (Ctrl held) keeps the direction to 45° steps
    */
-  onAimCircle: (id: string, point: Point, snap: boolean) => void;
-  onDuplicateCircle: (id: string) => void;
-  onDeleteCircle: (id: string) => void;
-  onRecolorCircle: (id: string, kind: EffectKind) => void;
+  onAimArea: (id: string, point: Point, snap: boolean) => void;
+  onDuplicateArea: (id: string) => void;
+  onDeleteArea: (id: string) => void;
+  onRecolorArea: (id: string, kind: EffectKind) => void;
 
   /** Corners clicked so far while calibrating the grid; null when not calibrating */
   calibrationPoints: Point[] | null;
@@ -133,7 +133,7 @@ export interface ViewControls {
 const STAGE_PADDING = 24;
 /** Wheel distance that counts as one notch; trackpads send many small deltas */
 const WHEEL_NOTCH = 100;
-/** How close (screen px) the pointer must be to a small circle for the wheel to resize it */
+/** How close (screen px) the pointer must be to a small area for the wheel to resize it */
 const MIN_WHEEL_TARGET = 24;
 /** DM view zoom range, relative to fitting the whole map */
 const MAX_VIEW_ZOOM = 8;
@@ -174,9 +174,9 @@ export function MapStage(props: MapStageProps) {
     grid,
     diagonalRule,
     gridPreview,
-    circles,
-    selectedCircleId,
-    circlesInteractive,
+    areas,
+    selectedAreaId,
+    areasInteractive,
     calibrationPoints,
   } = props;
 
@@ -190,7 +190,6 @@ export function MapStage(props: MapStageProps) {
   }, []);
   const cursorRef = useRef<HTMLDivElement>(null);
   const frameDragRef = useRef<{ start: Point; startPan: MapPan } | null>(null);
-  const circleDragRef = useRef<{ id: string; pointerId: number; aim: boolean } | null>(null);
   const wheelRemainderRef = useRef(0);
   const brushWheelRef = useRef(0);
   const playerWheelRef = useRef(0);
@@ -387,7 +386,7 @@ export function MapStage(props: MapStageProps) {
     fit: () => setView(FIT_VIEW),
   };
 
-  // ─── Wheel: zoom, circle, brush and player view (native, so preventDefault works)
+  // ─── Wheel: zoom, area, brush and player view (native, so preventDefault works)
 
   useEffect(() => {
     const container = containerRef.current;
@@ -424,19 +423,19 @@ export function MapStage(props: MapStageProps) {
         if (notches !== 0) current.onZoomPercentStep(notches);
         return;
       }
-      // The wheel over the selected circle resizes it
-      const selected = current.circlesInteractive
-        ? current.circles.find((circle) => circle.id === current.selectedCircleId)
+      // The wheel over the selected area resizes it
+      const selected = current.areasInteractive
+        ? current.areas.find((area) => area.id === current.selectedAreaId)
         : undefined;
       const surface = surfaceRef.current;
       if (selected && current.grid && surface) {
         const { toMapPoint: toMap, displayScale: scale } = geometry.current;
         const pointer = toMap(event.clientX, event.clientY);
-        const [disc] = toDiscs([selected], current.grid);
+        const [disc] = toDrawnAreas([selected], current.grid);
         if (pointer && areaContains(disc, pointer, MIN_WHEEL_TARGET / scale)) {
           event.preventDefault();
           const notches = notchesFrom(wheelRemainderRef);
-          if (notches !== 0) current.onResizeCircle(selected.id, notches);
+          if (notches !== 0) current.onResizeArea(selected.id, notches);
           return;
         }
       }
@@ -558,41 +557,6 @@ export function MapStage(props: MapStageProps) {
     frameDragRef.current = null;
   };
 
-  // ─── Templates: drag the dot to move, the aim handle to point and stretch ──
-
-  const handleCirclePointerDown = (event: React.PointerEvent<HTMLElement>, id: string, aim = false) => {
-    if (event.button !== 0) return;
-    event.preventDefault();
-    event.stopPropagation();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    circleDragRef.current = { id, pointerId: event.pointerId, aim };
-    wheelRemainderRef.current = 0;
-    props.onSelectCircle(id);
-    props.onCircleDrag(true);
-  };
-
-  const handleCirclePointerMove = (event: React.PointerEvent<HTMLElement>) => {
-    const drag = circleDragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    const point = toMapPoint(event.clientX, event.clientY);
-    if (!point) return;
-    if (drag.aim) {
-      props.onAimCircle(drag.id, point, event.ctrlKey || event.metaKey);
-      return;
-    }
-    const area = circles.find((circle) => circle.id === drag.id);
-    props.onMoveCircle(
-      drag.id,
-      grid && area && (event.ctrlKey || event.metaKey) ? snapArea(point, area, grid) : point,
-    );
-  };
-
-  const endCircleDrag = () => {
-    if (!circleDragRef.current) return;
-    circleDragRef.current = null;
-    props.onCircleDrag(false);
-  };
-
   // ─── Grid calibration: clicks pick the corners ────────────────────────────
 
   const handleCalibrationPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -605,9 +569,9 @@ export function MapStage(props: MapStageProps) {
   // ─── Render ────────────────────────────────────────────────────────────────
 
   const cursorDiameter = Math.max(4, brushSize * 2 * displayScale);
-  // The same array while the templates are unchanged, so AuraDiscs skips the
+  // The same array while the templates are unchanged, so DrawnAreas skips the
   // renders that moving the player frame causes
-  const discs = useMemo(() => toDiscs(circles, grid), [circles, grid]);
+  const discs = useMemo(() => toDrawnAreas(areas, grid), [areas, grid]);
   const previewCell = gridPreview ? gridPreview.cell * displayScale : 0;
   const gridPx = gridCell * displayScale;
   const frameRgb = FRAME_COLOR_STYLES[props.frameColor].rgb;
@@ -647,7 +611,7 @@ export function MapStage(props: MapStageProps) {
           onPointerDownCapture={(event) => {
             const target = event.target as HTMLElement;
             if (event.button === 1) return; // panning the view keeps the selection
-            if (selectedCircleId && !target.closest('[data-circle-control]')) props.onSelectCircle(null);
+            if (selectedAreaId && !target.closest('[data-area-control]')) props.onSelectArea(null);
           }}
         >
           <div
@@ -700,7 +664,7 @@ export function MapStage(props: MapStageProps) {
               className="pointer-events-none absolute inset-0 h-full w-full"
               style={{ opacity: EFFECT_OPACITY }}
             />
-            <AuraDiscs discs={discs} media={mediaSize} />
+            <DrawnAreas discs={discs} media={mediaSize} />
             {gridPreview && previewCell > 1 && (
               <GridLines
                 cell={previewCell}
@@ -773,178 +737,28 @@ export function MapStage(props: MapStageProps) {
             </div>
           )}
 
-          {circlesInteractive &&
-            grid &&
-            circles.map((circle, index) => {
-              const center = mapToSurface(circle);
-              const selected = circle.id === selectedCircleId;
-              const diameter = feetToPixels(circle.radiusFt, grid) * 2 * displayScale;
-              const outline = areaOutline(discs[index]);
-              const handle = areaHandle(discs[index]);
-              const tip = handle ? mapToSurface(handle) : null;
-              const turns = circle.shape === 'square';
-              const label = AREA_LABELS[circle.shape];
-              const sizeText =
-                circle.shape === 'line'
-                  ? `${circle.radiusFt} × ${circle.widthFt} ft`
-                  : `${circle.radiusFt} ft`;
-              const sizeName =
-                circle.shape === 'circle' ? 'Radius' : circle.shape === 'square' ? 'Side' : 'Length';
-              return (
-                <div key={circle.id} data-circle-control="">
-                  {selected && outline && (
-                    <svg
-                      aria-hidden="true"
-                      className="pointer-events-none absolute inset-0 z-20 h-full w-full overflow-visible"
-                    >
-                      <polygon
-                        points={outline
-                          .map(mapToSurface)
-                          .map((point) => `${point.x},${point.y}`)
-                          .join(' ')}
-                        className="fill-none stroke-gold"
-                        strokeWidth={2}
-                        strokeDasharray="6 4"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  )}
-                  {tip && (
-                    <button
-                      type="button"
-                      aria-label={`${turns ? 'Turn' : 'Aim'} the ${label.toLowerCase()}`}
-                      title={
-                        turns
-                          ? 'Drag to turn the square (it settles square to the grid near a right angle)'
-                          : 'Drag to aim and set the length (5 ft steps; Ctrl: turn in 45° steps)'
-                      }
-                      className="absolute z-40 h-3.5 w-3.5 rotate-45 cursor-crosshair border-2 border-gold bg-ground"
-                      style={{ left: tip.x - 7, top: tip.y - 7 }}
-                      onPointerDown={(event) => handleCirclePointerDown(event, circle.id, true)}
-                      onPointerMove={handleCirclePointerMove}
-                      onPointerUp={endCircleDrag}
-                      onPointerCancel={endCircleDrag}
-                    />
-                  )}
-                  {selected && !outline && (
-                    <div
-                      aria-hidden="true"
-                      className="pointer-events-none absolute z-20 rounded-full border-2 border-dashed border-gold"
-                      style={{
-                        left: center.x - diameter / 2,
-                        top: center.y - diameter / 2,
-                        width: diameter,
-                        height: diameter,
-                      }}
-                    />
-                  )}
-                  <button
-                    type="button"
-                    aria-label={`${label}, ${sizeText}`}
-                    title={keyLabel(
-                      `Drag to move (Ctrl: snap to the grid). Mouse wheel over it changes the ${
-                        circle.shape === 'line' ? 'width' : 'size'
-                      }; arrow keys nudge it.`,
-                    )}
-                    className={`absolute z-30 h-4 w-4 cursor-move rounded-full border-2 ${
-                      selected ? 'border-ground bg-gold' : 'border-gold'
-                    }`}
-                    style={{
-                      left: center.x - 8,
-                      top: center.y - 8,
-                      backgroundColor: selected ? undefined : EFFECT_STYLES[circle.kind].color,
-                    }}
-                    onPointerDown={(event) => handleCirclePointerDown(event, circle.id)}
-                    onPointerMove={handleCirclePointerMove}
-                    onPointerUp={endCircleDrag}
-                    onPointerCancel={endCircleDrag}
-                  />
-                  <div
-                    className="pointer-events-none absolute z-30 -translate-x-1/2 whitespace-nowrap rounded bg-ground/85 px-1.5 text-[11px] font-medium tabular-nums text-ink"
-                    style={{ left: center.x, top: center.y + 10 }}
-                  >
-                    {sizeText}
-                  </div>
-                  {selected && (
-                    <div
-                      role="toolbar"
-                      aria-label={`Selected ${label.toLowerCase()}`}
-                      className="absolute z-30 flex -translate-x-1/2 items-center gap-0.5 rounded border border-line bg-panel p-0.5"
-                      style={{ left: center.x, top: center.y + 30 }}
-                    >
-                      <label className="flex items-center gap-1 px-1 text-[11px] text-muted">
-                        <input
-                          type="number"
-                          aria-label={`${sizeName} in feet`}
-                          title={`${sizeName} in feet`}
-                          min={1}
-                          max={500}
-                          step={1}
-                          value={circle.radiusFt}
-                          onChange={(event) => {
-                            const value = event.currentTarget.valueAsNumber;
-                            if (Number.isFinite(value) && value > 0)
-                              props.onSetCircleRadius(circle.id, value);
-                          }}
-                          className="w-12 rounded border border-line bg-ground px-1 py-0.5 text-right text-[12px] tabular-nums text-ink"
-                        />
-                        ft
-                      </label>
-                      {circle.shape === 'line' && (
-                        <label className="flex items-center gap-1 px-1 text-[11px] text-muted">
-                          wide
-                          <input
-                            type="number"
-                            aria-label="Width in feet"
-                            title="Width in feet"
-                            min={1}
-                            max={500}
-                            step={1}
-                            value={circle.widthFt}
-                            onChange={(event) => {
-                              const value = event.currentTarget.valueAsNumber;
-                              if (Number.isFinite(value) && value > 0)
-                                props.onSetCircleWidth(circle.id, value);
-                            }}
-                            className="w-12 rounded border border-line bg-ground px-1 py-0.5 text-right text-[12px] tabular-nums text-ink"
-                          />
-                        </label>
-                      )}
-                      {EFFECT_KINDS.map((kind) => (
-                        <button
-                          key={kind}
-                          type="button"
-                          title={EFFECT_STYLES[kind].label}
-                          aria-label={EFFECT_STYLES[kind].label}
-                          aria-pressed={circle.kind === kind}
-                          onClick={() => props.onRecolorCircle(circle.id, kind)}
-                          className={`h-5 w-5 rounded-sm border-2 ${circle.kind === kind ? 'border-gold' : 'border-transparent'}`}
-                          style={{ backgroundColor: EFFECT_STYLES[kind].color }}
-                        />
-                      ))}
-                      <button
-                        type="button"
-                        title="Duplicate"
-                        aria-label={`Duplicate ${label.toLowerCase()}`}
-                        onClick={() => props.onDuplicateCircle(circle.id)}
-                        className="flex h-6 w-6 items-center justify-center rounded text-muted hover:bg-raised hover:text-ink"
-                      >
-                        <Copy className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        title="Delete (Del)"
-                        aria-label={`Delete ${label.toLowerCase()}`}
-                        onClick={() => props.onDeleteCircle(circle.id)}
-                        className="flex h-6 w-6 items-center justify-center rounded text-muted hover:bg-raised hover:text-crimson-bright"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+          {areasInteractive && grid && (
+            <AreaHandles
+              areas={areas}
+              discs={discs}
+              grid={grid}
+              selectedId={selectedAreaId}
+              displayScale={displayScale}
+              toMapPoint={toMapPoint}
+              mapToSurface={mapToSurface}
+              // A drag starts the wheel's notch count afresh
+              onDragStart={() => (wheelRemainderRef.current = 0)}
+              onSelect={props.onSelectArea}
+              onDrag={props.onAreaDrag}
+              onMove={props.onMoveArea}
+              onAim={props.onAimArea}
+              onSetSize={props.onSetAreaSize}
+              onSetWidth={props.onSetAreaWidth}
+              onRecolor={props.onRecolorArea}
+              onDuplicate={props.onDuplicateArea}
+              onDelete={props.onDeleteArea}
+            />
+          )}
 
           {tool === 'measure' && grid && !calibrationPoints && (
             <MeasureLayer

@@ -87,7 +87,8 @@ app.whenReady().then(async () => {
       snap.maps.length === 2 && snap.maps[0].id === b.id,
       `got ${snap.maps.length}`,
     );
-    check('last import becomes the current map', snap.settings.currentMapId === b.id);
+    // Which map is loaded is the DM window's to say: adding maps leaves it alone
+    check('adding maps doesn’t change the current map', snap.settings.currentMapId === null);
     check('image file resolves on disk', !!(await lib.resolveMapMediaPath(a.id)));
     check('thumbnail reloads', !!(await lib.loadMapThumb(a.id))?.startsWith('data:image/png'));
 
@@ -777,7 +778,7 @@ app.whenReady().then(async () => {
     );
 
     // Area templates: old circles load unchanged, shapes have the D&D outlines
-    const discs = areasLib.normalizeDiscs([
+    const discs = areasLib.normalizeDrawnAreas([
       { x: 1, y: 2, radius: 30, kind: 'fire', shape: 'cone', angle: 90, width: 10 },
       { x: 1, y: 2, radius: -5, kind: 'fire', shape: 'circle', angle: 0, width: 0 },
       { x: 1, y: 2, radius: 5, kind: 'acid', shape: 'circle', angle: 0, width: 0 },
@@ -785,7 +786,7 @@ app.whenReady().then(async () => {
     ]);
     check(
       'templates for the player screen are validated',
-      discs.length === 1 && discs[0].shape === 'cone' && areasLib.normalizeDiscs('nope').length === 0,
+      discs.length === 1 && discs[0].shape === 'cone' && areasLib.normalizeDrawnAreas('nope').length === 0,
       JSON.stringify(discs),
     );
 
@@ -814,7 +815,7 @@ app.whenReady().then(async () => {
     });
     check('Full HD videos are never questioned', small === null && !asked);
 
-    const [old, cone] = areasLib.normalizeCircles([
+    const [old, cone] = areasLib.normalizeAreas([
       { id: 'old', x: 1, y: 2, radiusFt: 15, kind: 'fire' },
       { id: 'cone', x: 0, y: 0, radiusFt: 15, kind: 'magic', shape: 'cone', angle: -90, widthFt: 0.2 },
     ]);
@@ -827,7 +828,7 @@ app.whenReady().then(async () => {
     // Areas from a newer version or a fork
     const area = (id, extra) => ({ id, x: 0, y: 0, radiusFt: 5, kind: 'fire', ...extra });
     const report = { leftOut: 0, restyled: 0 };
-    const foreign = areasLib.normalizeCircles(
+    const foreign = areasLib.normalizeAreas(
       [
         area('moon', { shape: 'halfmoon' }),
         area('ice', { kind: 'ice', color: '#9be7ff' }),
@@ -860,7 +861,7 @@ app.whenReady().then(async () => {
       foreign.find((c) => c.id === 'kept')?.shape === 'cone',
     );
     const crowded = { leftOut: 0, restyled: 0 };
-    const capped = areasLib.normalizeCircles(
+    const capped = areasLib.normalizeAreas(
       Array.from({ length: 60 }, (_, i) => area(`a${i}`)),
       crowded,
     );

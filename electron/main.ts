@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import * as library from './library.js';
 import { delayedMapSave } from './delayedSave.js';
 import { MAX_RULER_POINTS } from '../src/lib/grid';
-import { normalizeDiscs } from '../src/lib/areas';
+import { normalizeDrawnAreas } from '../src/lib/areas';
 import type {
   EffectSnapshot,
   FogSnapshot,
@@ -228,7 +228,7 @@ function normalizeMapState(value: unknown): MapState | null {
     handoutUrl,
     handoutRotation,
     blackout: state.blackout === true,
-    circles: normalizeDiscs(state.circles),
+    areas: normalizeDrawnAreas(state.areas),
   };
 }
 

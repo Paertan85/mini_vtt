@@ -1,4 +1,4 @@
-// Spell areas: the templates (circles, squares, cones and lines) placed on a
+// Spell areas: the templates (areas, squares, cones and lines) placed on a
 // map, sized in feet against the map's grid.
 //
 // Pure functions with no DOM access: the main process uses the validators for
@@ -7,11 +7,11 @@
 // natural pixels, unrotated; angles are degrees in map space (0 points along
 // +x).
 
-import type { AreaShape, AuraCircle, AuraDisc, EffectKind, MapGrid, Point } from '../types/map';
+import type { AreaShape, SpellArea, DrawnArea, EffectKind, MapGrid, Point } from '../types/map';
 import { EFFECT_KINDS, nearestEffectKind } from './effects';
 import { feetToPixels, pixelsToFeet, snapToCell, snapToCorner } from './grid';
 
-export const MAX_CIRCLES = 50;
+export const MAX_AREAS = 50;
 export const MIN_RADIUS_FT = 1;
 export const MAX_RADIUS_FT = 500;
 export const AREA_SHAPES: readonly AreaShape[] = ['circle', 'square', 'cone', 'line'];
@@ -30,41 +30,41 @@ export const AREA_STEP_FT = 5;
 const SQUARE_SNAP_DEG = 5;
 /** Cones and lines aimed with Ctrl held keep to these steps */
 const AIM_SNAP_DEG = 45;
-const CIRCLE_ID = /^[A-Za-z0-9_-]{1,32}$/;
+const AREA_ID = /^[A-Za-z0-9_-]{1,32}$/;
 
 const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
 
 export const clampRadius = (radiusFt: number) =>
   Math.min(MAX_RADIUS_FT, Math.max(MIN_RADIUS_FT, Math.round(radiusFt)));
 
-/** What `normalizeCircles` changed, so an import can tell the DM. */
+/** What `normalizeAreas` changed, so an import can tell the DM. */
 export interface AreaReport {
-  /** Left out: a shape this version doesn't have, damaged, or over MAX_CIRCLES */
+  /** Left out: a shape this version doesn't have, damaged, or over MAX_AREAS */
   leftOut: number;
   /** Kept, but shown as another kind: a kind this version doesn't have */
   restyled: number;
 }
 
 /**
- * Valid areas only, at most MAX_CIRCLES, with unique ids. Areas can come from
+ * Valid areas only, at most MAX_AREAS, with unique ids. Areas can come from
  * a newer version or a fork: one of an unknown shape is left out, as which
  * squares it covers can't be known; one of an unknown kind is kept and shown
  * as the kind nearest to its `color`. `report` counts both.
  */
-export function normalizeCircles(value: unknown, report?: AreaReport): AuraCircle[] {
+export function normalizeAreas(value: unknown, report?: AreaReport): SpellArea[] {
   if (!Array.isArray(value)) return [];
   const seen = new Set<string>();
-  const circles: AuraCircle[] = [];
+  const areas: SpellArea[] = [];
   for (const raw of value) {
     const fields = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
     const { id, x, y, radiusFt, kind, shape, angle, widthFt, color } = fields;
-    // Areas saved before shapes existed have none: they are circles
+    // Areas saved before shapes existed have none: they are areas
     const knownShape = shape === undefined ? 'circle' : AREA_SHAPES.find((name) => name === shape);
     if (
-      circles.length >= MAX_CIRCLES ||
+      areas.length >= MAX_AREAS ||
       !knownShape ||
       typeof id !== 'string' ||
-      !CIRCLE_ID.test(id) ||
+      !AREA_ID.test(id) ||
       seen.has(id) ||
       !finite(x) ||
       !finite(y) ||
@@ -76,7 +76,7 @@ export function normalizeCircles(value: unknown, report?: AreaReport): AuraCircl
     const knownKind = EFFECT_KINDS.find((name) => name === kind);
     if (!knownKind && report) report.restyled += 1;
     seen.add(id);
-    circles.push({
+    areas.push({
       id,
       x,
       y,
@@ -87,14 +87,14 @@ export function normalizeCircles(value: unknown, report?: AreaReport): AuraCircl
       widthFt: finite(widthFt) ? clampRadius(widthFt) : DEFAULT_LINE_WIDTH_FT,
     });
   }
-  return circles;
+  return areas;
 }
 
-/** Valid templates as the player screen draws them (map pixels), at most MAX_CIRCLES. */
-export function normalizeDiscs(value: unknown): AuraDisc[] {
+/** Valid templates as the player screen draws them (map pixels), at most MAX_AREAS. */
+export function normalizeDrawnAreas(value: unknown): DrawnArea[] {
   if (!Array.isArray(value)) return [];
-  const discs: AuraDisc[] = [];
-  for (const raw of value.slice(0, MAX_CIRCLES)) {
+  const discs: DrawnArea[] = [];
+  for (const raw of value.slice(0, MAX_AREAS)) {
     if (!raw || typeof raw !== 'object') continue;
     const { x, y, radius, kind, shape, angle, width } = raw as Record<string, unknown>;
     if (!finite(x) || !finite(y) || !finite(radius) || !finite(angle) || !finite(width)) continue;
@@ -110,7 +110,7 @@ export function normalizeDiscs(value: unknown): AuraDisc[] {
  * square so its edges follow the grid lines, a cone or line to the nearest
  * grid corner (the usual origin point).
  */
-export function snapArea(point: Point, area: AuraCircle, grid: MapGrid): Point {
+export function snapArea(point: Point, area: SpellArea, grid: MapGrid): Point {
   if (area.shape === 'circle') return snapToCell(point, grid);
   if (area.shape === 'square') {
     const squares = Math.max(1, Math.round(area.radiusFt / grid.feetPerCell));
@@ -120,9 +120,9 @@ export function snapArea(point: Point, area: AuraCircle, grid: MapGrid): Point {
 }
 
 /** What the player screen needs to draw the templates. */
-export const toDiscs = (circles: AuraCircle[], grid: MapGrid | null): AuraDisc[] =>
+export const toDrawnAreas = (areas: SpellArea[], grid: MapGrid | null): DrawnArea[] =>
   grid
-    ? circles.map(({ x, y, radiusFt, kind, shape, angle, widthFt }) => ({
+    ? areas.map(({ x, y, radiusFt, kind, shape, angle, widthFt }) => ({
         x,
         y,
         radius: feetToPixels(radiusFt, grid),
@@ -134,7 +134,7 @@ export const toDiscs = (circles: AuraCircle[], grid: MapGrid | null): AuraDisc[]
     : [];
 
 /** The far end of a cone or line (map pixels). */
-export function areaTip(disc: Pick<AuraDisc, 'x' | 'y' | 'radius' | 'angle'>): Point {
+export function areaTip(disc: Pick<DrawnArea, 'x' | 'y' | 'radius' | 'angle'>): Point {
   const radians = (disc.angle * Math.PI) / 180;
   return { x: disc.x + Math.cos(radians) * disc.radius, y: disc.y + Math.sin(radians) * disc.radius };
 }
@@ -143,7 +143,7 @@ export function areaTip(disc: Pick<AuraDisc, 'x' | 'y' | 'radius' | 'angle'>): P
  * Where a template's handle sits (map pixels): the tip of a cone or line, the
  * middle of a square's front edge; null for a circle.
  */
-export function areaHandle(disc: AuraDisc): Point | null {
+export function areaHandle(disc: DrawnArea): Point | null {
   if (disc.shape === 'circle') return null;
   return areaTip(disc.shape === 'square' ? { ...disc, radius: disc.radius / 2 } : disc);
 }
@@ -153,7 +153,7 @@ export function areaHandle(disc: AuraDisc): Point | null {
  * turns about its centre; a cone is as wide at its end as it is long, as in
  * D&D 5e; a line is centred on its direction.
  */
-export function areaOutline(disc: AuraDisc): Point[] | null {
+export function areaOutline(disc: DrawnArea): Point[] | null {
   const { x, y, radius, shape } = disc;
   if (shape === 'circle') return null;
   const radians = (disc.angle * Math.PI) / 180;
@@ -176,7 +176,7 @@ export function areaOutline(disc: AuraDisc): Point[] | null {
 }
 
 /** Whether `point` (map pixels) is inside a template, with `margin` pixels to spare. */
-export function areaContains(disc: AuraDisc, point: Point, margin: number): boolean {
+export function areaContains(disc: DrawnArea, point: Point, margin: number): boolean {
   const outline = areaOutline(disc);
   if (!outline) return Math.hypot(point.x - disc.x, point.y - disc.y) <= disc.radius + margin;
   // Inside, or within `margin` of an edge (for thin lines and small shapes)
@@ -200,7 +200,7 @@ export function areaContains(disc: AuraDisc, point: Point, margin: number): bool
   });
 }
 
-export const newCircleId = () => `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+export const newAreaId = () => `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
 // ─── Editing ──────────────────────────────────────────────────────────────────
 
@@ -208,9 +208,9 @@ export const newCircleId = () => `c${Date.now().toString(36)}${Math.random().toS
 const angleOf = (direction: Point) => ((Math.atan2(direction.y, direction.x) * 180) / Math.PI + 360) % 360;
 
 /** A new template of `shape` at `center`, a cone or line pointing along `direction` (map space). */
-export function newArea(shape: AreaShape, center: Point, kind: EffectKind, direction: Point): AuraCircle {
+export function newArea(shape: AreaShape, center: Point, kind: EffectKind, direction: Point): SpellArea {
   return {
-    id: newCircleId(),
+    id: newAreaId(),
     ...center,
     radiusFt: DEFAULT_AREA_FT[shape],
     kind,
@@ -232,7 +232,7 @@ export function stepSize(value: number, notches: number): number {
 }
 
 /** The wheel over a template: a line's width, any other template's size. */
-export const resizeArea = (area: AuraCircle, notches: number): AuraCircle =>
+export const resizeArea = (area: SpellArea, notches: number): SpellArea =>
   area.shape === 'line'
     ? { ...area, widthFt: stepSize(area.widthFt, notches) }
     : { ...area, radiusFt: stepSize(area.radiusFt, notches) };
@@ -242,7 +242,7 @@ export const resizeArea = (area: AuraCircle, notches: number): AuraCircle =>
  * follows, in 5 ft steps; with `snap` (Ctrl held) the direction keeps to 45°
  * steps. A square only turns, and settles onto the grid near a right angle.
  */
-export function aimArea(area: AuraCircle, point: Point, grid: MapGrid, snap: boolean): AuraCircle {
+export function aimArea(area: SpellArea, point: Point, grid: MapGrid, snap: boolean): SpellArea {
   const dx = point.x - area.x;
   const dy = point.y - area.y;
   const angle = angleOf({ x: dx, y: dy });

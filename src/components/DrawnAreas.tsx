@@ -8,7 +8,7 @@
 // the same dark hatch as painted poison, so it doesn't rely on hue alone.
 
 import { memo } from 'react';
-import type { AuraDisc } from '../types/map';
+import type { DrawnArea } from '../types/map';
 import type { Size } from '../lib/geometry';
 import { EFFECT_KINDS, EFFECT_STYLES } from '../lib/effects';
 import { areaOutline } from '../lib/areas';
@@ -21,11 +21,11 @@ const RIM_START = 0.94;
 
 // Memoized: both windows re-render while the player frame moves, and the
 // templates only change when they are edited
-export const AuraDiscs = memo(function AuraDiscs({
+export const DrawnAreas = memo(function DrawnAreas({
   discs,
   media,
 }: {
-  discs: AuraDisc[];
+  discs: DrawnArea[];
   media: Size | null;
 }) {
   if (!media || discs.length === 0) return null;

@@ -34,12 +34,12 @@ export interface MapState {
   handoutRotation: number;
   /** When true the player screen shows nothing but black */
   blackout: boolean;
-  /** Aura circles, drawn under the fog */
-  circles: AuraDisc[];
+  /** Spell areas, drawn under the fog */
+  areas: DrawnArea[];
 }
 
 /** An area template as the player screen draws it: map pixels, already converted from feet. */
-export interface AuraDisc {
+export interface DrawnArea {
   x: number;
   y: number;
   /** Circle radius, square side, cone or line length */
@@ -60,8 +60,8 @@ export interface MapView {
   rotation: number;
   mirrorHorizontal: boolean;
   mirrorVertical: boolean;
-  /** Aura circles placed on this map */
-  circles: AuraCircle[];
+  /** Spell areas placed on this map (saved as `circles`, after the first shape) */
+  circles: SpellArea[];
 }
 
 /**
@@ -82,10 +82,11 @@ export interface MapGrid {
 export type AreaShape = 'circle' | 'square' | 'cone' | 'line';
 
 /**
- * An area template on the map (named for the circle, the first shape). The
- * point is the centre of a circle or square, and the origin of a cone or line.
+ * A spell area on the map: a circle, square, cone or line. The point is the
+ * centre of a circle or square, and the origin of a cone or line. Saved as
+ * it is (`radiusFt` is named for the circle, the first shape).
  */
-export interface AuraCircle {
+export interface SpellArea {
   id: string;
   x: number;
   y: number;
@@ -119,7 +120,7 @@ export interface MapEntryMeta {
   hasFog: boolean;
   /** The map's measured grid, or null until it is calibrated */
   grid: MapGrid | null;
-  circles: AuraCircle[];
+  circles: SpellArea[];
   /** Epoch ms when the map was added */
   addedAt: number;
 }
@@ -143,7 +144,7 @@ export interface LibrarySettings {
   gridSize: number;
   /** Custom map order; maps not listed are shown newest first above it */
   mapOrder?: string[];
-  /** Whether the Effects tool and circles appear in the toolbar */
+  /** Whether the Effects and Shapes tools and the spell areas are offered */
   showEffectTools: boolean;
   /** Whether the map and handout library panel is shown */
   showLibrary: boolean;

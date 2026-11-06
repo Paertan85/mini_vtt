@@ -49,7 +49,7 @@ import { keyLabel } from './lib/platform';
 import { smallerVideoSize } from './lib/video';
 import type { FrameColor } from './lib/frameColors';
 import { DEFAULT_FEET_PER_CELL, gridFromCorners } from './lib/grid';
-import { MAX_CIRCLES, toDiscs } from './lib/areas';
+import { MAX_AREAS, toDrawnAreas } from './lib/areas';
 import { GridCalibrationBar, type Calibration } from './components/GridCalibrationBar';
 import { Button } from './ui/controls';
 import { NotificationHost, confirmAction, notify, pressedControl, type Anchor } from './ui/notify';
@@ -173,8 +173,8 @@ export function App() {
   const rulerRef = useRef<RulerState | null>(null);
 
   // ─── Spell areas and grid measuring (per map) ───────────────────────────────
-  const areas = useAreas(grid, { rotation, mirrorHorizontal, mirrorVertical });
-  const { areas: circles, selectedId: selectedCircleId, select: setSelectedCircleId } = areas;
+  const spellAreas = useAreas(grid, { rotation, mirrorHorizontal, mirrorVertical });
+  const { areas, selectedId: selectedAreaId, select: setSelectedAreaId } = spellAreas;
   const [calibration, setCalibration] = useState<Calibration | null>(null);
 
   // ─── Player screen ──────────────────────────────────────────────────────────
@@ -288,14 +288,14 @@ export function App() {
 
   useEffect(() => {
     if (!currentMapId || restoringRef.current) return;
-    const view: MapView = { zoom, pan, rotation, mirrorHorizontal, mirrorVertical, circles };
+    const view: MapView = { zoom, pan, rotation, mirrorHorizontal, mirrorVertical, circles: areas };
     if (pendingViewSave.current) window.clearTimeout(pendingViewSave.current.timer);
     const timer = window.setTimeout(() => {
       pendingViewSave.current = null;
       saveView(currentMapId, view);
     }, VIEW_SAVE_DELAY_MS);
     pendingViewSave.current = { id: currentMapId, view, timer };
-  }, [currentMapId, zoom, pan, rotation, mirrorHorizontal, mirrorVertical, circles, saveView]);
+  }, [currentMapId, zoom, pan, rotation, mirrorHorizontal, mirrorVertical, areas, saveView]);
 
   useEffect(() => {
     window.addEventListener('beforeunload', flushViewSave);
@@ -313,7 +313,7 @@ export function App() {
    * import and after deleting the current map. Per-map state is applied
    * together; pan and fog follow once the media has loaded.
    */
-  const loadAreas = areas.load;
+  const loadAreas = spellAreas.load;
   const loadMapState = loadedMap.load;
   const loadMap = useCallback(
     async (meta: MapEntryMeta, options: { centerFrame?: boolean } = {}) => {
@@ -429,6 +429,8 @@ export function App() {
     // Dropped files have no button to point at
     reportImport(result, kind, null);
     await reloadLibrary();
+    // With no map loaded, the first dropped map is, as with Add maps…
+    if (!currentMapId && result.firstMap) await loadMap(result.firstMap, { centerFrame: true });
   };
 
   const handleLoadMap = (id: string) => {
@@ -469,7 +471,7 @@ export function App() {
     applyPan(null, null);
     fog.release();
     effects.release();
-    areas.load([]);
+    spellAreas.load([]);
     setCalibration(null);
   };
 
@@ -645,8 +647,8 @@ export function App() {
 
   // While an area is dragged, players keep the copy from before the drag, so
   // this stays the same object and nothing is sent until it is dropped
-  const shownCircles = areas.shownToPlayers;
-  const playerDiscs = useMemo(() => toDiscs(shownCircles, grid), [shownCircles, grid]);
+  const shownAreas = spellAreas.shownToPlayers;
+  const playerAreas = useMemo(() => toDrawnAreas(shownAreas, grid), [shownAreas, grid]);
 
   useEffect(() => {
     api?.sendMapState({
@@ -659,7 +661,7 @@ export function App() {
       handoutUrl: activeHandout?.url ?? null,
       handoutRotation: activeHandout?.rotation ?? 0,
       blackout,
-      circles: playerDiscs,
+      areas: playerAreas,
     });
   }, [
     api,
@@ -671,7 +673,7 @@ export function App() {
     mirrorVertical,
     activeHandout,
     blackout,
-    playerDiscs,
+    playerAreas,
   ]);
 
   const handleOpenPlayer = async () => {
@@ -770,7 +772,7 @@ export function App() {
 
   const startCalibration = () => {
     if (!mediaUrl) return;
-    setSelectedCircleId(null);
+    setSelectedAreaId(null);
     setCalibration({ points: [], squares: '1', feet: String(grid?.feetPerCell ?? DEFAULT_FEET_PER_CELL) });
   };
 
@@ -808,25 +810,25 @@ export function App() {
     if (after === 'trueScale') {
       const target = trueScaleFor(next);
       if (target !== null) applyTrueScale(target);
-    } else if (after) addCircle(after);
+    } else if (after) addArea(after);
   };
 
   // ─── Spell areas ────────────────────────────────────────────────────────────
 
   // What adding a shape needs first, explained beneath the shape's button
-  const shapesNeed: ShapesNeed | null = !grid ? 'grid' : circles.length >= MAX_CIRCLES ? 'full' : null;
+  const shapesNeed: ShapesNeed | null = !grid ? 'grid' : areas.length >= MAX_AREAS ? 'full' : null;
 
   // Without a grid, the note's Measure grid button comes here: the shape is
   // added once the grid is saved
-  const handleAddCircle = (shape: AreaShape) => {
+  const handleAddArea = (shape: AreaShape) => {
     if (!grid) {
       startCalibration();
       afterGridRef.current = shape;
-    } else addCircle(shape);
+    } else addArea(shape);
   };
 
   /** A new area in the middle of what the players see, or of the map. */
-  const addCircle = (shape: AreaShape) => {
+  const addArea = (shape: AreaShape) => {
     if (!mediaSize) return;
     const center =
       pan && frameSize
@@ -836,13 +838,13 @@ export function App() {
             mirrorVertical,
           })
         : { x: mediaSize.w / 2, y: mediaSize.h / 2 };
-    areas.add(shape, center, effectKind);
+    spellAreas.add(shape, center, effectKind);
   };
 
   // The colour picked in the Shapes tool also goes to the selected shape
   const handleEffectKindChange = (kind: EffectKind) => {
     setEffectKind(kind);
-    if (tool === 'shapes' && selectedCircleId) areas.recolor(selectedCircleId, kind);
+    if (tool === 'shapes' && selectedAreaId) spellAreas.recolor(selectedAreaId, kind);
   };
 
   // Areas can only be edited in the View and Shapes tools: leaving them
@@ -850,9 +852,9 @@ export function App() {
   const changeTool = useCallback(
     (next: Tool) => {
       setTool(next);
-      if (next !== 'view' && next !== 'shapes') setSelectedCircleId(null);
+      if (next !== 'view' && next !== 'shapes') setSelectedAreaId(null);
     },
-    [setSelectedCircleId],
+    [setSelectedAreaId],
   );
 
   // Kept in a ref, so a drag re-renders nothing here
@@ -878,7 +880,7 @@ export function App() {
     const next = !showEffectTools;
     updateSettings({ showEffectTools: next });
     if (!next) {
-      setSelectedCircleId(null);
+      setSelectedAreaId(null);
       setTool((current) => (current === 'effect' || current === 'shapes' ? 'view' : current));
     }
   };
@@ -898,19 +900,19 @@ export function App() {
   // What each shortcut does (the keys are in lib/shortcuts.ts). A handler
   // that returns false didn't apply, so the key keeps its usual effect.
   const commands: Record<Command, (event: KeyboardEvent) => boolean | void> = {
-    cancel: () => (calibration ? setCalibration(null) : setSelectedCircleId(null)),
-    deleteArea: () => !!selectedCircleId && areas.remove(selectedCircleId),
+    cancel: () => (calibration ? setCalibration(null) : setSelectedAreaId(null)),
+    deleteArea: () => !!selectedAreaId && spellAreas.remove(selectedAreaId),
     brushSize: (event) => hasMap && resizeBrush(event.key === ']' ? 1 : -1),
     undo: () => history.undo(),
     redo: () => history.redo(),
     viewZoomIn: () => viewControls.current?.zoomBy(1.25),
     viewZoomOut: () => viewControls.current?.zoomBy(0.8),
     viewFit: () => viewControls.current?.fit(),
-    duplicateArea: () => !!selectedCircleId && areas.duplicate(selectedCircleId),
+    duplicateArea: () => !!selectedAreaId && spellAreas.duplicate(selectedAreaId),
     addMaps: () => void handleAddMaps(),
     toggleLibrary: () => handleToggleLibrary(),
     nudgeArea: (event) =>
-      !!selectedCircleId && areas.nudge(selectedCircleId, ARROW_DIRECTIONS[event.key], event.shiftKey),
+      !!selectedAreaId && spellAreas.nudge(selectedAreaId, ARROW_DIRECTIONS[event.key], event.shiftKey),
     // A focused button handles Enter itself
     loadSelectedMap: (event) =>
       !!selectedMapId && !(event.target instanceof HTMLButtonElement) && handleLoadMap(selectedMapId),
@@ -984,7 +986,7 @@ export function App() {
     onDropHandouts: (files: File[]) => handleDropFiles(files, 'handout'),
   });
   const toolbarHandlers = useHandlers({
-    onAddCircle: handleAddCircle,
+    onAddArea: handleAddArea,
     onEffectKindChange: handleEffectKindChange,
     onToggleEffectTools: handleToggleEffectTools,
     onToggleLibrary: handleToggleLibrary,
@@ -1136,21 +1138,21 @@ export function App() {
           diagonalRule={measureStraight ? 'straight' : movementRule}
           onRulerChange={handleRulerChange}
           gridPreview={calibrationPreview}
-          circles={circles}
-          selectedCircleId={selectedCircleId}
-          circlesInteractive={
+          areas={areas}
+          selectedAreaId={selectedAreaId}
+          areasInteractive={
             showEffectTools && !calibration && !shiftHeld && (altHeld || tool === 'view' || tool === 'shapes')
           }
-          onSelectCircle={setSelectedCircleId}
-          onCircleDrag={areas.drag}
-          onMoveCircle={areas.move}
-          onResizeCircle={areas.resize}
-          onSetCircleRadius={areas.setSize}
-          onSetCircleWidth={areas.setWidth}
-          onAimCircle={areas.aim}
-          onDuplicateCircle={areas.duplicate}
-          onDeleteCircle={areas.remove}
-          onRecolorCircle={areas.recolor}
+          onSelectArea={setSelectedAreaId}
+          onAreaDrag={spellAreas.drag}
+          onMoveArea={spellAreas.move}
+          onResizeArea={spellAreas.resize}
+          onSetAreaSize={spellAreas.setSize}
+          onSetAreaWidth={spellAreas.setWidth}
+          onAimArea={spellAreas.aim}
+          onDuplicateArea={spellAreas.duplicate}
+          onDeleteArea={spellAreas.remove}
+          onRecolorArea={spellAreas.recolor}
           calibrationPoints={calibration?.points ?? null}
           onCalibrationPoint={handleCalibrationPoint}
           viewControls={viewControls}

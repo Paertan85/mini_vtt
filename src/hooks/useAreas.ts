@@ -8,20 +8,20 @@
 // jump to where it is dropped rather than slide across the map.
 
 import { useCallback, useRef, useState } from 'react';
-import type { AreaShape, AuraCircle, EffectKind, MapGrid, Point } from '../types/map';
+import type { AreaShape, SpellArea, EffectKind, MapGrid, Point } from '../types/map';
 import { type Orientation, screenToMapDirection } from '../lib/geometry';
-import { aimArea, clampRadius, MAX_CIRCLES, newArea, newCircleId, resizeArea } from '../lib/areas';
+import { aimArea, clampRadius, MAX_AREAS, newArea, newAreaId, resizeArea } from '../lib/areas';
 import { notify } from '../ui/notify';
 
 export interface Areas {
   /** The areas as the DM window shows them */
-  areas: AuraCircle[];
+  areas: SpellArea[];
   /** The areas as the player screen shows them: unchanged while one is dragged */
-  shownToPlayers: AuraCircle[];
+  shownToPlayers: SpellArea[];
   selectedId: string | null;
   select: (id: string | null) => void;
   /** A map was loaded (or unloaded): its areas, none selected. */
-  load: (areas: AuraCircle[]) => void;
+  load: (areas: SpellArea[]) => void;
   /** Add a shape at `center` (map pixels), pointing right on screen; false when the map is full. */
   add: (shape: AreaShape, center: Point, kind: EffectKind) => boolean;
   /** A drag started (true) or ended (false). */
@@ -41,18 +41,18 @@ export interface Areas {
 }
 
 export function useAreas(grid: MapGrid | null, orientation: Orientation): Areas {
-  const [areas, setAreas] = useState<AuraCircle[]>([]);
+  const [areas, setAreas] = useState<SpellArea[]>([]);
   // While the DM drags an area, players keep seeing it where it was
-  const [playerAreas, setPlayerAreas] = useState<AuraCircle[] | null>(null);
+  const [playerAreas, setPlayerAreas] = useState<SpellArea[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const areasRef = useRef<AuraCircle[]>([]);
+  const areasRef = useRef<SpellArea[]>([]);
   const frameRequest = useRef<number | null>(null);
   // The latest grid and orientation, so the edits keep a fixed identity
   const latest = useRef({ grid, orientation });
   latest.current = { grid, orientation };
 
   /** Change the areas now; rendered on the next animation frame. */
-  const update = useCallback((change: (current: AuraCircle[]) => AuraCircle[]) => {
+  const update = useCallback((change: (current: SpellArea[]) => SpellArea[]) => {
     areasRef.current = change(areasRef.current);
     if (frameRequest.current === null) {
       frameRequest.current = requestAnimationFrame(() => {
@@ -63,20 +63,20 @@ export function useAreas(grid: MapGrid | null, orientation: Orientation): Areas 
   }, []);
 
   const updateOne = useCallback(
-    (id: string, change: (area: AuraCircle) => AuraCircle) =>
+    (id: string, change: (area: SpellArea) => SpellArea) =>
       update((current) => current.map((area) => (area.id === id ? change(area) : area))),
     [update],
   );
 
   /** Change the areas and render them now, players included. */
-  const replace = useCallback((next: AuraCircle[]) => {
+  const replace = useCallback((next: SpellArea[]) => {
     areasRef.current = next;
     setAreas(next);
     setPlayerAreas(null);
   }, []);
 
   const load = useCallback(
-    (next: AuraCircle[]) => {
+    (next: SpellArea[]) => {
       replace(next);
       setSelectedId(null);
     },
@@ -85,7 +85,7 @@ export function useAreas(grid: MapGrid | null, orientation: Orientation): Areas 
 
   const add = useCallback(
     (shape: AreaShape, center: Point, kind: EffectKind) => {
-      if (areasRef.current.length >= MAX_CIRCLES) return false;
+      if (areasRef.current.length >= MAX_AREAS) return false;
       // Cones and lines start pointing right on screen, whatever the map's orientation
       const right = screenToMapDirection({ x: 1, y: 0 }, latest.current.orientation);
       const area = newArea(shape, center, kind, right);
@@ -139,11 +139,11 @@ export function useAreas(grid: MapGrid | null, orientation: Orientation): Areas 
       const source = areasRef.current.find((area) => area.id === id);
       const { grid: mapGrid } = latest.current;
       if (!source || !mapGrid) return;
-      if (areasRef.current.length >= MAX_CIRCLES) {
-        notify(`A map can have at most ${MAX_CIRCLES} areas.`, 'error');
+      if (areasRef.current.length >= MAX_AREAS) {
+        notify(`A map can have at most ${MAX_AREAS} areas.`, 'error');
         return;
       }
-      const copy = { ...source, id: newCircleId(), x: source.x + mapGrid.cell };
+      const copy = { ...source, id: newAreaId(), x: source.x + mapGrid.cell };
       replace([...areasRef.current, copy]);
       setSelectedId(copy.id);
     },

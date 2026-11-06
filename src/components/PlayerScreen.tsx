@@ -11,7 +11,7 @@ import type { EffectSnapshot, FogSnapshot, MapState, RulerState } from '../types
 import { mediaUrlOf } from '../lib/media';
 import { drawSnapshot, fillMask, fogMaskSize, loadImage } from '../lib/fog';
 import { EFFECT_OPACITY, showLayer } from '../lib/effects';
-import { AuraDiscs } from './AuraDiscs';
+import { DrawnAreas } from './DrawnAreas';
 import { RulerGraphic } from './MeasureLayer';
 import { clamp, mapToOriented, wheelPixels, type Size } from '../lib/geometry';
 import { keyLabel } from '../lib/platform';
@@ -32,7 +32,7 @@ const INITIAL_STATE: MapState = {
   handoutUrl: null,
   handoutRotation: 0,
   blackout: false,
-  circles: [],
+  areas: [],
 };
 
 export function PlayerScreen() {
@@ -315,7 +315,7 @@ export function PlayerScreen() {
                 style={mediaSize ? { width: mediaSize.w, height: mediaSize.h } : undefined}
               />
             )}
-            {/* Draw order: map, effects, circles, fog, so neither shows through unrevealed areas */}
+            {/* Draw order: map, effects, spell areas, fog, so neither shows through unrevealed areas */}
             <canvas
               ref={effectsCanvasRef}
               // 0×0 until a layer arrives (a bare canvas would allocate 300×150)
@@ -324,7 +324,7 @@ export function PlayerScreen() {
               className="pointer-events-none absolute inset-0 h-full w-full"
               style={{ opacity: EFFECT_OPACITY }}
             />
-            <AuraDiscs discs={state.circles} media={mediaSize} />
+            <DrawnAreas discs={state.areas} media={mediaSize} />
             <canvas ref={fogCanvasRef} className="pointer-events-none absolute inset-0 h-full w-full" />
           </div>
         </div>

@@ -26,7 +26,7 @@ import { clampZoom, MAX_ZOOM, MIN_ZOOM, stepZoom } from '../lib/geometry';
 import type { Tool } from './MapStage';
 import type { AreaShape, EffectKind, MovementRule } from '../types/map';
 import { MOVEMENT_LABELS, MOVEMENT_RULES, MOVEMENT_TITLES } from '../lib/grid';
-import { AREA_LABELS, AREA_SHAPES, DEFAULT_AREA_FT, MAX_CIRCLES } from '../lib/areas';
+import { AREA_LABELS, AREA_SHAPES, DEFAULT_AREA_FT, MAX_AREAS } from '../lib/areas';
 import { EFFECT_KINDS, EFFECT_STYLES } from '../lib/effects';
 import { keyLabel } from '../lib/platform';
 
@@ -50,7 +50,7 @@ interface ToolbarProps {
   canClearEffects: boolean;
   onClearEffects: () => void;
   /** Adds a spell area, or starts measuring the grid when the map has none (it follows the save) */
-  onAddCircle: (shape: AreaShape) => void;
+  onAddArea: (shape: AreaShape) => void;
   /** What adding a shape needs first: the map's grid, or room (a full map); explained beneath the button */
   shapesNeed: ShapesNeed | null;
   /** Whether the Effects and Shapes tools and the spell areas are offered at all */
@@ -287,7 +287,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
                 aria-expanded={shapesNeed ? shapeNote === shape : undefined}
                 onClick={(event) => {
                   if (!shapesNeed) {
-                    props.onAddCircle(shape);
+                    props.onAddArea(shape);
                     return;
                   }
                   shapeAnchorRef.current = event.currentTarget;
@@ -316,7 +316,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
                     tone="active"
                     onClick={() => {
                       setShapeNote(null);
-                      props.onAddCircle(shapeNote);
+                      props.onAddArea(shapeNote);
                     }}
                   >
                     Measure grid
@@ -325,7 +325,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
               </>
             )}
             {shapesNeed === 'full' && (
-              <p>A map can have at most {MAX_CIRCLES} shapes. Delete one to add another.</p>
+              <p>A map can have at most {MAX_AREAS} shapes. Delete one to add another.</p>
             )}
           </Popover>
         </>
