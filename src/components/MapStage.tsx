@@ -104,8 +104,11 @@ interface MapStageProps {
   onSetCircleRadius: (id: string, radiusFt: number) => void;
   /** A line width typed into its toolbar */
   onSetCircleWidth: (id: string, widthFt: number) => void;
-  /** Cones and lines: the aim handle was dragged to `point` (direction and length) */
-  onAimCircle: (id: string, point: Point) => void;
+  /**
+   * Cones and lines: the aim handle was dragged to `point` (direction and
+   * length); `snap` (Ctrl held) keeps the direction to 45° steps
+   */
+  onAimCircle: (id: string, point: Point, snap: boolean) => void;
   onDuplicateCircle: (id: string) => void;
   /** Alt + drag: leave a copy where the circle was */
   onCopyCircleInPlace: (id: string) => void;
@@ -528,7 +531,7 @@ export function MapStage(props: MapStageProps) {
     const point = toMapPoint(event.clientX, event.clientY);
     if (!point) return;
     if (drag.aim) {
-      props.onAimCircle(drag.id, point);
+      props.onAimCircle(drag.id, point, event.ctrlKey || event.metaKey);
       return;
     }
     const area = circles.find((circle) => circle.id === drag.id);
@@ -757,7 +760,7 @@ export function MapStage(props: MapStageProps) {
                       title={
                         turns
                           ? 'Drag to turn the square (it settles square to the grid near a right angle)'
-                          : 'Drag to aim and set the length (5 ft steps)'
+                          : 'Drag to aim and set the length (5 ft steps; Ctrl: turn in 45° steps)'
                       }
                       className="absolute z-40 h-3.5 w-3.5 rotate-45 cursor-crosshair border-2 border-gold bg-ground"
                       style={{ left: tip.x - 7, top: tip.y - 7 }}

@@ -54,6 +54,8 @@ import { NotificationHost, confirmAction, notify, pressedControl, type Anchor } 
 const VIEW_SAVE_DELAY_MS = 400;
 /** A square turned within this many degrees of the grid settles onto it. */
 const SQUARE_SNAP_DEG = 5;
+// Cones and lines aimed with Ctrl held keep to these steps
+const AIM_SNAP_DEG = 45;
 
 /** Pan and fog to apply once the map being loaded has finished loading. */
 interface PendingRestore {
@@ -928,10 +930,11 @@ export function App() {
 
   /**
    * Cones and lines: point the template at `point`; its length follows, in
-   * 5 ft steps. Squares only turn, and settle onto the grid near a right angle.
+   * 5 ft steps; with `snap` (Ctrl held) the direction keeps to 45° steps.
+   * Squares only turn, and settle onto the grid near a right angle.
    */
   const handleAimCircle = useCallback(
-    (id: string, point: Point) => {
+    (id: string, point: Point, snap: boolean) => {
       if (!grid) return;
       updateCircles((current) =>
         current.map((circle) => {
@@ -946,7 +949,7 @@ export function App() {
           const feet = pixelsToFeet(Math.hypot(dx, dy), grid);
           return {
             ...circle,
-            angle,
+            angle: snap ? (Math.round(angle / AIM_SNAP_DEG) * AIM_SNAP_DEG) % 360 : angle,
             radiusFt: clampRadius(Math.max(5, Math.round(feet / 5) * 5)),
           };
         }),

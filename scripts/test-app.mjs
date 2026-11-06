@@ -744,6 +744,37 @@ app.whenReady().then(async () => {
     const aimed = alpha().circles[0];
     check('dragging the tip aims the cone', Math.abs(aimed.angle - 90) < 1, `${aimed.angle}°`);
     check('and sets its length in 5 ft steps', aimed.radiusFt === 30, `${aimed.radiusFt} ft`);
+    // Aimed freely by default; with Ctrl held it keeps to 45° steps
+    const aimAt = async (degrees, modifiers) => {
+      const from = await centerOf('button[aria-label="Aim the cone"]');
+      const dot = await centerOf('button[aria-label^="Cone,"]');
+      const reach = Math.hypot(from.x - dot.x, from.y - dot.y);
+      const to = {
+        x: Math.round(dot.x + reach * Math.cos((degrees * Math.PI) / 180)),
+        y: Math.round(dot.y + reach * Math.sin((degrees * Math.PI) / 180)),
+      };
+      const send = (type, x, y) =>
+        main.webContents.sendInputEvent({
+          type,
+          x: Math.round(x),
+          y: Math.round(y),
+          button: 'left',
+          clickCount: 1,
+          modifiers: type === 'mouseUp' ? modifiers : [...modifiers, 'leftButtonDown'],
+        });
+      send('mouseDown', from.x, from.y);
+      for (let i = 1; i <= 5; i++) {
+        send('mouseMove', from.x + ((to.x - from.x) * i) / 5, from.y + ((to.y - from.y) * i) / 5);
+        await sleep(30);
+      }
+      send('mouseUp', to.x, to.y);
+      await sleep(900);
+      return alpha().circles[0].angle;
+    };
+    const freeAngle = await aimAt(65, []);
+    check('without Ctrl a cone aims anywhere', Math.abs(freeAngle - 65) < 2, `${freeAngle}°`);
+    const snappedAngle = await aimAt(110, ['control']);
+    check('with Ctrl it turns in 45° steps', snappedAngle === 90, `${snappedAngle}°`);
     await press('Delete');
     await sleep(300);
     await addArea('Line');

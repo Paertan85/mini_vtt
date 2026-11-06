@@ -12,7 +12,6 @@ Have an idea? Open an [issue](https://github.com/Paertan85/mini_vtt/issues).
 
 ### Maps and areas
 
-- **Cones and lines snap while turning**, for example to 45° steps, the way a square settles onto the grid near a right angle.
 - **View bookmarks:** saved framings of the player view for each map (one per room, say) to jump between.
 - **Ping:** briefly mark a spot on the player screen, to draw everyone's eyes to it.
 - **DM notes:** pins on the map that only the DM sees.

@@ -8,6 +8,9 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- Holding Ctrl while dragging a cone's or line's tip turns it in 45° steps.
+  Without Ctrl it still aims freely.
+
 - New maps take their grid from their file or folder name, the way Mini
   Gridder reads it: `forest_32x32.jpg`, `Airship [27 x 19]/Main Deck.jpg`
   or `Saltmarsh (170x140).jpg` give the squares across and down (either

@@ -199,6 +199,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
       ['Nudge one square', ['Arrow keys'], 'With Shift: 1 ft'],
       ['Resize in 5 ft steps', ['Wheel over it'], 'A line: its width'],
       ['Aim a cone or line', ['Drag its tip']],
+      ['Aim in 45° steps', ['Ctrl + drag its tip']],
       ['Turn a square', ['Drag the edge handle']],
       ['Duplicate', ['Ctrl+D', 'Alt + drag']],
       ['Delete', ['Del']],
