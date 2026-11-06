@@ -337,6 +337,15 @@ export function App() {
         notify(`Couldn’t find the file for “${meta.name}” in the library folder.`, 'error');
         return;
       }
+      // Saved fog that is damaged (cut short by a crash) is never shown: it
+      // would reveal part of the map, so the map starts fully fogged instead
+      if (meta.hasFog && !options.centerFrame && !savedFog) {
+        notify(
+          `The saved fog of “${meta.name}” couldn’t be read, so the map starts fully fogged. Undo can’t bring it back; reveal it again with the Fog tool.`,
+          'error',
+          { durationMs: 10000 },
+        );
+      }
       restoringRef.current = true;
       pendingRestoreRef.current = {
         token,

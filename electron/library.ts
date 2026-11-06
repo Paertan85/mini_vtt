@@ -107,6 +107,35 @@ function detectExt(bytes: Buffer): 'png' | 'jpg' | 'gif' | 'webp' | 'bmp' | 'web
   return null;
 }
 
+// Every PNG ends with this chunk (length 0, "IEND", its CRC)
+const PNG_END = Buffer.from([0, 0, 0, 0, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82]);
+
+/**
+ * A PNG with its end intact. Chromium shows a PNG cut short (a write cut off
+ * by a crash or power loss) without an error, its missing rows transparent:
+ * in a fog mask that is revealed map. So a fog or effect layer is only used
+ * when it is complete; otherwise the map starts fully fogged.
+ */
+export const isCompletePng = (bytes: Buffer) =>
+  detectExt(bytes) === 'png' &&
+  bytes.length >= PNG_END.length &&
+  bytes.subarray(-PNG_END.length).equals(PNG_END);
+
+/**
+ * Replace `file` with `bytes` in one step: written next to it, then renamed
+ * over it, so a reader or a crash never meets a half-written file.
+ */
+async function writeFileAtomic(file: string, bytes: Buffer): Promise<void> {
+  const tmp = `${file}.${process.pid}.${++tmpCounter}.tmp`;
+  try {
+    await fs.writeFile(tmp, bytes);
+    await fs.rename(tmp, file);
+  } catch (err) {
+    await fs.rm(tmp, { force: true });
+    throw err;
+  }
+}
+
 const mimeFor = (ext: string) => {
   if (ext === 'jpg') return 'image/jpeg';
   if (ext === 'webm') return 'video/webm';
@@ -897,23 +926,30 @@ export async function loadMapThumb(id: string): Promise<string | null> {
  * (opaque where fog exists, transparent where revealed), and PNG is lossless.
  */
 export async function loadMapFog(id: string): Promise<string | null> {
-  const found = await findAsset(id, 'fog');
-  return found ? toDataUrl(found.bytes, 'png') : null;
+  if (!SAFE_ID.test(id)) return null;
+  const bytes = await readOptional(path.join(mapDir(id), 'fog.png'));
+  return bytes && isCompletePng(bytes) ? toDataUrl(bytes, 'png') : null;
+}
+
+/** The PNG in a data URL, or null if it isn't a complete PNG. */
+function pngFromDataUrl(dataUrl: unknown): Buffer | null {
+  if (typeof dataUrl !== 'string') return null;
+  const comma = dataUrl.indexOf(',');
+  if (comma === -1) return null;
+  const bytes = Buffer.from(dataUrl.slice(comma + 1), 'base64');
+  return isCompletePng(bytes) ? bytes : null;
 }
 
 export async function saveMapFog(id: string, dataUrl: string): Promise<boolean> {
   if (!SAFE_ID.test(id)) return false;
-  if (typeof dataUrl !== 'string') return false;
-  const comma = dataUrl.indexOf(',');
-  if (comma === -1) return false;
+  const bytes = pngFromDataUrl(dataUrl);
+  if (!bytes) return false;
   // A late save for a map that was just deleted must not recreate its folder
+  // (nor does the write: it fails once the folder is gone)
   const exists = await withIndex((index) => index.maps.some((m) => m.id === id));
   if (!exists) return false;
   try {
-    await fs.mkdir(mapDir(id), { recursive: true });
-    const bytes = Buffer.from(dataUrl.slice(comma + 1), 'base64');
-    if (detectExt(bytes) !== 'png') return false;
-    await fs.writeFile(path.join(mapDir(id), 'fog.png'), bytes);
+    await writeFileAtomic(path.join(mapDir(id), 'fog.png'), bytes);
     await mutateIndex((index) => {
       const map = index.maps.find((m) => m.id === id);
       if (!map || map.hasFog) return false;
@@ -939,27 +975,21 @@ async function readOptional(filePath: string): Promise<Buffer | null> {
 export async function loadMapEffects(id: string): Promise<string | null> {
   if (!SAFE_ID.test(id)) return null;
   const bytes = await readOptional(path.join(mapDir(id), 'effects.png'));
-  return bytes && detectExt(bytes) === 'png' ? toDataUrl(bytes, 'png') : null;
+  return bytes && isCompletePng(bytes) ? toDataUrl(bytes, 'png') : null;
 }
 
 /** Save a map's effect layer; null removes it, so unused maps keep no file. */
 export async function saveMapEffects(id: string, dataUrl: string | null): Promise<boolean> {
   if (!SAFE_ID.test(id) || isHandoutId(id)) return false;
-  if (dataUrl !== null && typeof dataUrl !== 'string') return false;
+  const bytes = dataUrl === null ? null : pngFromDataUrl(dataUrl);
+  if (dataUrl !== null && !bytes) return false;
   // A late save for a map that was just deleted must not recreate its folder
   const exists = await withIndex((index) => index.maps.some((m) => m.id === id));
   if (!exists) return false;
   const file = path.join(mapDir(id), 'effects.png');
   try {
-    if (dataUrl === null) {
-      await fs.rm(file, { force: true });
-      return true;
-    }
-    const comma = dataUrl.indexOf(',');
-    if (comma === -1) return false;
-    const bytes = Buffer.from(dataUrl.slice(comma + 1), 'base64');
-    if (detectExt(bytes) !== 'png') return false;
-    await fs.writeFile(file, bytes);
+    if (bytes) await writeFileAtomic(file, bytes);
+    else await fs.rm(file, { force: true });
     return true;
   } catch (err) {
     console.error('Failed to save effects:', err);
@@ -1636,7 +1666,9 @@ export async function importProject(sourcePath: string): Promise<ProjectImportSu
     /** Copy a map's fog or effect layer: null if the file names none, false if it can't be read. */
     const copyLayer = async (ref: unknown, dest: string) => {
       if (ref === undefined || ref === null) return null;
-      const png = await readPng(ref);
+      // Cut short, a fog mask would show part of the map revealed
+      const bytes = await source.read(ref, MAX_SIDECAR_BYTES);
+      const png = bytes && isCompletePng(bytes) ? bytes : null;
       if (png) await fs.writeFile(dest, png);
       return !!png;
     };

@@ -53,6 +53,7 @@ app.whenReady().then(async () => {
   const lib = await import('../dist-electron/library.test.mjs');
   const gridLib = await import('../dist-electron/grid.test.mjs');
   const videoLib = await import('../dist-electron/video.test.mjs');
+  const saveLib = await import('../dist-electron/delayedSave.test.mjs');
   const fixtures = path.join(tmp, 'fixtures');
   await fs.mkdir(fixtures, { recursive: true });
   const fixture = async (name, bytes) => {
@@ -111,6 +112,66 @@ app.whenReady().then(async () => {
       'saveMapFog rejects data that is not a PNG',
       (await lib.saveMapFog(a.id, 'data:image/png;base64,aGVsbG8=')) === false,
     );
+
+    // A fog file cut short (a crash or power loss while it was written) would
+    // show part of the map revealed: it is treated as unreadable instead
+    const fogBytes = Buffer.from(fogUrl.split(',')[1], 'base64');
+    const fogFile = path.join(tmp, 'library', a.id, 'fog.png');
+    check(
+      'saveMapFog rejects a PNG cut short',
+      (await lib.saveMapFog(
+        a.id,
+        `data:image/png;base64,${fogBytes.subarray(0, -20).toString('base64')}`,
+      )) === false,
+    );
+    check(
+      'saving fog leaves no temporary file behind',
+      (await fs.readdir(path.join(tmp, 'library', a.id))).every((name) => !name.endsWith('.tmp')),
+    );
+    await fs.writeFile(fogFile, fogBytes.subarray(0, Math.floor(fogBytes.length / 2)));
+    check('a fog file cut short loads as no fog', (await lib.loadMapFog(a.id)) === null);
+    const zeroTail = Buffer.from(fogBytes);
+    zeroTail.fill(0, Math.floor(zeroTail.length / 2));
+    await fs.writeFile(fogFile, zeroTail);
+    check('a fog file ending in zeros loads as no fog', (await lib.loadMapFog(a.id)) === null);
+    await lib.saveMapFog(a.id, fogUrl);
+    check('a complete fog file loads again', (await lib.loadMapFog(a.id)) === fogUrl);
+
+    // ── Delayed saves ────────────────────────────────────────────────────────
+    {
+      const writes = [];
+      let release;
+      let running = 0;
+      let overlapped = false;
+      const saver = saveLib.delayedMapSave(
+        'test',
+        async (mapId, value) => {
+          running += 1;
+          if (running > 1) overlapped = true;
+          await new Promise((resolve) => (release = resolve));
+          writes.push(`${mapId}:${value}`);
+          running -= 1;
+          return true;
+        },
+        20,
+      );
+      saver.schedule('m1', 'a');
+      await new Promise((resolve) => setTimeout(resolve, 60)); // the timer fires: 'a' is being written
+      check('a save being written counts as busy', saver.isBusy() === true);
+      let flushed = false;
+      const flushing = saver.flushFor('m1').then(() => (flushed = true));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      check('flushFor waits for a save already being written', flushed === false);
+      saver.schedule('m1', 'b');
+      void saver.flush();
+      release();
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      release();
+      await flushing;
+      await saver.flush();
+      check('saves are written in order, never two at once', writes.join() === 'm1:a,m1:b' && !overlapped);
+      check('and the saver is idle once they are done', saver.isBusy() === false);
+    }
 
     // ── View state ───────────────────────────────────────────────────────────
     await lib.saveMapView(a.id, {
@@ -1233,6 +1294,24 @@ app.whenReady().then(async () => {
       JSON.stringify(forkMap?.circles),
     );
     check('fog that can’t be read leaves the map fully fogged', forkMap?.hasFog === false);
+    const cutFog = await lib.importProject(
+      await fixture(
+        'cut-fog.minivtt',
+        await makeZip({
+          'manifest.json': {
+            ...forkManifest,
+            maps: [{ name: 'Cut fog', media: 'maps/1/media.png', fog: 'maps/1/fog.png' }],
+          },
+          'maps/1/media.png': mapPng,
+          'maps/1/fog.png': fogBytes.subarray(0, Math.floor(fogBytes.length / 2)),
+        }),
+      ),
+    );
+    check(
+      'a fog mask cut short in a project file is left out, never half revealed',
+      cutFog.fogLeftOut === 1 && cutFog.firstMap?.hasFog === false,
+      JSON.stringify(cutFog),
+    );
 
     const needsFeature = await rejects(
       'needs-feature.minivtt',

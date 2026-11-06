@@ -123,6 +123,14 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
+- A fog file cut short could show players part of the map they hadn't
+  explored. If the app crashed, was closed or lost power while saving a
+  map's fog, the file could be left half written, and the next time the map
+  loaded, the missing part counted as revealed. Fog and effects are now
+  saved in one step (written next to the old file, then put in its place),
+  closing waits for a save that is under way, and a fog file that isn't
+  complete, on disk or in a project file, is never used: the map starts
+  fully fogged and a message says so.
 - Pressing Shift shows the fog brush straight away, where the pointer is,
   instead of on the next mouse move.
 - With the DM view zoomed in far, some lines of the teal grid in the

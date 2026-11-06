@@ -5,6 +5,7 @@ import { createReadStream, existsSync } from 'node:fs';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import * as library from './library.js';
+import { delayedMapSave } from './delayedSave.js';
 import { MAX_RULER_POINTS, normalizeDiscs } from '../src/lib/grid';
 import type {
   EffectSnapshot,
@@ -175,45 +176,12 @@ function openPlayerWindow() {
 //
 // The DM window encodes the fog mask (or effect layer) once per change and
 // sends it here. The snapshot is relayed to the player window immediately and
-// saved to disk after a short pause, so a burst of strokes costs one write. A
-// pending save is flushed (never dropped) when a different map's snapshot
-// arrives, before that map's layer is read back or the map is removed, and
-// when the app quits.
+// saved to disk after a short pause (see delayedSave.ts).
 
 const SNAPSHOT_SAVE_DELAY_MS = 500;
 
-function delayedMapSave<T>(label: string, save: (mapId: string, value: T) => Promise<boolean>) {
-  let pending: { mapId: string; value: T; timer: NodeJS.Timeout } | null = null;
-
-  const flush = async (): Promise<void> => {
-    const current = pending;
-    if (!current) return;
-    clearTimeout(current.timer);
-    pending = null;
-    try {
-      await save(current.mapId, current.value);
-    } catch (err) {
-      console.error(`Failed to save ${label} for ${current.mapId}:`, err);
-    }
-  };
-
-  return {
-    flush,
-    isPending: () => pending !== null,
-    /** Flush first if a save for this map is waiting, so a read sees it. */
-    flushFor: async (mapId: string) => {
-      if (pending?.mapId === mapId) await flush();
-    },
-    schedule: (mapId: string, value: T) => {
-      if (pending && pending.mapId !== mapId) void flush();
-      if (pending) clearTimeout(pending.timer);
-      pending = { mapId, value, timer: setTimeout(() => void flush(), SNAPSHOT_SAVE_DELAY_MS) };
-    },
-  };
-}
-
-const fogSaves = delayedMapSave<string>('fog', library.saveMapFog);
-const effectSaves = delayedMapSave<string | null>('effects', library.saveMapEffects);
+const fogSaves = delayedMapSave<string>('fog', library.saveMapFog, SNAPSHOT_SAVE_DELAY_MS);
+const effectSaves = delayedMapSave<string | null>('effects', library.saveMapEffects, SNAPSHOT_SAVE_DELAY_MS);
 const flushAllSaves = () => Promise.all([fogSaves.flush(), effectSaves.flush()]);
 
 // ─── Player window and relayed messages ───────────────────────────────────────
@@ -533,10 +501,11 @@ app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createDmWindow();
 });
 
-// Write any pending fog save before the process exits
+// Write any waiting fog or effects save, and finish one being written, before
+// the process exits: cut short, the file would be lost
 let quitAfterFlush = false;
 app.on('before-quit', (event) => {
-  if (quitAfterFlush || (!fogSaves.isPending() && !effectSaves.isPending())) return;
+  if (quitAfterFlush || (!fogSaves.isBusy() && !effectSaves.isBusy())) return;
   event.preventDefault();
   quitAfterFlush = true;
   void flushAllSaves().finally(() => app.quit());
