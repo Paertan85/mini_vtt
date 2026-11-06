@@ -942,14 +942,14 @@ app.whenReady().then(async () => {
       const at = { x: moved.x + moved.w / 4, y: moved.y + moved.h / 4 };
       await js(
         `document.querySelector('[aria-label="Handout"]').dispatchEvent(new WheelEvent('wheel',
-          { deltaY: -100, ctrlKey: true, clientX: ${at.x}, clientY: ${at.y}, bubbles: true, cancelable: true }))`,
+          { deltaY: -100, clientX: ${at.x}, clientY: ${at.y}, bubbles: true, cancelable: true }))`,
         player,
       );
       await sleep(300);
       const zoomed = await handoutBox();
       const spot = { x: (at.x - zoomed.x) / zoomed.w, y: (at.y - zoomed.y) / zoomed.h };
       check(
-        'Ctrl + wheel zooms it in around the pointer',
+        'the wheel, without Ctrl, zooms it in around the pointer',
         zoomed.w > moved.w * 1.05 && Math.abs(spot.x - 0.25) < 0.01 && Math.abs(spot.y - 0.25) < 0.01,
         `${(zoomed.w / moved.w).toFixed(2)}×, spot ${spot.x.toFixed(3)}, ${spot.y.toFixed(3)}`,
       );

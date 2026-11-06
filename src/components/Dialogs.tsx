@@ -236,7 +236,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     title: 'Handout on the player screen',
     shortcuts: [
       ['Move', ['Drag', 'Arrow keys'], 'Arrow keys with Shift: bigger steps'],
-      ['Zoom at the pointer', ['Ctrl + wheel']],
+      ['Zoom at the pointer', ['Wheel', 'Pinch']],
       ['Close', ['Esc']],
     ],
   },

@@ -11,7 +11,7 @@ import type { MapState } from '../types/map';
 import { drawSnapshot, fillMask, fogMaskSize, loadImage } from '../lib/fog';
 import { EFFECT_OPACITY, showLayer } from '../lib/effects';
 import { AuraDiscs } from './AuraDiscs';
-import type { Size } from '../lib/geometry';
+import { clamp, wheelPixels, type Size } from '../lib/geometry';
 import { keyLabel } from '../lib/platform';
 import { releaseVideo } from '../lib/video';
 
@@ -334,8 +334,8 @@ interface HandoutProps {
 }
 
 /**
- * A handout over the map. Dragging or the arrow keys move it, Ctrl + wheel
- * zooms it around the pointer, and Esc closes it. Moving it re-renders only
+ * A handout over the map. Dragging or the arrow keys move it, the wheel zooms
+ * it around the pointer, and Esc closes it. Moving it re-renders only
  * this, not the map beneath.
  */
 function Handout({ url, rotation, controlsVisible, closeClass }: HandoutProps) {
@@ -368,16 +368,19 @@ function Handout({ url, rotation, controlsVisible, closeClass }: HandoutProps) {
       event.preventDefault();
       setView((current) => ({ ...current, x: current.x + offset.x, y: current.y + offset.y }));
     };
+    // With or without Ctrl (a touchpad pinch arrives as Ctrl + wheel)
     const onWheel = (event: WheelEvent) => {
-      if (!event.ctrlKey && !event.metaKey) return; // Cmd on a Mac
       event.preventDefault();
+      // By how far the wheel turned: about 1.1× a notch, and a touchpad's many
+      // small steps add up to the same instead of 1.1× each
+      const factor = Math.exp(-wheelPixels(event) * 0.001);
+      if (factor === 1) return;
       // The pointer, from the screen's centre, where an unmoved handout's centre is
       const rect = overlay.getBoundingClientRect();
       const px = event.clientX - rect.left - rect.width / 2;
       const py = event.clientY - rect.top - rect.height / 2;
-      const factor = event.deltaY < 0 ? 1.1 : 1 / 1.1;
       setView((current) => {
-        const zoom = Math.min(MAX_HANDOUT_ZOOM, Math.max(MIN_HANDOUT_ZOOM, current.zoom * factor));
+        const zoom = clamp(current.zoom * factor, MIN_HANDOUT_ZOOM, MAX_HANDOUT_ZOOM);
         // Scale the handout's offset from the pointer, so the spot under it stays put
         const scale = zoom / current.zoom;
         return { zoom, x: px - (px - current.x) * scale, y: py - (py - current.y) * scale };

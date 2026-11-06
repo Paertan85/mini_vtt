@@ -32,7 +32,7 @@ import {
   toDiscs,
 } from '../lib/grid';
 import { AuraDiscs } from './AuraDiscs';
-import { orientedSize, type Size } from '../lib/geometry';
+import { orientedSize, wheelPixels, type Size } from '../lib/geometry';
 import { keyLabel } from '../lib/platform';
 import { releaseVideo } from '../lib/video';
 
@@ -126,10 +126,6 @@ interface ViewZoom {
   y: number;
 }
 const FIT_VIEW: ViewZoom = { zoom: 1, x: 0, y: 0 };
-
-/** Wheel delta in pixels, whatever unit the device reports. */
-const wheelPixels = (event: WheelEvent) =>
-  (event.deltaY || event.deltaX) * (event.deltaMode === 1 ? 40 : event.deltaMode === 2 ? 800 : 1);
 
 const mediaSizeOf = (element: HTMLImageElement | HTMLVideoElement): Size =>
   element instanceof HTMLVideoElement

@@ -17,6 +17,10 @@ export const MIN_ZOOM = 0.1;
 export const MAX_ZOOM = 5;
 export const clampZoom = (zoom: number) => clamp(zoom, MIN_ZOOM, MAX_ZOOM);
 
+/** Wheel delta in pixels, whatever unit the device reports. */
+export const wheelPixels = (event: WheelEvent) =>
+  (event.deltaY || event.deltaX) * (event.deltaMode === 1 ? 40 : event.deltaMode === 2 ? 800 : 1);
+
 /** Familiar stops for the − and + buttons, like a browser's zoom. */
 const ZOOM_STEPS = [0.1, 0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5];
 

@@ -75,34 +75,34 @@ Everything is saved as you go. Double-click another map in the library to switch
 
 On a Mac, use Cmd for Ctrl and Option for Alt.
 
-| Action                                   | How                                                                                                                      |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| View / Fog / Effects / Shapes tool       | V / F / E / S                                                                                                            |
-| Reveal / cover fog                       | Fog tool, then drag with the Left Mouse button / Right mouse button                                                      |
-| Reveal / cover a whole room              | Fog tool, **Lasso** (or L), then draw around it with the Left / Right mouse button; the inside is filled on release      |
-| Paint / erase effects                    | Effects tool, pick a colour, then drag with the Left Mouse button / Right mouse button                                   |
-| Add a spell area                         | Shapes tool, then **Circle**, **Square**, **Cone** or **Line**                                                           |
-| Move an area                             | Shapes or View tool: drag its dot (Ctrl: snap to the grid, Alt: leave a copy), or arrow keys (one square; Shift: 1 ft)   |
-| Resize an area                           | Mouse wheel over it (5 ft steps; a line's width), or type the size in its toolbar                                        |
-| Aim a cone or line                       | Drag the handle at its tip; the length follows in 5 ft steps                                                             |
-| Turn a square                            | Drag the handle on its edge                                                                                              |
-| Duplicate / delete an area               | Ctrl+D / Del, or the buttons in its toolbar                                                                              |
-| Paint fog with any tool                  | Hold Shift and use either mouse button                                                                                   |
-| Brush size                               | Mouse wheel in the Fog or Effects tool (or while holding Shift), or [ and ]                                              |
-| Undo / redo                              | Ctrl+Z / Ctrl+Y or Ctrl+Shift+Z (effects in the Effects tool, otherwise fog)                                             |
-| Zoom your own view                       | Ctrl or Alt + mouse wheel, or pinch, in any tool; Ctrl+= / Ctrl+− / Ctrl+0 fits (players are unaffected)                 |
-| Pan your zoomed view                     | Space + drag, or drag with the middle mouse button                                                                       |
-| Move the player view while painting      | Space + drag the frame (when not zoomed in)                                                                              |
-| Zoom the player view                     | + and − keys, the toolbar buttons, or mouse wheel over the frame in the View tool                                        |
-| Zoom so the map's squares fit your minis | **True scale**, after Player screen setup, with the player screen open (a map without a grid gets it measured first)     |
-| Blackout the player screen               | B                                                                                                                        |
-| Load a map / show a handout              | Double-click it in the library (a selected map: Enter)                                                                   |
-| Add maps                                 | Ctrl+O, **Add maps…**, or drop files on the library                                                                      |
-| Hide / show maps and handouts            | The panel button at the left of the toolbar, or Ctrl+B (more room for the map)                                           |
-| Rename, rotate, mirror or remove         | The ⋯ menu on the map or handout                                                                                         |
-| Move or zoom a handout                   | On the player screen: drag it or use the arrow keys (Shift: bigger steps); Ctrl + wheel zooms at the pointer; Esc closes |
-| Player screen fullscreen                 | F11 or the corner button                                                                                                 |
-| Show all shortcuts                       | ?                                                                                                                        |
+| Action                                   | How                                                                                                                                    |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| View / Fog / Effects / Shapes tool       | V / F / E / S                                                                                                                          |
+| Reveal / cover fog                       | Fog tool, then drag with the Left Mouse button / Right mouse button                                                                    |
+| Reveal / cover a whole room              | Fog tool, **Lasso** (or L), then draw around it with the Left / Right mouse button; the inside is filled on release                    |
+| Paint / erase effects                    | Effects tool, pick a colour, then drag with the Left Mouse button / Right mouse button                                                 |
+| Add a spell area                         | Shapes tool, then **Circle**, **Square**, **Cone** or **Line**                                                                         |
+| Move an area                             | Shapes or View tool: drag its dot (Ctrl: snap to the grid, Alt: leave a copy), or arrow keys (one square; Shift: 1 ft)                 |
+| Resize an area                           | Mouse wheel over it (5 ft steps; a line's width), or type the size in its toolbar                                                      |
+| Aim a cone or line                       | Drag the handle at its tip; the length follows in 5 ft steps                                                                           |
+| Turn a square                            | Drag the handle on its edge                                                                                                            |
+| Duplicate / delete an area               | Ctrl+D / Del, or the buttons in its toolbar                                                                                            |
+| Paint fog with any tool                  | Hold Shift and use either mouse button                                                                                                 |
+| Brush size                               | Mouse wheel in the Fog or Effects tool (or while holding Shift), or [ and ]                                                            |
+| Undo / redo                              | Ctrl+Z / Ctrl+Y or Ctrl+Shift+Z (effects in the Effects tool, otherwise fog)                                                           |
+| Zoom your own view                       | Ctrl or Alt + mouse wheel, or pinch, in any tool; Ctrl+= / Ctrl+− / Ctrl+0 fits (players are unaffected)                               |
+| Pan your zoomed view                     | Space + drag, or drag with the middle mouse button                                                                                     |
+| Move the player view while painting      | Space + drag the frame (when not zoomed in)                                                                                            |
+| Zoom the player view                     | + and − keys, the toolbar buttons, or mouse wheel over the frame in the View tool                                                      |
+| Zoom so the map's squares fit your minis | **True scale**, after Player screen setup, with the player screen open (a map without a grid gets it measured first)                   |
+| Blackout the player screen               | B                                                                                                                                      |
+| Load a map / show a handout              | Double-click it in the library (a selected map: Enter)                                                                                 |
+| Add maps                                 | Ctrl+O, **Add maps…**, or drop files on the library                                                                                    |
+| Hide / show maps and handouts            | The panel button at the left of the toolbar, or Ctrl+B (more room for the map)                                                         |
+| Rename, rotate, mirror or remove         | The ⋯ menu on the map or handout                                                                                                       |
+| Move or zoom a handout                   | On the player screen: drag it or use the arrow keys (Shift: bigger steps); the mouse wheel or a pinch zooms at the pointer; Esc closes |
+| Player screen fullscreen                 | F11 or the corner button                                                                                                               |
+| Show all shortcuts                       | ?                                                                                                                                      |
 
 All shortcuts are also listed under **Settings → Keyboard shortcuts…**.
 
