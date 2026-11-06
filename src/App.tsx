@@ -33,6 +33,7 @@ import { useHandlers } from './hooks/useHandlers';
 import { useEffectLayer } from './hooks/useEffectLayer';
 import { useSettings } from './hooks/useSettings';
 import { useAreas } from './hooks/useAreas';
+import { useLoadedMap } from './hooks/useLoadedMap';
 import {
   clamp,
   clampZoom,
@@ -109,15 +110,22 @@ export function App() {
   const [selectedHandoutId, setSelectedHandoutId] = useState<string | null>(null);
 
   // ─── Loaded map ─────────────────────────────────────────────────────────────
-  const [currentMapId, setCurrentMapId] = useState<string | null>(null);
-  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
-  const [mediaType, setMediaType] = useState<MediaType>('image');
-  const [mediaSize, setMediaSize] = useState<Size | null>(null);
-  const [zoom, setZoom] = useState(1);
+  // One object, replaced whole when a map is loaded or unloaded (useLoadedMap)
+  const loadedMap = useLoadedMap();
+  const {
+    id: currentMapId,
+    mediaUrl,
+    mediaType,
+    mediaSize,
+    zoom,
+    rotation,
+    mirrorHorizontal,
+    mirrorVertical,
+    grid,
+  } = loadedMap.map;
+  const { setMediaSize, setZoom, setRotation, setMirrorHorizontal, setMirrorVertical, setGrid } = loadedMap;
+  // The player frame, moved once per animation frame while dragged (see applyPan)
   const [pan, setPan] = useState<MapPan | null>(null);
-  const [rotation, setRotation] = useState(0);
-  const [mirrorHorizontal, setMirrorHorizontal] = useState(false);
-  const [mirrorVertical, setMirrorVertical] = useState(false);
 
   // ─── Tools ──────────────────────────────────────────────────────────────────
   const [tool, setTool] = useState<Tool>('view');
@@ -154,8 +162,7 @@ export function App() {
   showRulerRef.current = showRulerToPlayers;
   const rulerRef = useRef<RulerState | null>(null);
 
-  // ─── Grid and circles (per map) ─────────────────────────────────────────────
-  const [grid, setGrid] = useState<MapGrid | null>(null);
+  // ─── Spell areas and grid measuring (per map) ───────────────────────────────
   const areas = useAreas(grid, { rotation, mirrorHorizontal, mirrorVertical });
   const { areas: circles, selectedId: selectedCircleId, select: setSelectedCircleId } = areas;
   const [calibration, setCalibration] = useState<Calibration | null>(null);
@@ -297,6 +304,7 @@ export function App() {
    * together; pan and fog follow once the media has loaded.
    */
   const loadAreas = areas.load;
+  const loadMapState = loadedMap.load;
   const loadMap = useCallback(
     async (meta: MapEntryMeta, options: { centerFrame?: boolean } = {}) => {
       const token = ++loadTokenRef.current;
@@ -332,20 +340,12 @@ export function App() {
         fog: savedFog ?? null,
         effects: savedEffects ?? null,
       };
-      setCurrentMapId(meta.id);
+      loadMapState(meta, url);
       setSelectedMapId(meta.id);
-      setMediaType(meta.mediaType);
-      setMediaSize(null);
-      setZoom(meta.zoom);
-      setRotation(meta.rotation);
-      setMirrorHorizontal(meta.mirrorHorizontal);
-      setMirrorVertical(meta.mirrorVertical);
-      setGrid(meta.grid);
       loadAreas(meta.circles);
       setCalibration(null);
-      setMediaUrl(url);
     },
-    [api, settleSaves, loadAreas],
+    [api, settleSaves, loadAreas, loadMapState],
   );
 
   const handleMediaLoad = useCallback(
@@ -366,7 +366,7 @@ export function App() {
       restoringRef.current = false;
       if (restore.mediaType === 'video') void adviseOnVideo(restore.mapId, restore.name, size);
     },
-    [api, fog, effects],
+    [api, fog, effects, setMediaSize],
   );
 
   const handleMediaError = useCallback(() => {
@@ -455,13 +455,10 @@ export function App() {
     loadTokenRef.current += 1; // a load still reading its files must not apply
     pendingRestoreRef.current = null;
     restoringRef.current = false;
-    setCurrentMapId(null);
-    setMediaUrl(null);
-    setMediaSize(null);
+    loadedMap.unload();
     applyPan(null, null);
     api?.sendFogReset();
     effects.release();
-    setGrid(null);
     areas.load([]);
     setCalibration(null);
   };
@@ -1011,7 +1008,7 @@ export function App() {
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onBlur);
     };
-  }, [resizeBrush, changeTool, setSelectedCircleId]);
+  }, [resizeBrush, changeTool, setSelectedCircleId, setZoom]);
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
