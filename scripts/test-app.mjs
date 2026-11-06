@@ -744,7 +744,12 @@ app.whenReady().then(async () => {
     const aimed = alpha().circles[0];
     check('dragging the tip aims the cone', Math.abs(aimed.angle - 90) < 1, `${aimed.angle}°`);
     check('and sets its length in 5 ft steps', aimed.radiusFt === 30, `${aimed.radiusFt} ft`);
-    // Aimed freely by default; with Ctrl held it keeps to 45° steps
+    // Aimed freely by default; with Ctrl held it keeps to 45° steps. A fresh
+    // cone, so its tip is near the dot and on screen in a small window too
+    await press('Delete');
+    await sleep(300);
+    await addArea('Cone');
+    await sleep(900);
     const aimAt = async (degrees, modifiers) => {
       const from = await centerOf('button[aria-label="Aim the cone"]');
       const dot = await centerOf('button[aria-label^="Cone,"]');
@@ -832,9 +837,16 @@ app.whenReady().then(async () => {
     check('M picks the Measure tool, measuring movement', (await pressedMeasure()) === 'Movement');
     const mapBox = await js(`(() => { const r = document.querySelector('main img').getBoundingClientRect();
       return { x: r.x, y: r.y, w: r.width, h: r.height }; })()`);
-    const { cell: measureCell, feetPerCell } = alpha().grid;
+    const { cell: measureCell, feetPerCell, offsetX, offsetY } = alpha().grid;
     const squarePx = (measureCell * mapBox.w) / 800;
-    const measureFrom = { x: mapBox.x + mapBox.w / 2, y: mapBox.y + mapBox.h / 2 };
+    // From the middle of a square near the centre: the image centre itself can
+    // fall on a square's edge, where rounding picks either side
+    const middleOf = (centre, offset) =>
+      offset + (Math.floor((centre - offset) / measureCell) + 0.5) * measureCell;
+    const measureFrom = {
+      x: mapBox.x + (middleOf(400, offsetX) * mapBox.w) / 800,
+      y: mapBox.y + (middleOf((mapBox.h * 400) / mapBox.w, offsetY) * mapBox.w) / 800,
+    };
     const playerRuler = () =>
       js(
         `document.querySelector('[aria-label="Ruler"] output[aria-label="Distance"]')?.textContent ?? null`,
