@@ -20,7 +20,10 @@ import type {
 } from '../src/types/map';
 import {
   type AreaReport,
+  cellFromNames,
+  DEFAULT_FEET_PER_CELL,
   DEFAULT_MOVEMENT_RULE,
+  NAME_FOLDER_LEVELS,
   isMovementRule,
   normalizeCircles,
   normalizeGrid,
@@ -765,6 +768,24 @@ export function readVideoSize(bytes: Buffer): { width: number; height: number } 
   return null;
 }
 
+/**
+ * The grid a map's file or folder names give (`forest_32x32/map.jpg`,
+ * `Saltmarsh (170x140).jpg`, `Crypt 140ppi.jpg`), lined up with the image's
+ * top-left corner, or null.
+ */
+export function gridFromPath(sourcePath: string, size: { width: number; height: number }): MapGrid | null {
+  const names = [path.basename(sourcePath).replace(/\.[^.]+$/, '')];
+  let dir = path.dirname(sourcePath);
+  while (names.length <= NAME_FOLDER_LEVELS && path.dirname(dir) !== dir) {
+    names.push(path.basename(dir));
+    dir = path.dirname(dir);
+  }
+  const cell = cellFromNames(names, size.width, size.height);
+  return cell === null
+    ? null
+    : normalizeGrid({ cell, offsetX: 0, offsetY: 0, feetPerCell: DEFAULT_FEET_PER_CELL });
+}
+
 export async function addMap(sourcePath: string): Promise<MapEntryMeta | null> {
   const header = await readHeader(sourcePath, HEADER_BYTES);
   const ext = detectExt(header);
@@ -799,7 +820,7 @@ export async function addMap(sourcePath: string): Promise<MapEntryMeta | null> {
     mirrorHorizontal: false,
     mirrorVertical: false,
     hasFog: false,
-    grid: null,
+    grid: gridFromPath(sourcePath, size),
     circles: [],
     addedAt: Date.now(),
   };

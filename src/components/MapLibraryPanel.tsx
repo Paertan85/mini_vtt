@@ -7,6 +7,7 @@ import { MoreHorizontal } from 'lucide-react';
 import type { HandoutMeta, MapEntryMeta } from '../types/map';
 import { Button } from '../ui/controls';
 import { Menu, type MenuItem } from '../ui/Menu';
+import { gridSquares } from '../lib/grid';
 import { drawThumbnail, toDataUrl } from '../lib/thumbnail';
 
 export interface OrientationChange {
@@ -179,6 +180,7 @@ function MapList(props: MapLibraryPanelProps) {
         ];
         const details = [
           map.mediaType === 'video' ? 'Video' : null,
+          map.grid ? `Grid ${gridSquares(map.grid, map.width, map.height) ?? 'set'}` : 'No grid',
           map.rotation ? `Rotated ${map.rotation}°` : null,
           map.mirrorHorizontal || map.mirrorVertical ? 'Mirrored' : null,
         ].filter(Boolean);
@@ -328,10 +330,12 @@ function Card(props: CardProps) {
           ) : (
             <span className="truncate text-[13px] font-medium text-ink">{props.name}</span>
           )}
-          {props.live ? (
-            <span className="truncate text-xs text-crimson-text">{props.liveLabel}</span>
-          ) : (
-            props.details && <span className="truncate text-xs text-faint">{props.details}</span>
+          {(props.live || props.details) && (
+            <span className="truncate text-xs text-faint">
+              {props.live && <span className="text-crimson-text">{props.liveLabel}</span>}
+              {props.live && props.details && ' · '}
+              {props.details}
+            </span>
           )}
         </span>
       </button>

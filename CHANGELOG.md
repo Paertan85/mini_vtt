@@ -8,6 +8,16 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- New maps take their grid from their file or folder name, the way Mini
+  Gridder reads it: `forest_32x32.jpg`, `Airship [27 x 19]/Main Deck.jpg`
+  or `Saltmarsh (170x140).jpg` give the squares across and down (either
+  order, whichever fits the image), and `Crypt 140ppi.jpg` the pixels per
+  square. The name, its folder and up to two folders above it are read.
+  A size that is the image's own pixel size, is marked `px`, or doesn't
+  fit the image is passed over, so such a map still needs measuring. The
+  map library shows each map's grid (`Grid 32 × 24`, or `No grid`), also
+  on the map that is on the player screen.
+
 - **Measure** tool (M): drag across the map to see the distance in feet,
   or click point by point to measure a path round corners: double-click
   or Enter finishes it, right-click takes back a point, and Esc or

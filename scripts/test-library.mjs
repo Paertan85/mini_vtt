@@ -565,6 +565,64 @@ app.whenReady().then(async () => {
     check('feet convert to pixels', gridLib.feetToPixels(15, measured) === 300);
     check('a zero-size grid is rejected', gridLib.normalizeGrid({ cell: 0, feetPerCell: 5 }) === null);
 
+    // ── Grid size from file and folder names (the same cases as Mini Gridder) ─
+    const cellOf = (names, w, h) => gridLib.cellFromNames(names, w, h);
+    check('a folder name gives the grid', cellOf(['forest_map', 'forest_32x32', 'maps'], 3200, 3200) === 100);
+    check(
+      'the file name wins over its folder',
+      cellOf(['forest_map_20x15', 'forest_32x32'], 2000, 1500) === 100,
+    );
+    check(
+      'spaced, bracketed and glued sizes are read',
+      cellOf(['Main Deck', 'Airship [27 x 19]'], 12000, 8444) === 12000 / 27 &&
+        cellOf(['Mansion_Attic (40 x 40)'], 4000, 4000) === 100 &&
+        cellOf(['TreeTrapGrid_Small60x60'], 4725, 4725) === 78.75 &&
+        cellOf(['map 20×15'], 2000, 1500) === 100 &&
+        cellOf(['map 22.5x15'], 2250, 1500) === 100,
+    );
+    check('a size given down × across is read', cellOf(['Saltmarsh (170x140)  (Free)'], 9800, 11900) === 70);
+    check(
+      "the image's own pixel size and px-marked sizes are skipped",
+      cellOf(['Courier-Exterior-Grid-Lights-140ppi-30x34-4200x4760'], 4200, 4760) === 140 &&
+        cellOf(['Floor 1', 'images', 'Ravenloft [4k] [90x68 sq][44x33][80x60] [6144x4608px]'], 6144, 4608) ===
+          6144 / 80,
+    );
+    check(
+      'squares win over PPI, which is used without them',
+      cellOf(['ButterskullRanchBasementGrid_300PPI8x12'], 2400, 3600) === 300 &&
+        cellOf(['ClanHQ2FloorGrid300PPI', 'ClanHQ MP'], 10500, 8700) === 300,
+    );
+    check(
+      'a size that fits neither way, or no size, gives no grid',
+      cellOf(['Winters Feast - Lit - Grid 5x7'], 3072, 4096) === null &&
+        cellOf(['Grid 1 Jungle Encounter'], 2000, 2000) === null &&
+        cellOf(['forest_70px'], 2000, 2000) === null &&
+        cellOf(['v1.2x3'], 2000, 2000) === null &&
+        cellOf(['thumb', 'pack_300x300'], 1080, 1080) === null &&
+        cellOf(['forest_32x32'], 0, 0) === null,
+    );
+    check(
+      'names are searched three folders up only',
+      cellOf(['map', 'c', 'b', 'a_20x20'], 2000, 2000) === 100 &&
+        cellOf(['map', 'd', 'c', 'b', 'a_20x20'], 2000, 2000) === null,
+    );
+    const sizedDir = path.join(fixtures, 'cellar_4x2');
+    await fs.mkdir(sizedDir, { recursive: true });
+    await fs.writeFile(path.join(sizedDir, 'cellar.png'), makePng({ width: 80, height: 40 }));
+    const sized = await lib.addMap(path.join(sizedDir, 'cellar.png'));
+    check(
+      'a map gets its grid from its folder name as it is added',
+      sized?.grid?.cell === 20 && sized.grid.offsetX === 0 && sized.grid.feetPerCell === 5,
+      JSON.stringify(sized?.grid),
+    );
+    check(
+      'and keeps it in the library',
+      (await lib.loadSnapshot()).maps.find((m) => m.id === sized.id)?.grid?.cell === 20,
+    );
+    check('a map without a size in its names has no grid', c.grid === null);
+    await lib.removeMap(sized.id);
+    await lib.saveSettings({ currentMapId: c.id });
+
     // Measuring: squares counted from the start square to the end square
     const along = (rule, to) => gridLib.measureFeet({ x: 160, y: 110 }, to, measured, rule);
     check(
