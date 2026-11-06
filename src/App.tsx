@@ -32,14 +32,14 @@ import { PlayerSetupDialog, ShortcutsDialog, screenDimensions } from './componen
 import { useFog } from './hooks/useFog';
 import { useHandlers } from './hooks/useHandlers';
 import { useEffectLayer } from './hooks/useEffectLayer';
+import { useSettings } from './hooks/useSettings';
 import { clamp, clampZoom, MAX_ZOOM, MIN_ZOOM, orientedSize, stepZoom, type Size } from './lib/geometry';
 import { keyLabel } from './lib/platform';
 import { smallerVideoSize } from './lib/video';
-import { DEFAULT_FRAME_COLOR, type FrameColor } from './lib/frameColors';
+import type { FrameColor } from './lib/frameColors';
 import {
   clampRadius,
   DEFAULT_AREA_FT,
-  DEFAULT_MOVEMENT_RULE,
   DEFAULT_FEET_PER_CELL,
   DEFAULT_LINE_WIDTH_FT,
   gridFromCorners,
@@ -132,21 +132,31 @@ export function App() {
   const fogIdle = fog.whenIdle;
   const effects = useEffectLayer();
   const [effectKind, setEffectKind] = useState<EffectKind>('fire');
-  const [showEffectTools, setShowEffectTools] = useState(true);
-  const [showLibrary, setShowLibrary] = useState(true);
   // Fog tool: freehand shapes instead of the brush
   const [fogLasso, setFogLasso] = useState(false);
-  // Measure tool: how the Movement ruler counts diagonals (a setting), and
-  // whether the toolbar picked the straight line instead
-  const [movementRule, setMovementRule] = useState<MovementRule>(DEFAULT_MOVEMENT_RULE);
+  // Measure tool: whether the toolbar picked the straight line instead of
+  // movement (counted by the movementRule setting)
   const [measureStraight, setMeasureStraight] = useState(false);
-  // The ruler can be shown on the player screen too; it is sent as it changes
-  const [showRulerToPlayers, setShowRulerToPlayers] = useState(false);
+
+  // ─── Settings (saved as they change) ────────────────────────────────────────
+  const { settings, update: updateSettings, restore: restoreSettings } = useSettings();
+  const {
+    showEffectTools,
+    showLibrary,
+    diagonalRule: movementRule,
+    // The ruler can be shown on the player screen too; it is sent as it changes
+    showRulerToPlayers,
+    // Locks the player view zoom: the wheel, the keys and the toolbar leave it alone
+    lockZoom: zoomLocked,
+    playerScreenDiagonal: screenDiagonal,
+    gridSize,
+    // New maps and handouts taller than wide are turned this much (the main process applies it)
+    portraitRotation,
+    frameColor,
+  } = settings;
   const showRulerRef = useRef(false);
   showRulerRef.current = showRulerToPlayers;
   const rulerRef = useRef<RulerState | null>(null);
-  // Locks the player view zoom: the wheel, the keys and the toolbar leave it alone
-  const [zoomLocked, setZoomLocked] = useState(false);
 
   // ─── Grid and circles (per map) ─────────────────────────────────────────────
   const [grid, setGrid] = useState<MapGrid | null>(null);
@@ -164,11 +174,6 @@ export function App() {
   const [activeHandout, setActiveHandout] = useState<{ id: string; url: string; rotation: number } | null>(
     null,
   );
-  const [screenDiagonal, setScreenDiagonal] = useState<number | null>(null);
-  const [gridSize, setGridSize] = useState(1);
-  // New maps and handouts taller than wide are turned this much (the main process applies it)
-  const [portraitRotation, setPortraitRotation] = useState(270);
-  const [frameColor, setFrameColor] = useState<FrameColor>(DEFAULT_FRAME_COLOR);
   const [dialog, setDialog] = useState<'setup' | 'shortcuts' | null>(null);
 
   // Suppresses view saves while a map is being restored, so the restore can't
@@ -409,21 +414,13 @@ export function App() {
     void (async () => {
       const snapshot = await reloadLibrary();
       if (snapshot) {
-        setScreenDiagonal(snapshot.settings.playerScreenDiagonal);
-        setGridSize(snapshot.settings.gridSize);
-        setPortraitRotation(snapshot.settings.portraitRotation);
-        setFrameColor(snapshot.settings.frameColor);
-        setShowEffectTools(snapshot.settings.showEffectTools);
-        setShowLibrary(snapshot.settings.showLibrary);
-        setMovementRule(snapshot.settings.diagonalRule);
-        setShowRulerToPlayers(snapshot.settings.showRulerToPlayers);
-        setZoomLocked(snapshot.settings.lockZoom);
+        restoreSettings(snapshot.settings);
         const last = snapshot.maps.find((entry) => entry.id === snapshot.settings.currentMapId);
         if (last) await loadMap(last);
       }
       setLoading(false);
     })();
-  }, [reloadLibrary, loadMap]);
+  }, [reloadLibrary, loadMap, restoreSettings]);
 
   // Actions that wait for a file dialog or a confirmation take the pressed
   // button at their start, so their messages still show beneath it
@@ -585,11 +582,7 @@ export function App() {
     ].filter(Boolean);
     if (leftOut.length > 0) notify(leftOut.join(' '), 'error', { anchor });
     const snapshot = await reloadLibrary();
-    if (snapshot && result.settingsApplied) {
-      setScreenDiagonal(snapshot.settings.playerScreenDiagonal);
-      setGridSize(snapshot.settings.gridSize);
-      setPortraitRotation(snapshot.settings.portraitRotation);
-    }
+    if (snapshot && result.settingsApplied) restoreSettings(snapshot.settings);
     if (!currentMapId && result.firstMap) await loadMap(result.firstMap);
   };
 
@@ -779,18 +772,13 @@ export function App() {
     grid: number,
     rotation: number,
     color: FrameColor,
-  ) => {
-    setScreenDiagonal(diagonal);
-    setGridSize(grid);
-    setPortraitRotation(rotation);
-    setFrameColor(color);
-    void api?.saveSettings({
+  ) =>
+    updateSettings({
       playerScreenDiagonal: diagonal,
       gridSize: grid,
       portraitRotation: rotation,
       frameColor: color,
     });
-  };
 
   const handleRevealAll = async () => {
     const confirmed = await confirmAction({
@@ -1050,38 +1038,24 @@ export function App() {
   }, []);
 
   const handleShowRulerToPlayers = (show: boolean) => {
-    setShowRulerToPlayers(show);
+    updateSettings({ showRulerToPlayers: show });
     showRulerRef.current = show;
     api?.sendRuler(show ? rulerRef.current : null);
-    void api?.saveSettings({ showRulerToPlayers: show });
   };
 
-  const handleToggleZoomLock = () => {
-    const next = !zoomLocked;
-    setZoomLocked(next);
-    void api?.saveSettings({ lockZoom: next });
-  };
+  const handleToggleZoomLock = () => updateSettings({ lockZoom: !zoomLocked });
 
-  const handleMovementRuleChange = (rule: MovementRule) => {
-    setMovementRule(rule);
-    void api?.saveSettings({ diagonalRule: rule });
-  };
+  const handleMovementRuleChange = (rule: MovementRule) => updateSettings({ diagonalRule: rule });
 
-  const handleToggleLibrary = useCallback(() => {
-    setShowLibrary((shown) => {
-      void window.electronAPI?.saveSettings({ showLibrary: !shown });
-      return !shown;
-    });
-  }, []);
+  const handleToggleLibrary = () => updateSettings({ showLibrary: !showLibrary });
 
   const handleToggleEffectTools = () => {
     const next = !showEffectTools;
-    setShowEffectTools(next);
+    updateSettings({ showEffectTools: next });
     if (!next) {
       setSelectedCircleId(null);
       setTool((current) => (current === 'effect' || current === 'shapes' ? 'view' : current));
     }
-    void api?.saveSettings({ showEffectTools: next });
   };
 
   // ─── Keyboard ───────────────────────────────────────────────────────────────
@@ -1243,6 +1217,7 @@ export function App() {
     onAddCircle: handleAddCircle,
     onEffectKindChange: handleEffectKindChange,
     onToggleEffectTools: handleToggleEffectTools,
+    onToggleLibrary: handleToggleLibrary,
     onCalibrateGrid: startCalibration,
     onMovementRuleChange: handleMovementRuleChange,
     onMeasureStraightChange: setMeasureStraight,
@@ -1310,7 +1285,6 @@ export function App() {
           onClearEffects={effects.clear}
           showEffectTools={showEffectTools}
           showLibrary={showLibrary}
-          onToggleLibrary={handleToggleLibrary}
           fogLasso={fogLasso}
           onFogLassoChange={setFogLasso}
           onCoverAll={fog.coverAll}

@@ -22,14 +22,12 @@ import {
   type AreaReport,
   cellFromNames,
   DEFAULT_FEET_PER_CELL,
-  DEFAULT_MOVEMENT_RULE,
   NAME_FOLDER_LEVELS,
-  isMovementRule,
   normalizeCircles,
   normalizeGrid,
 } from '../src/lib/grid';
 import { EFFECT_STYLES } from '../src/lib/effects';
-import { DEFAULT_FRAME_COLOR, isFrameColor } from '../src/lib/frameColors';
+import { cleanSettingsPatch, DEFAULT_SETTINGS, LIBRARY_ID, normalizeSettings } from '../src/lib/settings';
 
 // ─── On-disk map library ──────────────────────────────────────────────────────
 //
@@ -60,7 +58,7 @@ const newId = (prefix: string) =>
 export const isHandoutId = (id: string) => id.startsWith(HANDOUT_ID_PREFIX);
 
 // Only allow ids we generated, so a corrupt index can't escape the library dir
-const SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/;
+const SAFE_ID = LIBRARY_ID;
 
 // A removed map's or handout's folder is first renamed with this prefix, then
 // deleted. The dot keeps it from ever matching an id.
@@ -271,57 +269,6 @@ function mutateIndex<T>(fn: (index: IndexShape) => T | Promise<T>): Promise<T> {
     return result;
   });
 }
-
-/** A positive finite number, or null. Accepts numeric strings from older libraries. */
-const toPositiveNumber = (value: unknown): number | null => {
-  const parsed = typeof value === 'string' ? parseFloat(value) : value;
-  return typeof parsed === 'number' && Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-};
-
-/**
- * Validate stored settings. Libraries written before 1.1 stored the player
- * screen size as `playerViewDiagonal` and both numbers as strings.
- */
-function normalizeSettings(stored: unknown): LibrarySettings {
-  const raw = (stored && typeof stored === 'object' ? stored : {}) as Record<string, unknown>;
-  const currentMapId =
-    typeof raw.currentMapId === 'string' && SAFE_ID.test(raw.currentMapId) ? raw.currentMapId : null;
-  const mapOrder = Array.isArray(raw.mapOrder)
-    ? raw.mapOrder.filter((id): id is string => typeof id === 'string' && SAFE_ID.test(id))
-    : undefined;
-  return {
-    currentMapId,
-    playerScreenDiagonal: toPositiveNumber(raw.playerScreenDiagonal ?? raw.playerViewDiagonal),
-    gridSize: toPositiveNumber(raw.gridSize) ?? DEFAULT_SETTINGS.gridSize,
-    showEffectTools: raw.showEffectTools !== false,
-    showLibrary: raw.showLibrary !== false,
-    portraitRotation: isPortraitRotation(raw.portraitRotation)
-      ? raw.portraitRotation
-      : DEFAULT_SETTINGS.portraitRotation,
-    showRulerToPlayers: raw.showRulerToPlayers === true,
-    lockZoom: raw.lockZoom === true,
-    frameColor: isFrameColor(raw.frameColor) ? raw.frameColor : DEFAULT_FRAME_COLOR,
-    diagonalRule: isMovementRule(raw.diagonalRule) ? raw.diagonalRule : DEFAULT_SETTINGS.diagonalRule,
-    ...(mapOrder ? { mapOrder } : {}),
-  };
-}
-
-const DEFAULT_SETTINGS: LibrarySettings = {
-  currentMapId: null,
-  playerScreenDiagonal: null,
-  gridSize: 1,
-  showEffectTools: true,
-  showLibrary: true,
-  // Turned left: how most tables with the screen lying flat play
-  portraitRotation: 270,
-  diagonalRule: DEFAULT_MOVEMENT_RULE,
-  showRulerToPlayers: false,
-  lockZoom: false,
-  frameColor: DEFAULT_FRAME_COLOR,
-};
-
-/** Turns a new portrait map or handout can get: none, right or left. */
-const isPortraitRotation = (value: unknown): value is number => value === 0 || value === 90 || value === 270;
 
 /**
  * The rotation for a map or handout being added: one taller than wide is
@@ -1058,29 +1005,12 @@ export async function removeMap(id: string): Promise<boolean> {
 }
 
 /**
- * Apply a settings patch from the renderer. Only known keys with the expected
- * types are accepted; map order goes through reorderMaps instead.
+ * Apply a settings change from the renderer. Only known settings with valid
+ * values are taken (see src/lib/settings.ts); map order goes through
+ * reorderMaps instead.
  */
-export async function saveSettings(patch: Partial<LibrarySettings>): Promise<boolean> {
-  if (!patch || typeof patch !== 'object') return false;
-  const clean: Partial<LibrarySettings> = {};
-  if ('currentMapId' in patch) {
-    const id = patch.currentMapId;
-    if (id === null || (typeof id === 'string' && SAFE_ID.test(id))) clean.currentMapId = id;
-  }
-  if ('playerScreenDiagonal' in patch) {
-    const diagonal = patch.playerScreenDiagonal;
-    if (diagonal === null) clean.playerScreenDiagonal = null;
-    else if (toPositiveNumber(diagonal) !== null) clean.playerScreenDiagonal = diagonal;
-  }
-  if (toPositiveNumber(patch.gridSize) !== null) clean.gridSize = patch.gridSize;
-  if (typeof patch.showEffectTools === 'boolean') clean.showEffectTools = patch.showEffectTools;
-  if (typeof patch.showLibrary === 'boolean') clean.showLibrary = patch.showLibrary;
-  if (isPortraitRotation(patch.portraitRotation)) clean.portraitRotation = patch.portraitRotation;
-  if (typeof patch.showRulerToPlayers === 'boolean') clean.showRulerToPlayers = patch.showRulerToPlayers;
-  if (typeof patch.lockZoom === 'boolean') clean.lockZoom = patch.lockZoom;
-  if (isFrameColor(patch.frameColor)) clean.frameColor = patch.frameColor;
-  if (isMovementRule(patch.diagonalRule)) clean.diagonalRule = patch.diagonalRule;
+export async function saveSettings(patch: unknown): Promise<boolean> {
+  const clean = cleanSettingsPatch(patch);
   if (Object.keys(clean).length === 0) return false;
   await mutateIndex((index) => {
     index.settings = { ...index.settings, ...clean };
@@ -1755,16 +1685,15 @@ export async function importProject(sourcePath: string): Promise<ProjectImportSu
       // Player screen settings belong to the screen, so only a fresh library
       // takes them, and only those the file gives (one written by hand may give none)
       const given = asRecord(manifest.settings);
-      const imported = normalizeSettings(given);
-      const take = {
-        playerScreenDiagonal: 'playerScreenDiagonal' in given,
-        gridSize: toPositiveNumber(given.gridSize) !== null,
-        portraitRotation: isPortraitRotation(given.portraitRotation),
+      const { gridSize, portraitRotation, playerScreenDiagonal = null } = cleanSettingsPatch(given);
+      const taken = {
+        // A screen size that is given but not valid means none
+        ...('playerScreenDiagonal' in given ? { playerScreenDiagonal } : {}),
+        ...(gridSize !== undefined ? { gridSize } : {}),
+        ...(portraitRotation !== undefined ? { portraitRotation } : {}),
       };
-      if (!wasEmpty || !Object.values(take).some(Boolean)) return { settingsApplied: false };
-      if (take.playerScreenDiagonal) index.settings.playerScreenDiagonal = imported.playerScreenDiagonal;
-      if (take.gridSize) index.settings.gridSize = imported.gridSize;
-      if (take.portraitRotation) index.settings.portraitRotation = imported.portraitRotation;
+      if (!wasEmpty || Object.keys(taken).length === 0) return { settingsApplied: false };
+      index.settings = { ...index.settings, ...taken };
       return { settingsApplied: true };
     });
     created.length = 0;

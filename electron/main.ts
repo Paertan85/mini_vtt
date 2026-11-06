@@ -11,7 +11,6 @@ import type {
   EffectSnapshot,
   FogSnapshot,
   ImportResult,
-  LibrarySettings,
   MapGrid,
   MapState,
   MapView,
@@ -420,9 +419,7 @@ ipcMain.handle('library:removeMap', async (_e, id: string) => {
   return library.removeMap(id);
 });
 ipcMain.handle('library:reorderMaps', async (_e, ids: string[]) => library.reorderMaps(ids));
-ipcMain.handle('library:saveSettings', async (_e, patch: Partial<LibrarySettings>) =>
-  library.saveSettings(patch),
-);
+ipcMain.handle('library:saveSettings', async (_e, patch: unknown) => library.saveSettings(patch));
 ipcMain.handle('library:revealFolder', async () => {
   try {
     const folder = path.join(app.getPath('userData'), 'library');

@@ -10,7 +10,6 @@ import type {
   EffectSnapshot,
   FogSnapshot,
   ImportResult,
-  LibrarySettings,
   LibrarySnapshot,
   MapGrid,
   MapState,
@@ -20,6 +19,7 @@ import type {
   RulerState,
   VideoCodec,
 } from '../src/types/map';
+import type { SettingsPatch } from '../src/lib/settings';
 
 /** Subscribe to a channel; returns an unsubscribe function. */
 function subscribe<Args extends unknown[]>(channel: string, callback: (...args: Args) => void) {
@@ -60,8 +60,7 @@ const api = {
     ipcRenderer.invoke('library:renameMap', id, name),
   removeMap: (id: string): Promise<boolean> => ipcRenderer.invoke('library:removeMap', id),
   reorderMaps: (ids: string[]): Promise<boolean> => ipcRenderer.invoke('library:reorderMaps', ids),
-  saveSettings: (patch: Partial<LibrarySettings>): Promise<boolean> =>
-    ipcRenderer.invoke('library:saveSettings', patch),
+  saveSettings: (patch: SettingsPatch): Promise<boolean> => ipcRenderer.invoke('library:saveSettings', patch),
   revealLibraryFolder: (): Promise<boolean> => ipcRenderer.invoke('library:revealFolder'),
   /** Saves the whole library to one .minivtt file chosen in a dialog; null if cancelled. */
   exportProject: (): Promise<ProjectResult<{ maps: number; handouts: number }> | null> =>

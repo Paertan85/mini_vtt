@@ -252,6 +252,32 @@ app.whenReady().then(async () => {
     );
     check('unknown keys and mapOrder are ignored', !('somethingElse' in settings) && !settings.mapOrder);
     check('rejects an unsafe currentMapId', (await lib.saveSettings({ currentMapId: '../evil' })) === false);
+    {
+      const before = (await lib.loadSnapshot()).settings;
+      const saved = await lib.saveSettings({
+        playerScreenDiagonal: '43',
+        frameColor: 'plaid',
+        lockZoom: 'yes',
+        mapOrder: ['m_x'],
+        somethingElse: 1,
+      });
+      const after = (await lib.loadSnapshot()).settings;
+      check(
+        'a settings change keeps only valid values, numbers as numbers',
+        saved === true &&
+          after.playerScreenDiagonal === 43 &&
+          after.frameColor === before.frameColor &&
+          after.lockZoom === before.lockZoom &&
+          JSON.stringify(after.mapOrder) === JSON.stringify(before.mapOrder) &&
+          !('somethingElse' in after),
+        JSON.stringify(after),
+      );
+      check(
+        'a change with nothing valid in it is refused',
+        (await lib.saveSettings({ portraitRotation: 45, showLibrary: 'no' })) === false,
+      );
+      await lib.saveSettings({ playerScreenDiagonal: before.playerScreenDiagonal });
+    }
 
     // ── Rename and reorder ───────────────────────────────────────────────────
     check('rename rejects a blank name', (await lib.renameMap(a.id, '   ')) === false);
