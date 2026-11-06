@@ -38,6 +38,8 @@ All notable changes to this project are documented here. The format is based on
 
 ### Changed
 
+- A new app icon: a table seen from above, with the screen on it and
+  the players around it.
 - Messages show right beneath the button you pressed (Save grid, Export
   project, Add maps, Remove and the rest) instead of in the bottom right
   corner. Only those with nothing to point at, such as a keyboard
