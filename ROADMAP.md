@@ -15,6 +15,7 @@ Have an idea? Open an [issue](https://github.com/Paertan85/mini_vtt/issues).
 - **View bookmarks:** saved framings of the player view for each map (one per room, say) to jump between.
 - **Ping:** briefly mark a spot on the player screen, to draw everyone's eyes to it.
 - **DM notes:** pins on the map that only the DM sees.
+- **Grid from the image size**, as Mini Gridder does: from the map's pixel size, work out the square sizes that fit a whole number of squares both across and down, and step through them (arrow keys or wheel, say) with the grid shown over the map until it lines up. A quicker way to set a grid than measuring, for maps whose names give no grid.
 - **Universal VTT import** (`.dd2vtt`, `.uvtt`, from Dungeondraft and others): the map image together with its grid size, so it needs no measuring.
 
 ### Platforms
