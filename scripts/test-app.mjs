@@ -899,6 +899,66 @@ app.whenReady().then(async () => {
       'the DM window draws it one, and it is kept',
       fs.existsSync(greyThumb) && (await js(`!!document.querySelector('[aria-label="Handouts"] img')`)),
     );
+
+    // On the player screen, a handout moves with a drag and zooms around the pointer
+    await js(
+      `document.querySelector('[title^="Grey note"]').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`,
+    );
+    const handoutBox = () =>
+      js(
+        `(() => { const img = document.querySelector('[aria-label="Handout"] img');
+          if (!img || !img.complete || !img.naturalWidth) return null;
+          const r = img.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; })()`,
+        player,
+      );
+    const shown = await waitFor(handoutBox);
+    check('a handout shows on the player screen', !!shown, JSON.stringify(shown));
+    if (shown) {
+      const playerMouse = (type, x, y) =>
+        player.webContents.sendInputEvent({
+          type,
+          x: Math.round(x),
+          y: Math.round(y),
+          button: 'left',
+          clickCount: 1,
+          modifiers: type === 'mouseUp' ? [] : ['leftButtonDown'],
+        });
+      const from = { x: Math.round(shown.x + shown.w / 2), y: Math.round(shown.y + shown.h / 2) };
+      playerMouse('mouseDown', from.x, from.y);
+      for (let i = 1; i <= 5; i++) {
+        playerMouse('mouseMove', from.x + 12 * i, from.y + 6 * i);
+        await sleep(30);
+      }
+      playerMouse('mouseUp', from.x + 60, from.y + 30);
+      await sleep(300);
+      const moved = await handoutBox();
+      check(
+        'dragging it moves it with the mouse',
+        Math.abs(moved.x - shown.x - 60) < 1 && Math.abs(moved.y - shown.y - 30) < 1,
+        `${(moved.x - shown.x).toFixed(1)}, ${(moved.y - shown.y).toFixed(1)}`,
+      );
+
+      // A quarter of the way in from its top left corner stays under the pointer
+      const at = { x: moved.x + moved.w / 4, y: moved.y + moved.h / 4 };
+      await js(
+        `document.querySelector('[aria-label="Handout"]').dispatchEvent(new WheelEvent('wheel',
+          { deltaY: -100, ctrlKey: true, clientX: ${at.x}, clientY: ${at.y}, bubbles: true, cancelable: true }))`,
+        player,
+      );
+      await sleep(300);
+      const zoomed = await handoutBox();
+      const spot = { x: (at.x - zoomed.x) / zoomed.w, y: (at.y - zoomed.y) / zoomed.h };
+      check(
+        'Ctrl + wheel zooms it in around the pointer',
+        zoomed.w > moved.w * 1.05 && Math.abs(spot.x - 0.25) < 0.01 && Math.abs(spot.y - 0.25) < 0.01,
+        `${(zoomed.w / moved.w).toFixed(2)}×, spot ${spot.x.toFixed(3)}, ${spot.y.toFixed(3)}`,
+      );
+    }
+    await js(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))`, player);
+    check(
+      'Esc on the player screen closes the handout',
+      await waitFor(() => js(`!document.querySelector('[aria-label="Handout"]')`, player)),
+    );
     await tab('Maps');
     await sleep(300);
 

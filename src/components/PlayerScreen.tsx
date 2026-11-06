@@ -39,11 +39,8 @@ export function PlayerScreen() {
   const [mediaSize, setMediaSize] = useState<Size | null>(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [handoutZoom, setHandoutZoom] = useState(1);
-  const [handoutPan, setHandoutPan] = useState({ x: 0, y: 0 });
 
   const mainRef = useRef<HTMLElement>(null);
-  const handoutRef = useRef<HTMLDivElement>(null);
   const fogCanvasRef = useRef<HTMLCanvasElement>(null);
   const mediaSizeRef = useRef<Size | null>(null);
   // The latest snapshot for the current map. Kept, not consumed, so it can be
@@ -208,44 +205,6 @@ export function PlayerScreen() {
 
   const toggleFullScreen = useCallback(() => void window.electronAPI?.toggleFullScreen(), []);
 
-  // ─── Handouts ─────────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    setHandoutZoom(1);
-    setHandoutPan({ x: 0, y: 0 });
-    if (!state.handoutUrl) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        window.electronAPI?.closeHandout();
-        return;
-      }
-      const step = event.shiftKey ? 100 : 40;
-      const offsets: Record<string, { x: number; y: number }> = {
-        ArrowLeft: { x: step, y: 0 },
-        ArrowRight: { x: -step, y: 0 },
-        ArrowUp: { x: 0, y: step },
-        ArrowDown: { x: 0, y: -step },
-      };
-      const offset = offsets[event.key];
-      if (!offset) return;
-      event.preventDefault();
-      setHandoutPan((current) => ({ x: current.x + offset.x, y: current.y + offset.y }));
-    };
-    const overlay = handoutRef.current;
-    const onWheel = (event: WheelEvent) => {
-      if (!event.ctrlKey && !event.metaKey) return; // Cmd on a Mac
-      event.preventDefault();
-      const factor = event.deltaY < 0 ? 1.1 : 1 / 1.1;
-      setHandoutZoom((zoom) => Math.min(MAX_HANDOUT_ZOOM, Math.max(MIN_HANDOUT_ZOOM, zoom * factor)));
-    };
-    window.addEventListener('keydown', onKeyDown);
-    overlay?.addEventListener('wheel', onWheel, { passive: false });
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      overlay?.removeEventListener('wheel', onWheel);
-    };
-  }, [state.handoutUrl]);
-
   // A replaced or unloaded video lets go of its file and decoder straight away
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const setVideo = useCallback((element: HTMLVideoElement | null) => {
@@ -264,7 +223,6 @@ export function PlayerScreen() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   const oriented = mediaSize && (state.rotation % 180 === 0 ? mediaSize : { w: mediaSize.h, h: mediaSize.w });
-  const handoutSideways = state.handoutRotation % 180 !== 0;
   const controlClass = `absolute z-30 flex h-9 w-9 items-center justify-center rounded border border-white/15 bg-black/60 text-white/80 transition-opacity duration-300 hover:text-white ${
     controlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
   }`;
@@ -340,29 +298,14 @@ export function PlayerScreen() {
       )}
 
       {state.handoutUrl && (
-        <div ref={handoutRef} className="absolute inset-0 z-10 flex items-center justify-center bg-black">
-          <img
-            src={state.handoutUrl}
-            alt=""
-            draggable={false}
-            className="object-contain"
-            style={{
-              maxWidth: handoutSideways ? '100vh' : '100vw',
-              maxHeight: handoutSideways ? '100vw' : '100vh',
-              transform:
-                `translate3d(${handoutPan.x}px, ${handoutPan.y}px, 0) ` +
-                `rotate(${state.handoutRotation}deg) scale(${handoutZoom})`,
-            }}
-          />
-          <button
-            onClick={() => window.electronAPI?.closeHandout()}
-            title="Close handout (Esc)"
-            aria-label="Close handout"
-            className={`${controlClass} right-3 top-3`}
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+        <Handout
+          // Each handout opens centred at its fitted size
+          key={state.handoutUrl}
+          url={state.handoutUrl}
+          rotation={state.handoutRotation}
+          controlsVisible={controlsVisible}
+          closeClass={`${controlClass} right-3 top-3`}
+        />
       )}
 
       {state.blackout && <div className="absolute inset-0 z-20 bg-black" aria-label="Blackout" />}
@@ -376,5 +319,136 @@ export function PlayerScreen() {
         {isFullScreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
       </button>
     </main>
+  );
+}
+
+// ─── Handout ──────────────────────────────────────────────────────────────────
+
+interface HandoutProps {
+  url: string;
+  /** 0, 90, 180 or 270 */
+  rotation: number;
+  /** False while the mouse is idle: the pointer is hidden then */
+  controlsVisible: boolean;
+  closeClass: string;
+}
+
+/**
+ * A handout over the map. Dragging or the arrow keys move it, Ctrl + wheel
+ * zooms it around the pointer, and Esc closes it. Moving it re-renders only
+ * this, not the map beneath.
+ */
+function Handout({ url, rotation, controlsVisible, closeClass }: HandoutProps) {
+  // The zoom, and where the handout's centre sits relative to the screen's
+  // centre. One state, so a zoom can move the handout to keep the spot under
+  // the pointer where it is.
+  const [view, setView] = useState({ zoom: 1, x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  /** The pointer dragging the handout, and where it was last */
+  const dragRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const overlay = overlayRef.current;
+    if (!overlay) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        window.electronAPI?.closeHandout();
+        return;
+      }
+      const step = event.shiftKey ? 100 : 40;
+      const offsets: Record<string, { x: number; y: number }> = {
+        ArrowLeft: { x: step, y: 0 },
+        ArrowRight: { x: -step, y: 0 },
+        ArrowUp: { x: 0, y: step },
+        ArrowDown: { x: 0, y: -step },
+      };
+      const offset = offsets[event.key];
+      if (!offset) return;
+      event.preventDefault();
+      setView((current) => ({ ...current, x: current.x + offset.x, y: current.y + offset.y }));
+    };
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return; // Cmd on a Mac
+      event.preventDefault();
+      // The pointer, from the screen's centre, where an unmoved handout's centre is
+      const rect = overlay.getBoundingClientRect();
+      const px = event.clientX - rect.left - rect.width / 2;
+      const py = event.clientY - rect.top - rect.height / 2;
+      const factor = event.deltaY < 0 ? 1.1 : 1 / 1.1;
+      setView((current) => {
+        const zoom = Math.min(MAX_HANDOUT_ZOOM, Math.max(MIN_HANDOUT_ZOOM, current.zoom * factor));
+        // Scale the handout's offset from the pointer, so the spot under it stays put
+        const scale = zoom / current.zoom;
+        return { zoom, x: px - (px - current.x) * scale, y: py - (py - current.y) * scale };
+      });
+    };
+    window.addEventListener('keydown', onKeyDown);
+    overlay.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      overlay.removeEventListener('wheel', onWheel);
+    };
+  }, []);
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    // The left button drags; the close button keeps its click
+    if (event.button !== 0 || (event.target as Element).closest('button')) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+    setDragging(true);
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    // By the step since the last move, so a zoom or arrow key during the drag isn't undone
+    const dx = event.clientX - drag.x;
+    const dy = event.clientY - drag.y;
+    drag.x = event.clientX;
+    drag.y = event.clientY;
+    setView((current) => ({ ...current, x: current.x + dx, y: current.y + dy }));
+  };
+
+  const endDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (dragRef.current?.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    setDragging(false);
+  };
+
+  const sideways = rotation % 180 !== 0;
+  const cursor = !controlsVisible ? '' : dragging ? 'cursor-grabbing' : 'cursor-grab';
+
+  return (
+    <div
+      ref={overlayRef}
+      aria-label="Handout"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+      className={`absolute inset-0 z-10 flex touch-none items-center justify-center bg-black ${cursor}`}
+    >
+      <img
+        src={url}
+        alt=""
+        draggable={false}
+        className="object-contain"
+        style={{
+          maxWidth: sideways ? '100vh' : '100vw',
+          maxHeight: sideways ? '100vw' : '100vh',
+          transform: `translate3d(${view.x}px, ${view.y}px, 0) rotate(${rotation}deg) scale(${view.zoom})`,
+        }}
+      />
+      <button
+        onClick={() => window.electronAPI?.closeHandout()}
+        title="Close handout (Esc)"
+        aria-label="Close handout"
+        className={closeClass}
+      >
+        <X className="h-5 w-5" />
+      </button>
+    </div>
   );
 }

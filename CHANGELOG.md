@@ -8,6 +8,9 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- A handout on the player screen can be dragged with the mouse to move it,
+  and Ctrl + wheel zooms in on the spot under the pointer instead of the
+  handout's middle.
 - **True scale**, next to Fit 16:9, zooms the player view so the map's own
   squares come out at the grid square size from Player screen setup: on a
   43-inch screen set to 1-inch squares, each square of the map is an inch
