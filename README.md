@@ -19,7 +19,7 @@ It's built to stay out of the way on modest hardware: no accounts, no server, no
 
 - **Fog of war.** Select the Fog tool and paint: the left mouse button reveals, the right button covers. Undo and redo any change, or reveal or cover the whole map at once. The DM sees fog as an indigo tint; players see solid black.
 - **Painted effects.** The Effects tool paints fire, poison or magic onto the map with soft edges, for burning terrain, poison clouds or spell areas. Right-click erases, **Clear** removes them all. Effects and circles sit under the fog, so they never give away unexplored areas, and poison is hatched so it stays distinct from fire for colour-blind players. A map that never uses effects costs nothing extra, and **Settings → Show effect and shape tools** hides them, and spell areas, entirely.
-- **Spell areas.** In the Shapes tool, place a circle (Spirit Guardians, Fireball), square (cube), cone or line/wall, sized in feet. Drag its dot to move it, there or in the View tool (hold Ctrl to snap it to the grid, Alt to leave a copy), turn the mouse wheel over it to resize it in 5 ft steps (a line's width), or type the size. Cones and lines have a handle at their tip: drag it to aim and set the length. A square's handle sits on one edge: drag it to turn the square (it settles square to the grid near a right angle). The DM sees the size; players only see the area. Measure the map's grid once (**Settings → Measure map grid…**: click two corners of a square) so feet match the map. A map whose file or folder name gives its size, such as `forest_32x32.jpg` or `140ppi`, gets its grid as it is added; the map library shows which maps have one.
+- **Spell areas.** In the Shapes tool, place a circle (Spirit Guardians, Fireball), square (cube), cone or line/wall, sized in feet. Drag its dot to move it, there or in the View tool (hold Ctrl to snap it to the grid, Alt to leave a copy), turn the mouse wheel over it to resize it in 5 ft steps (a line's width), or type the size. Cones and lines have a handle at their tip: drag it to aim and set the length (hold Ctrl to turn in 45° steps). A square's handle sits on one edge: drag it to turn the square (it settles square to the grid near a right angle). The DM sees the size; players only see the area. Measure the map's grid once (**Settings → Measure map grid…**: click two corners of a square) so feet match the map. A map whose file or folder name gives its size, such as `forest_32x32.jpg` or `140ppi`, gets its grid as it is added; the map library shows which maps have one.
 - **Measuring distances.** The Measure tool (M) shows the distance in feet as you drag across the map, or click point by point to measure a path round corners (double-click or Enter finishes it, right-click takes back a point, Esc or Backspace clears it). **Movement** counts squares, with diagonals 5, 10, 5 ft by default (**Settings → Movement: every square** counts them all the same); **Straight line** measures as the crow flies (hold Ctrl to snap its ends to square centres). Only you see the ruler until you turn on **Show players**.
 - **Player view framing.** A teal frame on the DM window shows exactly what the player screen shows. Drag it to pan and scroll over it to zoom.
 - **True-scale grid.** Enter the player screen's diagonal and your grid size, and the frame shows a grid that matches the physical screen, so 1-inch minis line up with the map. **True scale** (next to **Fit 16:9**) zooms the player view so the map's own squares come out at that size. On a map without a grid, it has you measure the grid first.
@@ -85,7 +85,7 @@ On a Mac, use Cmd for Ctrl and Option for Alt.
 | Add a spell area                             | Shapes tool, then **Circle**, **Square**, **Cone** or **Line**                                                                                                                                                   |
 | Move an area                                 | Shapes or View tool: drag its dot (Ctrl: snap to the grid, Alt: leave a copy), or arrow keys (one square; Shift: 1 ft)                                                                                           |
 | Resize an area                               | Mouse wheel over it (5 ft steps; a line's width), or type the size in its toolbar                                                                                                                                |
-| Aim a cone or line                           | Drag the handle at its tip; the length follows in 5 ft steps                                                                                                                                                     |
+| Aim a cone or line                           | Drag the handle at its tip; the length follows in 5 ft steps (Ctrl: turn in 45° steps)                                                                                                                           |
 | Turn a square                                | Drag the handle on its edge                                                                                                                                                                                      |
 | Measure a distance                           | Measure tool, then drag, or click each point of a path and double-click to finish; the distance shows in feet. **Movement** or **Straight line** in the toolbar, **Show players** to put it on the player screen |
 | Duplicate / delete an area                   | Ctrl+D / Del, or the buttons in its toolbar                                                                                                                                                                      |
@@ -117,6 +117,25 @@ Maps, fog masks and settings live in a `library` folder inside the app's user-da
 **Settings → Export project…** saves the whole library (every map and handout with its fog, effects, zoom, framing, rotation, mirroring and order, plus the player screen setup) as a single `.minivtt` file. Copy that file to the other computer and choose **Settings → Import project…** there. Importing adds the project's maps and handouts to whatever is already in the library and never replaces anything; the player screen setup is taken over only when the library is still empty.
 
 A `.minivtt` file is an ordinary ZIP archive, so any unzip tool can open it (rename it to `.zip` first). [docs/project-format.md](docs/project-format.md) explains how to make one yourself, by hand or from another program, and the rules that keep files readable across versions and forks. Mini VTT 1.1 and 1.2 can't open these files, but files from those versions still import.
+
+## Known limitations
+
+Corner cases Mini VTT doesn't handle, so they don't come as a surprise.
+
+**Grid from the file name.** When a name gives no grid that fits, the map is added without one, and you measure it with **Settings → Measure map grid…**.
+
+- The squares across and down must give square cells: the width and the height may differ by at most 2%. A 2250 × 4500 map named `22x45` is 2.3% off (102 px across, 100 px down), so it gets no grid.
+- A pair that fits the image neither way round is passed over, as is one that is the image's own size (`4200x4760` on a 4200 × 4760 image) or is marked `px`.
+- Only the file name and the three folders above it are read; a size further up is not.
+- When a name holds several sizes that fit, the last one wins, and a size in the file name wins over one in a folder.
+- A squares count wins over a PPI value. `DPI` is not read, since it usually means print resolution, not pixels per square.
+- A square must come out between 8 and 1000 pixels.
+
+**File formats.**
+
+- Maps can be PNG, JPEG, GIF, WebP or BMP images, or WebM videos. MP4 and other video formats are not supported; convert them to WebM first.
+- Handouts are images only, not videos.
+- Universal VTT files (`.dd2vtt`, `.uvtt`) can't be imported yet; add the map's image instead.
 
 ## Development
 
