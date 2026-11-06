@@ -605,12 +605,15 @@ app.whenReady().then(async () => {
     main.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'V' });
     await sleep(200);
     check(
-      'a bare Alt press keeps the menu bar hidden and the keyboard on the page',
-      !main.isMenuBarVisible() &&
-        (await js(
-          `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'View').getAttribute('aria-pressed')`,
-        )) === 'true',
+      'a bare Alt press leaves the keyboard on the page',
+      (await js(
+        `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'View').getAttribute('aria-pressed')`,
+      )) === 'true',
     );
+    // A Mac has no menu bar in the window (the menu is the system bar at the top)
+    if (process.platform !== 'darwin') {
+      check('and keeps the menu bar hidden', !main.isMenuBarVisible());
+    }
 
     // View tool: pressing Shift shows the fog brush where the pointer already is
     await press('v');
