@@ -916,6 +916,21 @@ app.whenReady().then(async () => {
       JSON.stringify(readIndex().settings),
     );
 
+    // ? opens the keyboard shortcuts, grouped, with the General group first
+    await press('?');
+    await sleep(300);
+    const shortcutGroups = await js(
+      `[...document.querySelectorAll('[role="dialog"] h3')].map((h) => h.textContent.trim())`,
+    );
+    check(
+      '? opens the keyboard shortcuts, General first',
+      shortcutGroups[0] === 'General' && shortcutGroups.length > 1,
+      shortcutGroups.join(', '),
+    );
+    await press('Escape');
+    await sleep(300);
+    check('and Esc closes them', !(await js(`!!document.querySelector('[role="dialog"]')`)));
+
     // In a confirmation dialog, keyboard focus stays where it is moved to
     const focusedText = () => js(`document.activeElement?.textContent.trim() ?? ''`);
     const key = (type, keyCode, modifiers = []) =>

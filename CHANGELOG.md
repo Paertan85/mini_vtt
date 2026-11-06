@@ -40,6 +40,11 @@ All notable changes to this project are documented here. The format is based on
 
 - A new app icon: a table seen from above, with the screen on it and
   the players around it.
+- The keyboard shortcuts list is easier to read: grouped by tool and task
+  (General, Fog, Player view, Spell areas and so on), with the most used
+  first and one action per line. Keys show as key caps and mouse actions
+  as words, with "or" between alternatives. It fits the window without
+  scrolling, on a Steam Deck too.
 - Messages show right beneath the button you pressed (Save grid, Export
   project, Add maps, Remove and the rest) instead of in the bottom right
   corner. Only those with nothing to point at, such as a keyboard

@@ -66,7 +66,7 @@ export function Dialog({ title, onClose, children, footer, width = 'w-[26rem]' }
             <X className="h-4 w-4" />
           </Button>
         </div>
-        <div className="max-h-[70vh] overflow-y-auto px-4 py-4">{children}</div>
+        <div className="max-h-[calc(100vh-8rem)] overflow-y-auto px-4 py-4">{children}</div>
         {footer && <div className="flex justify-end gap-2 border-t border-line px-4 py-3">{footer}</div>}
       </div>
     </div>
