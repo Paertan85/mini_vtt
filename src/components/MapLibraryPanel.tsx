@@ -35,7 +35,7 @@ interface MapLibraryPanelProps {
   activeHandoutId: string | null;
   /** Whether the player screen is open; cards are marked Live only then */
   playerOpen: boolean;
-  /** Whether the player screen is blacked out; Live turns grey */
+  /** Whether the player screen is blacked out; Live turns the Blackout button's red */
   blackout: boolean;
   onSelectHandout: (id: string) => void;
   onToggleHandout: (handout: HandoutMeta) => void;
@@ -302,7 +302,7 @@ interface CardProps {
   selected: boolean;
   /** Visible to players right now: marked Live */
   live: boolean;
-  /** The player screen is blacked out, so Live is grey */
+  /** The player screen is blacked out, so Live is the Blackout button's red */
   blackout: boolean;
   details: Detail[];
   thumb: React.ReactNode;
@@ -349,7 +349,9 @@ function Card(props: CardProps) {
             <span className="truncate text-xs text-faint">
               {/* Gold, like the border of the selected card */}
               {props.live && (
-                <span className={`font-medium ${props.blackout ? 'text-muted' : 'text-gold'}`}>Live</span>
+                <span className={`font-medium ${props.blackout ? 'text-crimson-bright' : 'text-gold'}`}>
+                  Live
+                </span>
               )}
               {props.live && props.details.length > 0 && ' · '}
               {props.details.map((detail, index) => (

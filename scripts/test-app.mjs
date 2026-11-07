@@ -1169,7 +1169,7 @@ app.whenReady().then(async () => {
       'blackout covers the player screen',
       (await js(`!!document.querySelector('[aria-label="Blackout"]')`, player)) === true,
     );
-    check('and Live turns grey', (await liveMark()).live?.includes('text-muted') === true);
+    check('and Live turns red', (await liveMark()).live?.includes('text-crimson-bright') === true);
     await press('b');
     await sleep(400);
     check(
