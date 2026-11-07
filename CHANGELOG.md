@@ -90,7 +90,8 @@ All notable changes to this project are documented here. The format is based on
 
 - In the map library, the map or handout players see is marked **Live**,
   in the gold of the selected card's border, instead of "On player screen"
-  or "Showing on player screen". A map without a grid says **Grid not set**
+  or "Showing on player screen", and without the thin crimson bar
+  beside it. A map without a grid says **Grid not set**
   in red instead of "No grid", since spell areas, measuring and True scale
   need it.
 

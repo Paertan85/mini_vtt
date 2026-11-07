@@ -313,12 +313,6 @@ function Card(props: CardProps) {
         props.selected ? 'border-gold/70 bg-raised' : 'border-transparent hover:bg-raised'
       }`}
     >
-      {props.live && (
-        <span
-          aria-hidden="true"
-          className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-crimson-bright"
-        />
-      )}
       <button
         type="button"
         onClick={props.onClick}
