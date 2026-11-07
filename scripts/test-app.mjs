@@ -1042,6 +1042,34 @@ app.whenReady().then(async () => {
       (await distance()) === `${3 * feetPerCell} ft`,
     );
     check('that is saved', readIndex().settings.diagonalRule === 'uniform');
+    // The map's measured grid on the player screen, from the settings menu
+    const playerGridCell = () =>
+      js(`document.querySelector('[aria-label="Grid"] pattern')?.getAttribute('width') ?? null`, player);
+    // Its text starts with a tick while it is on
+    const clickGridItem = () =>
+      js(
+        `[...document.querySelectorAll('[role="menuitemcheckbox"]')].find((b) => b.textContent.endsWith('Show grid on player screen')).click()`,
+      );
+    check('players see no grid until it is shown to them', (await playerGridCell()) === null);
+    await click('[aria-label="Settings"]');
+    await sleep(200);
+    await clickGridItem();
+    check(
+      'the settings menu draws the map’s grid on the player screen',
+      (await waitFor(async () => (await playerGridCell()) !== null)) &&
+        Math.abs(Number(await playerGridCell()) - measureCell) < 0.01,
+      String(await playerGridCell()),
+    );
+    check('that is saved too', await waitFor(() => readIndex().settings.showGridToPlayers === true));
+    await click('[aria-label="Settings"]');
+    await sleep(200);
+    await clickGridItem();
+    check(
+      'and the menu takes it away again',
+      (await waitFor(async () => (await playerGridCell()) === null)) &&
+        (await waitFor(() => readIndex().settings.showGridToPlayers === false)),
+      String(await playerGridCell()),
+    );
     await clickText('Show players');
     check(
       'Show players puts the ruler on the player screen',

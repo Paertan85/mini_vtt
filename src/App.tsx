@@ -161,6 +161,8 @@ export function App() {
     diagonalRule: movementRule,
     // The ruler can be shown on the player screen too; it is sent as it changes
     showRulerToPlayers,
+    // The map's own grid can be drawn on the player screen
+    showGridToPlayers,
     // Locks the player view zoom: the wheel, the keys and the toolbar leave it alone
     lockZoom: zoomLocked,
     playerScreenDiagonal: screenDiagonal,
@@ -651,6 +653,12 @@ export function App() {
   // this stays the same object and nothing is sent until it is dropped
   const shownAreas = spellAreas.shownToPlayers;
   const playerAreas = useMemo(() => toDrawnAreas(shownAreas, grid), [shownAreas, grid]);
+  // The same object until the grid or the setting changes, so a pan sends nothing new
+  const playerGrid = useMemo(
+    () =>
+      showGridToPlayers && grid ? { cell: grid.cell, offsetX: grid.offsetX, offsetY: grid.offsetY } : null,
+    [showGridToPlayers, grid],
+  );
 
   useEffect(() => {
     api?.sendMapState({
@@ -664,6 +672,7 @@ export function App() {
       handoutRotation: activeHandout?.rotation ?? 0,
       blackout,
       areas: playerAreas,
+      grid: playerGrid,
     });
   }, [
     api,
@@ -676,6 +685,7 @@ export function App() {
     activeHandout,
     blackout,
     playerAreas,
+    playerGrid,
   ]);
 
   const handleOpenPlayer = async () => {
@@ -873,6 +883,7 @@ export function App() {
   };
 
   const handleToggleZoomLock = () => updateSettings({ lockZoom: !zoomLocked });
+  const handleToggleGridToPlayers = () => updateSettings({ showGridToPlayers: !showGridToPlayers });
 
   const handleMovementRuleChange = (rule: MovementRule) => updateSettings({ diagonalRule: rule });
 
@@ -1006,6 +1017,7 @@ export function App() {
     onOpenPlayerSetup: () => setDialog('setup'),
     onOpenShortcuts: () => setDialog('shortcuts'),
     onOpenWelcome: () => setDialog('welcome'),
+    onToggleGridToPlayers: handleToggleGridToPlayers,
     onExportProject: () => void handleExportProject(),
     onImportProject: () => void handleImportProject(),
     onRevealLibraryFolder: () => void api?.revealLibraryFolder(),
@@ -1072,6 +1084,7 @@ export function App() {
           movementRule={movementRule}
           measureStraight={measureStraight}
           showRulerToPlayers={showRulerToPlayers}
+          showGridToPlayers={showGridToPlayers}
           measureNeedsGrid={!grid}
           playerOpen={playerOpen}
           blackout={blackout}

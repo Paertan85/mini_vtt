@@ -36,7 +36,12 @@ export interface MapState {
   blackout: boolean;
   /** Spell areas, drawn under the fog */
   areas: DrawnArea[];
+  /** The map's grid, drawn under the fog when the DM shows it to players; null: no grid */
+  grid: PlayerGrid | null;
 }
+
+/** The part of a map's grid the player screen needs to draw it (map natural pixels). */
+export type PlayerGrid = Pick<MapGrid, 'cell' | 'offsetX' | 'offsetY'>;
 
 /** An area template as the player screen draws it: map pixels, already converted from feet. */
 export interface DrawnArea {
@@ -157,6 +162,8 @@ export interface LibrarySettings {
   portraitRotation: number;
   /** How the Measure tool's Movement ruler counts diagonal squares */
   diagonalRule: MovementRule;
+  /** Whether the map's measured grid is drawn on the player screen */
+  showGridToPlayers: boolean;
   /** Whether the Measure tool's ruler is also shown on the player screen */
   showRulerToPlayers: boolean;
   /** Whether the player view zoom is locked, so a stray wheel or key can't change it */

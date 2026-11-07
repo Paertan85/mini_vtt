@@ -57,6 +57,7 @@ const RULES: { [K in keyof SettingsPatch]-?: Rule<LibrarySettings[K]> } = {
     parse: (value) => (isMovementRule(value) ? value : undefined),
   },
   showRulerToPlayers: { default: false, parse: boolean },
+  showGridToPlayers: { default: false, parse: boolean },
   lockZoom: { default: false, parse: boolean },
   frameColor: { default: DEFAULT_FRAME_COLOR, parse: (value) => (isFrameColor(value) ? value : undefined) },
 };

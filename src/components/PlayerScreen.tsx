@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Maximize2, Minimize2, X } from 'lucide-react';
-import type { EffectSnapshot, FogSnapshot, MapState, RulerState } from '../types/map';
+import type { EffectSnapshot, FogSnapshot, MapState, PlayerGrid, RulerState } from '../types/map';
 import { mediaUrlOf } from '../lib/media';
 import { drawSnapshot, fillMask, fogMaskSize, loadImage } from '../lib/fog';
 import { EFFECT_OPACITY, showLayer } from '../lib/effects';
@@ -33,6 +33,7 @@ const INITIAL_STATE: MapState = {
   handoutRotation: 0,
   blackout: false,
   areas: [],
+  grid: null,
 };
 
 export function PlayerScreen() {
@@ -325,6 +326,7 @@ export function PlayerScreen() {
               style={{ opacity: EFFECT_OPACITY }}
             />
             <DrawnAreas discs={state.areas} media={mediaSize} />
+            {state.grid && <MapGridLines grid={state.grid} zoom={state.zoom} />}
             <canvas ref={fogCanvasRef} className="pointer-events-none absolute inset-0 h-full w-full" />
           </div>
         </div>
@@ -497,5 +499,36 @@ function Handout({ url, rotation, controlsVisible, closeClass }: HandoutProps) {
         <X className="h-5 w-5" />
       </button>
     </div>
+  );
+}
+
+/**
+ * The map's measured grid, in map pixels inside the zoomed and turned map, so
+ * it follows the map; lines stay one screen pixel wide at any zoom. An SVG
+ * pattern: the browser draws it once, and again only when the view changes.
+ */
+function MapGridLines({ grid, zoom }: { grid: PlayerGrid; zoom: number }) {
+  const { cell, offsetX, offsetY } = grid;
+  const width = 1 / zoom;
+  return (
+    <svg aria-label="Grid" className="pointer-events-none absolute inset-0 h-full w-full">
+      <defs>
+        <pattern
+          id="player-grid"
+          patternUnits="userSpaceOnUse"
+          x={offsetX}
+          y={offsetY}
+          width={cell}
+          height={cell}
+        >
+          <path
+            d={`M0 ${width / 2}H${cell}M${width / 2} 0V${cell}`}
+            stroke="rgb(255 255 255 / 0.35)"
+            strokeWidth={width}
+          />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#player-grid)" />
+    </svg>
   );
 }

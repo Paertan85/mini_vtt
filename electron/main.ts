@@ -20,6 +20,7 @@ import type {
   Point,
   ProjectResult,
   RulerState,
+  PlayerGrid,
 } from '../src/types/map';
 import { mediaUrlOf } from '../src/lib/media';
 
@@ -229,7 +230,18 @@ function normalizeMapState(value: unknown): MapState | null {
     handoutRotation,
     blackout: state.blackout === true,
     areas: normalizeDrawnAreas(state.areas),
+    grid: normalizePlayerGrid(state.grid),
   };
+}
+
+/** A grid the player screen can draw, or null: squares at least 4 map pixels wide, like a measured grid. */
+function normalizePlayerGrid(value: unknown): PlayerGrid | null {
+  if (!value || typeof value !== 'object') return null;
+  const { cell, offsetX, offsetY } = value as Record<string, unknown>;
+  if (!isFiniteNumber(cell) || cell < 4 || cell > 100_000) return null;
+  if (!isFiniteNumber(offsetX) || !isFiniteNumber(offsetY)) return null;
+  // Within one square, as the DM window keeps them
+  return { cell, offsetX: ((offsetX % cell) + cell) % cell, offsetY: ((offsetY % cell) + cell) % cell };
 }
 
 ipcMain.handle('player:open', async () => {

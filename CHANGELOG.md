@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **Settings → Show grid on player screen** draws the map's measured grid
+  on the player screen, as thin lines that follow the map when it is moved,
+  zoomed, rotated or mirrored. Fog covers it like the map. Maps without a
+  measured grid show none. Off by default.
+
 - A welcome screen on start-up: what Mini VTT is, how maps work as soon as
   they are added, and what needs setting up first (the player screen's size
   for True scale, a map's grid for spell areas and measuring). **Don't show

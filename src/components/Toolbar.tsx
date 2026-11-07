@@ -58,6 +58,9 @@ interface ToolbarProps {
   showEffectTools: boolean;
   onToggleEffectTools: () => void;
   onCalibrateGrid: () => void;
+  /** Whether the map's measured grid is drawn on the player screen */
+  showGridToPlayers: boolean;
+  onToggleGridToPlayers: () => void;
   /** How the Measure tool's Movement ruler counts diagonals; set in the settings menu */
   movementRule: MovementRule;
   onMovementRuleChange: (rule: MovementRule) => void;
@@ -513,6 +516,11 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
           { label: 'Player screen setup…', onSelect: props.onOpenPlayerSetup },
           { label: 'Keyboard shortcuts…', onSelect: props.onOpenShortcuts },
           { label: 'Measure map grid…', onSelect: props.onCalibrateGrid, disabled: !hasMap, separated: true },
+          {
+            label: 'Show grid on player screen',
+            onSelect: props.onToggleGridToPlayers,
+            checked: props.showGridToPlayers,
+          },
           {
             label: 'Show effect and shape tools',
             onSelect: props.onToggleEffectTools,
