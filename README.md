@@ -1,11 +1,19 @@
-# Mini VTT
+ # Mini VTT
 
-First of all I have used AI to build this project. But no AI art, music or other artistic assets are AI.
-I am an senior engineer but i program VHDL mostly. So while I am quite experienced in designing robust firmware I lack the skills to make something like this within any reasonable time without AI.
-Also this is based upon Lazy DM Companion I found on github with an license stating it was free to use. https://github.com/felipeabviana/lazy_dm_companion
-If author is not ok with this i will remove if from public view.
+Welcome to my hobby project Mini VTT that I created because I wanted a basic, low resource VTT that me and my friends use when we play. 
+We only play locally with mini figures so we do not need tokens, online capabilities, initiative tracker etc. 
+First of all I have used AI to generated code for this project. But no AI art, music or other artistic assets are AI generated nor will there be any. Yes I drew the icon myself. In Paint. 
 
-So this is VTT I wanted to make because my group play local only with a weak laptop and a OLED TV laying flat connected by HDMI. No token. No online. Just maps and fog of war basically. Focus of the software is low system resource usage.
+I am an senior engineer but I program VHDL mostly. Or System Verilog. Even though a FPGA based VTT sound interesting it would be far from practical. 
+So while I am quite experienced in designing robust firmware I lack the skills to make something like this within any reasonable time without AI.
+
+Also this is based upon Lazy DM Companion I found on github https://github.com/felipeabviana/lazy_dm_companion if you want an even more basic great little software. 
+Not much code is still the same and I have added a lot. But still thanks to Felipe for giving me something to start from.
+
+So this is a VTT I wanted to make because my group play local only with a weak laptop and an OLED TV laying flat connected by HDMI. No tokens. No online. 
+I wanted just maps and fog of war basically. Focus of the software is low system resource usage. Features have been added but I am trying to keep it simple.
+
+I will write more of the text myself when it is more feature complete but from here the rest of the text is mostly AI generated that gets updated as features change or gets added.
 
 You run Mini VTT on your laptop. The **DM window** stays on your screen, where you pick maps, paint fog of war and decide what the players see. The **player screen** goes on a TV, a monitor laid flat on the table, or a projector, and shows only the part of the map you've framed, with unrevealed areas in solid black.
 
