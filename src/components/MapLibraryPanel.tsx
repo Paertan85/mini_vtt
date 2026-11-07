@@ -23,6 +23,8 @@ interface MapLibraryPanelProps {
   selectedMapId: string | null;
   onSelectMap: (id: string) => void;
   onLoadMap: (id: string) => void;
+  /** Loads the map if need be and starts measuring its grid */
+  onMeasureMapGrid: (id: string) => void;
   onReorderMaps: (ids: string[]) => void;
   onRenameMap: (id: string, name: string) => void;
   onRemoveMap: (id: string) => void;
@@ -164,6 +166,7 @@ function MapList(props: MapLibraryPanelProps) {
         const menu: MenuItem[] = [
           { label: 'Load', onSelect: () => props.onLoadMap(map.id), disabled: isCurrent },
           { label: 'Rename', onSelect: () => setRenamingId(map.id) },
+          { label: 'Measure map grid…', onSelect: () => props.onMeasureMapGrid(map.id) },
           {
             label: 'Rotate left',
             separated: true,

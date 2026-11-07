@@ -329,10 +329,10 @@ export function App() {
         options.centerFrame ? null : api?.loadMapEffects(meta.id),
       ]);
       // Another map was picked while this one's files were read
-      if (token !== loadTokenRef.current) return;
+      if (token !== loadTokenRef.current) return false;
       if (!url) {
         notify(`Couldn’t find the file for “${meta.name}” in the library folder.`, 'error');
-        return;
+        return false;
       }
       // Saved fog that is damaged (cut short by a crash) is never shown: it
       // would reveal part of the map, so the map starts fully fogged instead
@@ -357,6 +357,7 @@ export function App() {
       setSelectedMapId(meta.id);
       loadAreas(meta.circles);
       setCalibration(null);
+      return true;
     },
     [api, settleSaves, loadAreas, loadMapState],
   );
@@ -782,10 +783,18 @@ export function App() {
 
   // ─── Grid calibration ───────────────────────────────────────────────────────
 
-  const startCalibration = () => {
-    if (!mediaUrl) return;
+  const beginCalibration = (feetPerCell = DEFAULT_FEET_PER_CELL) => {
     setSelectedAreaId(null);
-    setCalibration({ points: [], squares: '1', feet: String(grid?.feetPerCell ?? DEFAULT_FEET_PER_CELL) });
+    setCalibration({ points: [], squares: '1', feet: String(feetPerCell) });
+  };
+  const startCalibration = () => {
+    if (mediaUrl) beginCalibration(grid?.feetPerCell);
+  };
+  // From a map's menu in the library: another map is loaded first
+  const handleMeasureMapGrid = async (id: string) => {
+    if (id === currentMapId) return startCalibration();
+    const meta = maps.find((entry) => entry.id === id);
+    if (meta && (await loadMap(meta))) beginCalibration(meta.grid?.feetPerCell);
   };
 
   const calibrationPreview = calibration
@@ -986,6 +995,7 @@ export function App() {
   // dragging the frame or an area causes on every animation frame
   const panelHandlers = useHandlers({
     onLoadMap: handleLoadMap,
+    onMeasureMapGrid: handleMeasureMapGrid,
     onReorderMaps: handleReorderMaps,
     onRenameMap: handleRenameMap,
     onRemoveMap: handleRemoveMap,

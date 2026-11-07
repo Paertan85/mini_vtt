@@ -8,6 +8,9 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **Measure map grid…** in each map's **⋯** menu in the library. On a map
+  that isn't loaded, it loads it first.
+
 - **Settings → Show grid on player screen** draws the map's measured grid
   on the player screen, as thin lines that follow the map when it is moved,
   zoomed, rotated or mirrored. Fog covers it like the map. Maps without a

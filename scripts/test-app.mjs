@@ -1257,6 +1257,25 @@ app.whenReady().then(async () => {
       readIndex().maps.find((m) => m.id === 'm_beta').rotation === 90,
     );
 
+    // Measure map grid… in a map's menu loads that map and starts measuring it
+    const wasLoaded = readIndex().settings.currentMapId;
+    const [other, otherName, loadedName] =
+      wasLoaded === 'm_alpha' ? ['m_beta', 'Beta', 'Alpha'] : ['m_alpha', 'Alpha', 'Beta'];
+    await click(`[aria-label="Options for ${otherName}"]`);
+    await sleep(200);
+    await clickText('Measure map grid…');
+    check(
+      'Measure map grid… in another map’s menu loads it and starts measuring',
+      (await waitFor(() => readIndex().settings.currentMapId === other)) &&
+        (await waitFor(() => js(`!!document.querySelector('[aria-label="Grid calibration"]')`))),
+    );
+    await press('Escape');
+    await sleep(200);
+    check('Esc stops measuring', !(await js(`!!document.querySelector('[aria-label="Grid calibration"]')`)));
+    await loadMap(loadedName);
+    await waitFor(() => readIndex().settings.currentMapId === wasLoaded);
+    await sleep(600);
+
     // A BMP handout has no thumbnail (the main process can't decode BMP): the DM window draws one
     const greyThumb = path.join(libraryDir, 'handouts', 'h_grey', 'thumb.png');
     const tab = (name) =>
