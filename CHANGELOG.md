@@ -94,6 +94,10 @@ All notable changes to this project are documented here. The format is based on
   beside it. A map without a grid says **Grid not set**
   in red instead of "No grid", since spell areas, measuring and True scale
   need it.
+  Live shows only while the player screen is open, and turns grey during a
+  blackout. Hovering a card shows its details and what a double-click does,
+  such as "Grid not set, Rotated 90° · Double-click to load", instead of its
+  name.
 
 - Alt + drag on the player frame moves it from any tool, also when your
   own view is zoomed in. Space + drag did this before (Space now locks the

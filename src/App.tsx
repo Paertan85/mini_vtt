@@ -1051,6 +1051,8 @@ export function App() {
         handouts={handouts}
         selectedHandoutId={selectedHandoutId}
         activeHandoutId={activeHandout?.id ?? null}
+        playerOpen={playerOpen}
+        blackout={blackout}
         onSelectHandout={setSelectedHandoutId}
         hidden={!showLibrary}
       />

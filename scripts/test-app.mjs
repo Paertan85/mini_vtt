@@ -166,7 +166,7 @@ app.whenReady().then(async () => {
     );
   const loadMap = (name) =>
     js(
-      `document.querySelector('button[title^="${name}"]').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`,
+      `document.querySelector('button[aria-label="${name}"]').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`,
     );
   // Presses and moves report the held button, as a real drag does (or pointer
   // capture is never taken)
@@ -298,6 +298,18 @@ app.whenReady().then(async () => {
       (await js(`!!document.querySelector('[role="dialog"][aria-label="True scale"]')`)) === false,
     );
 
+    // The loaded map's card says Live only while there is a player screen,
+    // and its tooltip gives its details rather than its name
+    const liveMark = () =>
+      js(`(() => { const card = document.querySelector('button[aria-label="Alpha"]');
+        const live = [...card.querySelectorAll('span')].find((s) => s.textContent === 'Live');
+        return { live: live ? live.className : null, title: card.title }; })()`);
+    check('no Live mark before the player screen opens', (await liveMark()).live === null);
+    check(
+      'a card’s tooltip gives its details, not its name',
+      !(await liveMark()).title.includes('Alpha'),
+      (await liveMark()).title,
+    );
     await js(`${playerButton}.click()`);
     await sleep(1500);
     await js(`${playerButton}.click()`);
@@ -307,6 +319,11 @@ app.whenReady().then(async () => {
     check(
       'the status shows the player screen is live',
       (await js(`${playerButton}.textContent`)).includes('live'),
+    );
+    check(
+      'and the loaded map is marked Live, in gold',
+      (await waitFor(async () => (await liveMark()).live?.includes('text-gold'))) === true,
+      String((await liveMark()).live),
     );
 
     // A reloaded player window (Ctrl+R on it) reports the same size as
@@ -1152,6 +1169,7 @@ app.whenReady().then(async () => {
       'blackout covers the player screen',
       (await js(`!!document.querySelector('[aria-label="Blackout"]')`, player)) === true,
     );
+    check('and Live turns grey', (await liveMark()).live?.includes('text-muted') === true);
     await press('b');
     await sleep(400);
     check(
@@ -1255,7 +1273,7 @@ app.whenReady().then(async () => {
 
     // On the player screen, a handout moves with a drag and zooms around the pointer
     await js(
-      `document.querySelector('[title^="Grey note"]').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`,
+      `document.querySelector('button[aria-label="Grey note"]').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`,
     );
     const handoutBox = () =>
       js(

@@ -33,6 +33,10 @@ interface MapLibraryPanelProps {
   handouts: HandoutMeta[];
   selectedHandoutId: string | null;
   activeHandoutId: string | null;
+  /** Whether the player screen is open; cards are marked Live only then */
+  playerOpen: boolean;
+  /** Whether the player screen is blacked out; Live turns grey */
+  blackout: boolean;
   onSelectHandout: (id: string) => void;
   onToggleHandout: (handout: HandoutMeta) => void;
   onRotateHandout: (id: string) => void;
@@ -218,7 +222,8 @@ function MapList(props: MapLibraryPanelProps) {
             <Card
               name={map.name}
               selected={map.id === selectedMapId}
-              live={isCurrent}
+              live={props.playerOpen && isCurrent}
+              blackout={props.blackout}
               details={details}
               thumb={<Thumb id={map.id} kind="map" image={map.mediaType === 'image'} width={map.width} />}
               renaming={renamingId === map.id}
@@ -229,7 +234,7 @@ function MapList(props: MapLibraryPanelProps) {
               onClick={() => props.onSelectMap(map.id)}
               onDoubleClick={() => props.onLoadMap(map.id)}
               menu={menu}
-              title={isCurrent ? map.name : `${map.name}: double-click to load`}
+              hint={isCurrent ? null : 'Double-click to load'}
             />
           </li>
         );
@@ -259,12 +264,13 @@ function HandoutList(props: MapLibraryPanelProps) {
             <Card
               name={handout.name}
               selected={handout.id === selectedHandoutId}
-              live={isActive}
+              live={props.playerOpen && isActive}
+              blackout={props.blackout}
               details={handout.rotation ? [`Rotated ${handout.rotation}°`] : []}
               thumb={<Thumb id={handout.id} kind="handout" image width={handout.width} />}
               onClick={() => props.onSelectHandout(handout.id)}
               onDoubleClick={() => props.onToggleHandout(handout)}
-              title={`${handout.name}: double-click to ${isActive ? 'hide' : 'show'}`}
+              hint={`Double-click to ${isActive ? 'hide' : 'show'}`}
               menu={[
                 {
                   label: isActive ? 'Hide from player screen' : 'Show on player screen',
@@ -296,10 +302,13 @@ interface CardProps {
   selected: boolean;
   /** Visible to players right now: marked Live */
   live: boolean;
+  /** The player screen is blacked out, so Live is grey */
+  blackout: boolean;
   details: Detail[];
   thumb: React.ReactNode;
   menu: MenuItem[];
-  title: string;
+  /** What a double-click does, after the details in the tooltip; null when nothing */
+  hint: string | null;
   renaming?: boolean;
   onRename?: (name: string) => void;
   onClick: () => void;
@@ -317,7 +326,16 @@ function Card(props: CardProps) {
         type="button"
         onClick={props.onClick}
         onDoubleClick={props.onDoubleClick}
-        title={props.title}
+        // The name shows on the card; the tooltip tells the rest
+        aria-label={props.name}
+        title={
+          [
+            props.details.map((detail) => (typeof detail === 'string' ? detail : detail.text)).join(', '),
+            props.hint,
+          ]
+            .filter(Boolean)
+            .join(' · ') || undefined
+        }
         className="flex min-w-0 flex-1 items-center gap-2.5 text-left outline-none"
       >
         {props.thumb}
@@ -330,7 +348,9 @@ function Card(props: CardProps) {
           {(props.live || props.details.length > 0) && (
             <span className="truncate text-xs text-faint">
               {/* Gold, like the border of the selected card */}
-              {props.live && <span className="font-medium text-gold">Live</span>}
+              {props.live && (
+                <span className={`font-medium ${props.blackout ? 'text-muted' : 'text-gold'}`}>Live</span>
+              )}
               {props.live && props.details.length > 0 && ' · '}
               {props.details.map((detail, index) => (
                 <React.Fragment key={index}>
