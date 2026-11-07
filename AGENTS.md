@@ -19,6 +19,7 @@
 - The `ElectronAPI` type is derived from `electron/preload.ts`; add bridge calls there, never in a separate declaration. IPC channels are named `domain:action`, with the same name on both legs of a relay.
 - Validate every IPC payload in the main process before using it: check shape, types and allowed values, and never trust renderer-supplied paths or ids. Reuse the guards in `electron/main.ts` (`isFiniteNumber`, `isMediaUrl`, `isPngDataUrl`) before writing new ones. The renderer is sandboxed and has no Node access.
 - Only change the version (the `version` field in `package.json`) when making a release, following "Releasing" in `CONTRIBUTING.md`. Pushing the version tag makes CI draft the GitHub release.
+- Before a release, everything except the version change and the tag is pushed to main first, and CI must pass on Windows, macOS and Linux. Only then make the release commit and the tag, so a failing test never lands on a release tag.
 
 ## Art
 
