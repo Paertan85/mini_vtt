@@ -61,17 +61,19 @@ A few guidelines:
 The version only changes when a release is made: minor for new features
 (1.2.0), patch for a release with fixes only (1.2.1).
 
-1. Push everything that goes into the release to main first, without the
+1. Update the screenshots in `docs/screenshots/` (shown in the README) if
+   anything they show has changed since the last release.
+2. Push everything that goes into the release to main first, without the
    version change, and wait for CI to pass on Windows, macOS and Linux. A
    test that fails on one of them is then fixed before there is a tag.
-2. In `CHANGELOG.md`, add a heading `## X.Y.Z - YYYY-MM-DD` right under
+3. In `CHANGELOG.md`, add a heading `## X.Y.Z - YYYY-MM-DD` right under
    "Unreleased", so everything listed so far belongs to the release.
-3. Set the version: `npm version X.Y.Z --no-git-tag-version`.
-4. Commit as "Release X.Y.Z" and tag it: `git tag -a vX.Y.Z -m "Mini VTT X.Y.Z"`.
-5. Push both: `git push --follow-tags`. CI tests the tag on Windows, macOS
+4. Set the version: `npm version X.Y.Z --no-git-tag-version`.
+5. Commit as "Release X.Y.Z" and tag it: `git tag -a vX.Y.Z -m "Mini VTT X.Y.Z"`.
+6. Push both: `git push --follow-tags`. CI tests the tag on Windows, macOS
    and Linux, builds the installers, and drafts a GitHub release with them,
    using the changelog's section as its notes.
-6. On GitHub, open **Releases**, check the draft and click **Publish
+7. On GitHub, open **Releases**, check the draft and click **Publish
    release**.
 
 If a release's build fails or needs redoing, run the **CI** workflow by hand

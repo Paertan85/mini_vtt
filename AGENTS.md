@@ -20,6 +20,7 @@
 - Validate every IPC payload in the main process before using it: check shape, types and allowed values, and never trust renderer-supplied paths or ids. Reuse the guards in `electron/main.ts` (`isFiniteNumber`, `isMediaUrl`, `isPngDataUrl`) before writing new ones. The renderer is sandboxed and has no Node access.
 - Only change the version (the `version` field in `package.json`) when making a release, following "Releasing" in `CONTRIBUTING.md`. Pushing the version tag makes CI draft the GitHub release.
 - Before a release, everything except the version change and the tag is pushed to main first, and CI must pass on Windows, macOS and Linux. Only then make the release commit and the tag, so a failing test never lands on a release tag.
+- At every release, ask the user to update the screenshots in `docs/screenshots/` first, if anything they show has changed. They take them; don't make or edit screenshots yourself.
 
 ## Art
 
