@@ -212,6 +212,28 @@ app.whenReady().then(async () => {
       `${await zoomText()}%`,
     );
 
+    // The welcome screen opens on start-up until its checkbox turns it off,
+    // and the ? button next to Settings brings it back
+    const welcomeOpen = () =>
+      js(`document.querySelector('[role="dialog"] h2')?.textContent === 'Welcome to Mini VTT'`);
+    const welcomeBox = `[role="dialog"] input[type="checkbox"]`;
+    check('the welcome screen opens on start-up', await waitFor(welcomeOpen));
+    await click(welcomeBox);
+    check(
+      'its checkbox stops it opening on start-up',
+      await waitFor(() => readIndex().settings.showWelcome === false),
+    );
+    await clickText('Get started');
+    await sleep(200);
+    check('Get started closes it', !(await js(`!!document.querySelector('[role="dialog"]')`)));
+    await click('[aria-label="Welcome"]');
+    check(
+      'the ? button opens it again, with the box still ticked',
+      (await waitFor(welcomeOpen)) && (await js(`document.querySelector('${welcomeBox}').checked`)),
+    );
+    await press('Escape');
+    await sleep(200);
+
     // The media protocol answers Range requests with exactly those bytes: a
     // video resumes and loops by asking for the rest of the file from an
     // offset, and the whole file in reply put garbage on the player screen

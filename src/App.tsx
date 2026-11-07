@@ -27,7 +27,7 @@ import {
   type ShapesNeed,
   type TrueScaleNeed,
 } from './components/Toolbar';
-import { PlayerSetupDialog, ShortcutsDialog, screenDimensions } from './components/Dialogs';
+import { PlayerSetupDialog, ShortcutsDialog, WelcomeDialog, screenDimensions } from './components/Dialogs';
 import { useFog } from './hooks/useFog';
 import { useHandlers } from './hooks/useHandlers';
 import { useEffectLayer } from './hooks/useEffectLayer';
@@ -157,6 +157,7 @@ export function App() {
   const {
     showEffectTools,
     showLibrary,
+    showWelcome,
     diagonalRule: movementRule,
     // The ruler can be shown on the player screen too; it is sent as it changes
     showRulerToPlayers,
@@ -185,7 +186,7 @@ export function App() {
   const [activeHandout, setActiveHandout] = useState<{ id: string; url: string; rotation: number } | null>(
     null,
   );
-  const [dialog, setDialog] = useState<'setup' | 'shortcuts' | null>(null);
+  const [dialog, setDialog] = useState<'welcome' | 'setup' | 'shortcuts' | null>(null);
 
   // Suppresses view saves while a map is being restored, so the restore can't
   // overwrite what it is loading
@@ -395,6 +396,7 @@ export function App() {
       const snapshot = await reloadLibrary();
       if (snapshot) {
         restoreSettings(snapshot.settings);
+        if (snapshot.settings.showWelcome) setDialog('welcome');
         const last = snapshot.maps.find((entry) => entry.id === snapshot.settings.currentMapId);
         if (last) await loadMap(last);
       }
@@ -1003,6 +1005,7 @@ export function App() {
     onToggleBlackout: () => setBlackout((value) => !value),
     onOpenPlayerSetup: () => setDialog('setup'),
     onOpenShortcuts: () => setDialog('shortcuts'),
+    onOpenWelcome: () => setDialog('welcome'),
     onExportProject: () => void handleExportProject(),
     onImportProject: () => void handleImportProject(),
     onRevealLibraryFolder: () => void api?.revealLibraryFolder(),
@@ -1171,6 +1174,15 @@ export function App() {
         />
       )}
       {dialog === 'shortcuts' && <ShortcutsDialog onClose={() => setDialog(null)} />}
+      {dialog === 'welcome' && (
+        <WelcomeDialog
+          showOnStartup={showWelcome}
+          onShowOnStartupChange={(show) => updateSettings({ showWelcome: show })}
+          onOpenPlayerSetup={() => setDialog('setup')}
+          onOpenShortcuts={() => setDialog('shortcuts')}
+          onClose={() => setDialog(null)}
+        />
+      )}
       <NotificationHost />
     </div>
   );

@@ -4,11 +4,12 @@
 //           effect colours and Clear, the colours and the shapes to add, or
 //           how the Measure tool counts diagonals
 //   centre  player view zoom and 16:9 fit
-//   right   player screen status, blackout, and the settings menu
+//   right   player screen status, blackout, the welcome screen and the settings menu
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import {
   ChevronDown,
+  CircleHelp,
   Lock,
   LockOpen,
   Minus,
@@ -94,6 +95,8 @@ interface ToolbarProps {
   onToggleBlackout: () => void;
   onOpenPlayerSetup: () => void;
   onOpenShortcuts: () => void;
+  /** Opens the welcome screen again */
+  onOpenWelcome: () => void;
   onExportProject: () => void;
   onImportProject: () => void;
   onRevealLibraryFolder: () => void;
@@ -494,6 +497,15 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         title="Hide everything on the player screen (B)"
       >
         Blackout
+      </Button>
+      <Button
+        square
+        tone="quiet"
+        onClick={props.onOpenWelcome}
+        aria-label="Welcome"
+        title="Welcome: what Mini VTT is and what needs setting up"
+      >
+        <CircleHelp className="h-4 w-4" />
       </Button>
       <Menu
         align="right"

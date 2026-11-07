@@ -46,6 +46,7 @@ const RULES: { [K in keyof SettingsPatch]-?: Rule<LibrarySettings[K]> } = {
   gridSize: { default: 1, parse: positive },
   showEffectTools: { default: true, parse: boolean },
   showLibrary: { default: true, parse: boolean },
+  showWelcome: { default: true, parse: boolean },
   // Turned left: how most tables with the screen lying flat play
   portraitRotation: {
     default: 270,

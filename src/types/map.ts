@@ -146,6 +146,8 @@ export interface LibrarySettings {
   mapOrder?: string[];
   /** Whether the Effects and Shapes tools and the spell areas are offered */
   showEffectTools: boolean;
+  /** Whether the welcome screen opens on start-up */
+  showWelcome: boolean;
   /** Whether the map and handout library panel is shown */
   showLibrary: boolean;
   /**

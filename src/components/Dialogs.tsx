@@ -1,4 +1,4 @@
-// The player screen setup and keyboard shortcut dialogs.
+// The welcome screen, and the player screen setup and keyboard shortcut dialogs.
 
 import { useState } from 'react';
 import { Dialog } from '../ui/Dialog';
@@ -235,6 +235,96 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
           </section>
         ))}
       </div>
+    </Dialog>
+  );
+}
+
+interface WelcomeDialogProps {
+  /** Whether it opens on start-up; the checkbox says the opposite */
+  showOnStartup: boolean;
+  onShowOnStartupChange: (show: boolean) => void;
+  onOpenPlayerSetup: () => void;
+  onOpenShortcuts: () => void;
+  onClose: () => void;
+}
+
+const welcomeHeading = 'font-display text-[13px] font-semibold tracking-wide text-ink';
+const welcomeList = 'mt-1.5 flex list-disc flex-col gap-1 pl-5 text-[13px] leading-relaxed text-muted';
+
+/** Opens on start-up until turned off, and again from the ? button next to Settings. */
+export function WelcomeDialog({
+  showOnStartup,
+  onShowOnStartupChange,
+  onOpenPlayerSetup,
+  onOpenShortcuts,
+  onClose,
+}: WelcomeDialogProps) {
+  return (
+    <Dialog
+      title="Welcome to Mini VTT"
+      onClose={onClose}
+      width="w-[34rem]"
+      footer={
+        <>
+          <label className="mr-auto flex items-center gap-2 text-[13px] text-muted">
+            <input
+              type="checkbox"
+              checked={!showOnStartup}
+              onChange={(event) => onShowOnStartupChange(!event.target.checked)}
+              className="h-4 w-4 accent-gold"
+            />
+            Don’t show on start-up
+          </label>
+          <Button onClick={onOpenShortcuts}>Keyboard shortcuts</Button>
+          <Button tone="active" onClick={onClose} data-autofocus>
+            Get started
+          </Button>
+        </>
+      }
+    >
+      <p className="text-[13px] leading-relaxed text-ink">
+        Mini VTT shows your maps on a screen at the table: a TV lying flat, a monitor or a projector. This
+        window is yours: pick maps, paint fog of war and choose what the players see. The player screen shows
+        only that, with unexplored areas in black.
+      </p>
+
+      <h3 className={`mt-4 ${welcomeHeading}`}>Ready as soon as you add a map</h3>
+      <ul className={welcomeList}>
+        <li>
+          Click <span className="text-ink">Add maps…</span> in the library, or drop images or WebM videos onto
+          it. New maps start fully fogged.
+        </li>
+        <li>
+          Click <span className="text-ink">Open player screen</span>, drag that window onto the table screen
+          and press <Kbd>{keyLabel('F11')}</Kbd> for full screen.
+        </li>
+        <li>Drag the frame to choose what the players see, and paint with the Fog tool to reveal the map.</li>
+      </ul>
+
+      <h3 className={`mt-4 ${welcomeHeading}`}>Some things need setting up first</h3>
+      <ul className={welcomeList}>
+        <li>
+          <span className="text-ink">A true-scale grid and True scale</span>, for miniatures, need the
+          screen’s diagonal and your grid square size, set once in{' '}
+          <button
+            type="button"
+            onClick={onOpenPlayerSetup}
+            className="text-gold underline decoration-gold/40 underline-offset-2 hover:text-gold-bright"
+          >
+            Player screen setup
+          </button>
+          .
+        </li>
+        <li>
+          <span className="text-ink">Spell areas and the Measure tool</span> need each map’s grid: open
+          Settings → Measure map grid… and click two corners of a square. Maps whose names give their size,
+          such as <span className="text-ink">forest_32x32.jpg</span>, get it as they are added.
+        </li>
+      </ul>
+
+      <p className="mt-4 text-xs leading-relaxed text-faint">
+        The ? button next to Settings brings this back.
+      </p>
     </Dialog>
   );
 }

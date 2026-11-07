@@ -8,6 +8,12 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- A welcome screen on start-up: what Mini VTT is, how maps work as soon as
+  they are added, and what needs setting up first (the player screen's size
+  for True scale, a map's grid for spell areas and measuring). **Don't show
+  on start-up** turns it off, and the **?** button next to Settings brings it
+  back.
+
 - A lock button next to the player view zoom. While it is locked, the
   mouse wheel over the frame, the + and − keys, the zoom buttons, True
   scale and Fit 16:9 leave the zoom alone, so a stray scroll can't change
