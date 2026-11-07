@@ -19,9 +19,9 @@ You run Mini VTT on your laptop. The **DM window** stays on your screen, where y
 
 It's built to stay out of the way on modest hardware: no accounts, no server, no internet connection, and nothing running in the background while you're not touching it.
 
-| DM window                                                                                                                                                                         | Player screen                                                                                                                             |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| ![The DM window: map library on the left, the map with indigo fog, and the gold player-view frame with its grid, spell areas and a measured path](docs/screenshots/dm-window.png) | ![The player screen: the framed part of the map with its grid, the spell areas and the measured path](docs/screenshots/player-screen.png) |
+| DM window                                                                                                                                                                         | Player screen                                                                                                                                                            |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ![The DM window: map library on the left, the map with indigo fog, and the gold player-view frame with its grid, spell areas and a measured path](docs/screenshots/dm-window.png) | ![The player screen: the framed part of the map with its grid, the spell areas and the measured path, and unrevealed areas in black](docs/screenshots/player-screen.png) |
 
 ## Features
 
