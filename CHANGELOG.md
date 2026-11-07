@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format is based on
 
 ## Unreleased
 
+## 1.3.0 - 2026-11-07
+
 ### Added
 
 - **Measure map grid…** in each map's **⋯** menu in the library. On a map
