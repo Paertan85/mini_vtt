@@ -88,6 +88,12 @@ All notable changes to this project are documented here. The format is based on
 
 ### Changed
 
+- In the map library, the map or handout players see is marked **Live**,
+  in the gold of the selected card's border, instead of "On player screen"
+  or "Showing on player screen". A map without a grid says **Grid not set**
+  in red instead of "No grid", since spell areas, measuring and True scale
+  need it.
+
 - Alt + drag on the player frame moves it from any tool, also when your
   own view is zoomed in. Space + drag did this before (Space now locks the
   zoom); your zoomed view pans with the middle mouse button.

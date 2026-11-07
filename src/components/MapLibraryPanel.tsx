@@ -178,12 +178,15 @@ function MapList(props: MapLibraryPanelProps) {
           },
           { label: 'Remove…', danger: true, separated: true, onSelect: () => props.onRemoveMap(map.id) },
         ];
-        const details = [
+        const details: Detail[] = [
           map.mediaType === 'video' ? 'Video' : null,
-          map.grid ? `Grid ${gridSquares(map.grid, map.width, map.height) ?? 'set'}` : 'No grid',
+          // Red: spell areas, measuring and True scale need it
+          map.grid
+            ? `Grid ${gridSquares(map.grid, map.width, map.height) ?? 'set'}`
+            : { text: 'Grid not set', warn: true as const },
           map.rotation ? `Rotated ${map.rotation}°` : null,
           map.mirrorHorizontal || map.mirrorVertical ? 'Mirrored' : null,
-        ].filter(Boolean);
+        ].filter((detail) => detail !== null);
         return (
           <li
             key={map.id}
@@ -216,8 +219,7 @@ function MapList(props: MapLibraryPanelProps) {
               name={map.name}
               selected={map.id === selectedMapId}
               live={isCurrent}
-              liveLabel="On player screen"
-              details={details.join(', ')}
+              details={details}
               thumb={<Thumb id={map.id} kind="map" image={map.mediaType === 'image'} width={map.width} />}
               renaming={renamingId === map.id}
               onRename={(name) => {
@@ -258,8 +260,7 @@ function HandoutList(props: MapLibraryPanelProps) {
               name={handout.name}
               selected={handout.id === selectedHandoutId}
               live={isActive}
-              liveLabel="Showing on player screen"
-              details={handout.rotation ? `Rotated ${handout.rotation}°` : ''}
+              details={handout.rotation ? [`Rotated ${handout.rotation}°`] : []}
               thumb={<Thumb id={handout.id} kind="handout" image width={handout.width} />}
               onClick={() => props.onSelectHandout(handout.id)}
               onDoubleClick={() => props.onToggleHandout(handout)}
@@ -287,13 +288,15 @@ function HandoutList(props: MapLibraryPanelProps) {
 
 // ─── Shared pieces ────────────────────────────────────────────────────────────
 
+/** A short fact under a card's name; a warning one is red. */
+type Detail = string | { text: string; warn: true };
+
 interface CardProps {
   name: string;
   selected: boolean;
-  /** Visible to players right now */
+  /** Visible to players right now: marked Live */
   live: boolean;
-  liveLabel: string;
-  details: string;
+  details: Detail[];
   thumb: React.ReactNode;
   menu: MenuItem[];
   title: string;
@@ -330,11 +333,21 @@ function Card(props: CardProps) {
           ) : (
             <span className="truncate text-[13px] font-medium text-ink">{props.name}</span>
           )}
-          {(props.live || props.details) && (
+          {(props.live || props.details.length > 0) && (
             <span className="truncate text-xs text-faint">
-              {props.live && <span className="text-crimson-text">{props.liveLabel}</span>}
-              {props.live && props.details && ' · '}
-              {props.details}
+              {/* Gold, like the border of the selected card */}
+              {props.live && <span className="font-medium text-gold">Live</span>}
+              {props.live && props.details.length > 0 && ' · '}
+              {props.details.map((detail, index) => (
+                <React.Fragment key={index}>
+                  {index > 0 && ', '}
+                  {typeof detail === 'string' ? (
+                    detail
+                  ) : (
+                    <span className="text-crimson-text">{detail.text}</span>
+                  )}
+                </React.Fragment>
+              ))}
             </span>
           )}
         </span>
