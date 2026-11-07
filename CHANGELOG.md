@@ -194,8 +194,6 @@ All notable changes to this project are documented here. The format is based on
   sideways.
 - Video maps now get their size when added; it used to stay unknown.
 
-### Fixed
-
 - On Windows, a setting or map change could fail to save when another
   program (antivirus, the search indexer) had the library index open at
   that moment. The save now tries again for a moment first.
