@@ -23,6 +23,7 @@ import {
   SAFE_ID,
   handoutDir,
   handoutsDir,
+  IN_USE_CODES,
   isHandoutId,
   mapDir,
   mutateIndex,
@@ -157,7 +158,6 @@ async function removeEntry(
   }
 }
 
-const IN_USE_CODES = ['EBUSY', 'EPERM', 'EACCES'];
 const SET_ASIDE_ATTEMPTS = 8;
 
 /** Rename `dir` aside for deletion; null while a file in it stays in use. */

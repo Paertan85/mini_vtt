@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format is based on
 
 ## Unreleased
 
+### Fixed
+
+- On Windows, a setting or map change could fail to save when another
+  program (antivirus, the search indexer) had the library index open at
+  that moment. The save now tries again for a moment first.
+
 ## 1.3.0 - 2026-11-07
 
 ### Added

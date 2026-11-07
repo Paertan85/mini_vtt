@@ -36,6 +36,27 @@ export const SAFE_ID = LIBRARY_ID;
 export const handoutsDir = () => path.join(LIBRARY_DIR(), 'handouts');
 export const handoutDir = (id: string) => path.join(handoutsDir(), id);
 
+/** Errors Windows gives while another program (antivirus, the search indexer) has a file open. */
+export const IN_USE_CODES = ['EBUSY', 'EPERM', 'EACCES'];
+const RENAME_ATTEMPTS = 6;
+
+/**
+ * Rename `from` over `to`. Windows refuses while another program has `to`
+ * open, usually for a moment, so that is tried again a few times (about 0.75 s
+ * in all) before giving up.
+ */
+async function renameOver(from: string, to: string): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fs.rename(from, to);
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code ?? '';
+      if (!IN_USE_CODES.includes(code) || attempt === RENAME_ATTEMPTS) throw err;
+      await new Promise((resolve) => setTimeout(resolve, attempt * 50));
+    }
+  }
+}
+
 /**
  * Replace `file` with `bytes` in one step: written next to it, then renamed
  * over it, so a reader or a crash never meets a half-written file.
@@ -44,7 +65,7 @@ export async function writeFileAtomic(file: string, bytes: Buffer): Promise<void
   const tmp = tempPath(file);
   try {
     await fs.writeFile(tmp, bytes);
-    await fs.rename(tmp, file);
+    await renameOver(tmp, file);
   } catch (err) {
     await fs.rm(tmp, { force: true });
     throw err;
@@ -107,8 +128,13 @@ async function writeIndex(index: IndexShape): Promise<void> {
   await fs.mkdir(LIBRARY_DIR(), { recursive: true });
   // Write to a temp file then rename, so an interrupted write can't truncate it
   const tmp = tempPath(INDEX_FILE());
-  await fs.writeFile(tmp, JSON.stringify(index, null, 2), 'utf8');
-  await fs.rename(tmp, INDEX_FILE());
+  try {
+    await fs.writeFile(tmp, JSON.stringify(index, null, 2), 'utf8');
+    await renameOver(tmp, INDEX_FILE());
+  } catch (err) {
+    await fs.rm(tmp, { force: true });
+    throw err;
+  }
 }
 
 let tmpCounter = 0;
