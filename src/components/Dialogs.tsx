@@ -304,8 +304,8 @@ export function WelcomeDialog({
       <h3 className={`mt-4 ${welcomeHeading}`}>Some things need setting up first</h3>
       <ul className={welcomeList}>
         <li>
-          <span className="text-ink">A true-scale grid and True scale</span>, for miniatures, need the
-          screen’s diagonal and your grid square size, set once in{' '}
+          <span className="text-ink">True scale</span> zooms a map so its squares match your miniatures. It
+          needs the screen’s diagonal and your grid square size, set once in{' '}
           <button
             type="button"
             onClick={onOpenPlayerSetup}
