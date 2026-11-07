@@ -1,16 +1,16 @@
- # Mini VTT
+# Mini VTT
 
-Welcome to my hobby project Mini VTT that I created because I wanted a basic, low resource VTT that me and my friends use when we play. 
-We only play locally with mini figures so we do not need tokens, online capabilities, initiative tracker etc. 
-First of all I have used AI to generated code for this project. But no AI art, music or other artistic assets are AI generated nor will there be any. Yes I drew the icon myself. In Paint. 
+Welcome to my hobby project Mini VTT that I created because I wanted a basic, low resource VTT that me and my friends use when we play.
+We only play locally with mini figures so we do not need tokens, online capabilities, initiative tracker etc.
+First of all I have used AI to generated code for this project. But no AI art, music or other artistic assets are AI generated nor will there be any. Yes I drew the icon myself. In Paint.
 
-I am an senior engineer but I program VHDL mostly. Or System Verilog. Even though a FPGA based VTT sound interesting it would be far from practical. 
+I am an senior engineer but I program VHDL mostly. Or System Verilog. Even though a FPGA based VTT sound interesting it would be far from practical.
 So while I am quite experienced in designing robust firmware I lack the skills to make something like this within any reasonable time without AI.
 
-Also this is based upon Lazy DM Companion I found on github https://github.com/felipeabviana/lazy_dm_companion if you want an even more basic great little software. 
+Also this is based upon Lazy DM Companion I found on github https://github.com/felipeabviana/lazy_dm_companion if you want an even more basic great little software.
 Not much code is still the same and I have added a lot. But still thanks to Felipe for giving me something to start from.
 
-So this is a VTT I wanted to make because my group play local only with a weak laptop and an OLED TV laying flat connected by HDMI. No tokens. No online. 
+So this is a VTT I wanted to make because my group play local only with a weak laptop and an OLED TV laying flat connected by HDMI. No tokens. No online.
 I wanted just maps and fog of war basically. Focus of the software is low system resource usage. Features have been added but I am trying to keep it simple.
 
 I will write more of the text myself when it is more feature complete but from here the rest of the text is mostly AI generated that gets updated as features change or gets added.
@@ -19,9 +19,9 @@ You run Mini VTT on your laptop. The **DM window** stays on your screen, where y
 
 It's built to stay out of the way on modest hardware: no accounts, no server, no internet connection, and nothing running in the background while you're not touching it.
 
-| DM window                                                                                                                                        | Player screen                                                                                                       |
-| ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
-| ![The DM window: map library on the left, the map with indigo fog, and the teal player-view frame with its grid](docs/screenshots/dm-window.png) | ![The player screen: the framed part of the map with unrevealed areas in black](docs/screenshots/player-screen.png) |
+| DM window                                                                                                                                                                         | Player screen                                                                                                                             |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| ![The DM window: map library on the left, the map with indigo fog, and the gold player-view frame with its grid, spell areas and a measured path](docs/screenshots/dm-window.png) | ![The player screen: the framed part of the map with its grid, the spell areas and the measured path](docs/screenshots/player-screen.png) |
 
 ## Features
 
