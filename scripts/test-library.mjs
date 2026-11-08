@@ -69,12 +69,39 @@ app.whenReady().then(async () => {
 
   try {
     // ── Import ───────────────────────────────────────────────────────────────
+    // By default a new map starts revealed: it gets a fog mask that hides nothing
+    check(
+      'Cover new maps in fog is off until turned on',
+      (await lib.loadSnapshot()).settings.fogNewMaps === false &&
+        (await lib.saveSettings({ fogNewMaps: 'yes' })) === false,
+    );
+    const open = await lib.addMap(await fixture('open.png', makePng()));
+    const openFog = await lib.loadMapFog(open.id);
+    const openMask = openFog
+      ? nativeImage.createFromBuffer(Buffer.from(openFog.split(',')[1], 'base64'))
+      : null;
+    check(
+      'a new map starts revealed: its fog mask hides nothing',
+      open.hasFog &&
+        !!openMask &&
+        !openMask.isEmpty() &&
+        openMask.toBitmap().every((byte) => byte === 0) &&
+        (await lib.loadSnapshot()).maps.find((m) => m.id === open.id)?.hasFog === true,
+    );
+    await lib.removeMap(open.id);
+    // With the setting on, a new map gets no mask, so it starts fully fogged.
+    // The maps below start that way.
+    await lib.saveSettings({ fogNewMaps: true });
+
     const a = await lib.addMap(await fixture('alpha.png', makePng({ rgb: [40, 80, 160] })));
     check('addImage returns an entry', !!a, a ? `id=${a.id}` : 'null');
     check('dimensions are read', a.width === 64 && a.height === 64, `${a.width}x${a.height}`);
     check('name comes from the filename', a.name === 'alpha', a.name);
     check('a thumbnail is generated', await exists(path.join(tmp, 'library', a.id, 'thumb.png')));
-    check('defaults: zoom 1, no fog', a.zoom === 1 && a.hasFog === false);
+    check(
+      'with Cover new maps in fog on: zoom 1 and no fog mask, so it starts fully fogged',
+      a.zoom === 1 && a.hasFog === false && !(await exists(path.join(tmp, 'library', a.id, 'fog.png'))),
+    );
 
     const b = await lib.addMap(await fixture('beta.png', makePng({ rgb: [30, 110, 60] })));
     check('ids are unique', a.id !== b.id);

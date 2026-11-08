@@ -341,11 +341,30 @@ export async function addMap(sourcePath: string): Promise<MapEntryMeta | null> {
     rooms: [],
     addedAt: Date.now(),
   };
-  await mutateIndex((index) => {
+  await mutateIndex(async (index) => {
     entry.rotation = rotationForNew(size, index.settings);
+    // A map without a fog mask starts fully fogged. Unless the DM asked for
+    // that (Settings: Cover new maps in fog), it gets a mask that hides nothing.
+    if (!index.settings.fogNewMaps) entry.hasFog = await saveRevealedFog(dir);
     index.maps.push(entry);
   });
   return entry;
+}
+
+/**
+ * Give a new map a fog mask that hides nothing: one clear pixel, as a mask is
+ * stretched over the whole map. False if it couldn't be written; the map then
+ * starts fully fogged, which never shows players too much.
+ */
+async function saveRevealedFog(dir: string): Promise<boolean> {
+  try {
+    const clear = nativeImage.createFromBitmap(Buffer.alloc(4), { width: 1, height: 1 }).toPNG();
+    await fs.writeFile(path.join(dir, 'fog.png'), clear);
+    return true;
+  } catch (err) {
+    console.error('Couldn’t save the fog of a new map; it starts fully fogged:', err);
+    return false;
+  }
 }
 
 /** A video map's codec, read from the start of its file; null for images. */

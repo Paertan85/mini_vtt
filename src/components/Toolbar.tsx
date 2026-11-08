@@ -61,6 +61,9 @@ interface ToolbarProps {
   /** Whether the map's measured grid is drawn on the player screen */
   showGridToPlayers: boolean;
   onToggleGridToPlayers: () => void;
+  /** Whether maps start fully fogged when they are added; otherwise they start revealed */
+  fogNewMaps: boolean;
+  onToggleFogNewMaps: () => void;
   /** How the Measure tool's Movement ruler counts diagonals; set in the settings menu */
   movementRule: MovementRule;
   onMovementRuleChange: (rule: MovementRule) => void;
@@ -542,6 +545,11 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
             label: 'Show effect and shape tools',
             onSelect: props.onToggleEffectTools,
             checked: props.showEffectTools,
+          },
+          {
+            label: 'Cover new maps in fog',
+            onSelect: props.onToggleFogNewMaps,
+            checked: props.fogNewMaps,
           },
           ...MOVEMENT_RULES.map((rule, index) => ({
             label: MOVEMENT_LABELS[rule],

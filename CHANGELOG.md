@@ -30,6 +30,11 @@ All notable changes to this project are documented here. The format is based on
 
 ### Changed
 
+- New maps start without fog, so players see the whole map until you cover
+  it (Fill → Cover entire map). To have new maps start fully fogged as
+  before, tick **Settings → Cover new maps in fog**. The setting applies as
+  a map is added, so maps already in the library keep the fog they have.
+
 - A shape added while your own view is zoomed in now appears where you are
   looking, rather than in the middle of the player frame out of sight.
 

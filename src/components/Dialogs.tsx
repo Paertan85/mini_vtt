@@ -292,7 +292,8 @@ export function WelcomeDialog({
       <ul className={welcomeList}>
         <li>
           Click <span className="text-ink">Add maps…</span> in the library, or drop images or WebM videos onto
-          it. New maps start fully fogged.
+          it. New maps start without fog; tick <span className="text-ink">Cover new maps in fog</span> in
+          Settings to have them start fully fogged.
         </li>
         <li>
           Click <span className="text-ink">Open player screen</span>, drag that window onto the table screen

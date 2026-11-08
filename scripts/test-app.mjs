@@ -7,7 +7,7 @@
 //
 // Uses a scratch userData directory, so your real library is untouched.
 
-import { app, BrowserWindow, ipcMain, net } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, net } from 'electron';
 import '../dist-electron/main.js'; // must load before `ready` (registers the media protocol)
 import fs from 'node:fs';
 import path from 'node:path';
@@ -1392,6 +1392,26 @@ app.whenReady().then(async () => {
         (await waitFor(() => readIndex().settings.showGridToPlayers === false)),
       String(await playerGridCell()),
     );
+    // Whether new maps start fully fogged; the main process applies it as a map is added
+    const clickFogNewMapsItem = () =>
+      js(
+        `[...document.querySelectorAll('[role="menuitemcheckbox"]')].find((b) => b.textContent.endsWith('Cover new maps in fog')).click()`,
+      );
+    check(
+      'new maps start without fog until the menu says otherwise',
+      readIndex().settings.fogNewMaps !== true,
+    );
+    await click('[aria-label="Settings"]');
+    await sleep(200);
+    await clickFogNewMapsItem();
+    check(
+      'the settings menu has new maps start fully fogged',
+      await waitFor(() => readIndex().settings.fogNewMaps === true),
+    );
+    await click('[aria-label="Settings"]');
+    await sleep(200);
+    await clickFogNewMapsItem();
+    check('and turns it off again', await waitFor(() => readIndex().settings.fogNewMaps === false));
     await clickText('Show players');
     check(
       'Show players puts the ruler on the player screen',
@@ -1736,6 +1756,55 @@ app.whenReady().then(async () => {
       !readIndex().maps.some((m) => m.id === 'm_alpha') && !fs.existsSync(path.join(libraryDir, 'm_alpha')),
     );
     check('and loads the next one', readIndex().settings.currentMapId === 'm_beta');
+
+    // Add maps…: a new map starts without fog, or fully fogged with the setting
+    // on. The file dialog answers with a plain grey map, like the seeded ones.
+    const addedMap = path.join(userData, 'added.png');
+    fs.writeFileSync(addedMap, makePng(400, 300));
+    const showOpenDialog = dialog.showOpenDialog;
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [addedMap] });
+    const fogWidth = () => js(`document.querySelector('canvas[aria-label="Fog of war"]')?.width ?? 0`);
+    const playerFogAlpha = () =>
+      js(
+        `(() => { const c = [...document.querySelectorAll('canvas')].at(-1);
+          return c?.width ? c.getContext('2d').getImageData(c.width >> 1, c.height >> 1, 1, 1).data[3] : -1; })()`,
+        player,
+      );
+    /** Add the grey map with Add maps…; true once it is the loaded map. */
+    const addFromDialog = async () => {
+      const known = new Set(readIndex().maps.map((m) => m.id));
+      await clickText('Add maps…');
+      const added = await waitFor(() => readIndex().maps.find((m) => !known.has(m.id)));
+      return (
+        !!added &&
+        (await waitFor(
+          async () => readIndex().settings.currentMapId === added.id && (await fogWidth()) === 400,
+        ))
+      );
+    };
+    try {
+      check('Add maps… loads the new map', await addFromDialog());
+      // Time for the fog to be drawn: the resized canvas is clear until it is
+      await sleep(800);
+      check(
+        'a new map starts without fog, for players too',
+        (await fogAlphaAt(0.5, 0.5)) === 0 && (await playerFogAlpha()) === 0,
+        `${await fogAlphaAt(0.5, 0.5)}, ${await playerFogAlpha()}`,
+      );
+      await click('[aria-label="Settings"]');
+      await sleep(200);
+      await clickFogNewMapsItem();
+      await waitFor(() => readIndex().settings.fogNewMaps === true);
+      check('Add maps… loads the next new map', await addFromDialog());
+      check(
+        'with Cover new maps in fog on, it starts fully fogged, for players too',
+        (await waitFor(async () => (await fogAlphaAt(0.5, 0.5)) > 0 && (await playerFogAlpha()) > 0)) ===
+          true,
+        `${await fogAlphaAt(0.5, 0.5)}, ${await playerFogAlpha()}`,
+      );
+    } finally {
+      dialog.showOpenDialog = showOpenDialog;
+    }
 
     await js(`location.href = 'file:///'`).catch(() => {});
     await sleep(500);

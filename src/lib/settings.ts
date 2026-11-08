@@ -60,6 +60,7 @@ const RULES: { [K in keyof SettingsPatch]-?: Rule<LibrarySettings[K]> } = {
   showGridToPlayers: { default: false, parse: boolean },
   lockZoom: { default: false, parse: boolean },
   frameColor: { default: DEFAULT_FRAME_COLOR, parse: (value) => (isFrameColor(value) ? value : undefined) },
+  fogNewMaps: { default: false, parse: boolean },
 };
 
 const KEYS = Object.keys(RULES) as (keyof SettingsPatch)[];

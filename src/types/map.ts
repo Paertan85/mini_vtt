@@ -189,6 +189,11 @@ export interface LibrarySettings {
   lockZoom: boolean;
   /** Colour of the player view frame in the DM window */
   frameColor: FrameColor;
+  /**
+   * Whether maps start fully fogged when they are added. Otherwise they start
+   * revealed: the main process saves them a fog mask that hides nothing.
+   */
+  fogNewMaps: boolean;
 }
 
 /**

@@ -168,6 +168,8 @@ export function App() {
     // New maps and handouts taller than wide are turned this much (the main process applies it)
     portraitRotation,
     frameColor,
+    // Whether maps start fully fogged when added (the main process applies it)
+    fogNewMaps,
   } = settings;
   const showRulerRef = useRef(false);
   showRulerRef.current = showRulerToPlayers;
@@ -324,10 +326,11 @@ export function App() {
       const token = ++loadTokenRef.current;
       // The last stroke reaches the disk before this map's fog is read back
       await settleSaves();
+      // A map just added has fog saved too, unless it starts fully fogged
       const [url, savedFog, savedEffects] = await Promise.all([
         api?.loadMapMedia(meta.id),
-        options.centerFrame ? null : api?.loadMapFog(meta.id),
-        options.centerFrame ? null : api?.loadMapEffects(meta.id),
+        api?.loadMapFog(meta.id),
+        api?.loadMapEffects(meta.id),
       ]);
       // Another map was picked while this one's files were read
       if (token !== loadTokenRef.current) return false;
@@ -337,7 +340,7 @@ export function App() {
       }
       // Saved fog that is damaged (cut short by a crash) is never shown: it
       // would reveal part of the map, so the map starts fully fogged instead
-      if (meta.hasFog && !options.centerFrame && !savedFog) {
+      if (meta.hasFog && !savedFog) {
         notify(
           `The saved fog of “${meta.name}” couldn’t be read, so the map starts fully fogged. Undo can’t bring it back; reveal it again with the Fog tool.`,
           'error',
@@ -896,6 +899,7 @@ export function App() {
 
   const handleToggleZoomLock = () => updateSettings({ lockZoom: !zoomLocked });
   const handleToggleGridToPlayers = () => updateSettings({ showGridToPlayers: !showGridToPlayers });
+  const handleToggleFogNewMaps = () => updateSettings({ fogNewMaps: !fogNewMaps });
 
   const handleMovementRuleChange = (rule: MovementRule) => updateSettings({ diagonalRule: rule });
 
@@ -1034,6 +1038,7 @@ export function App() {
     onOpenShortcuts: () => setDialog('shortcuts'),
     onOpenWelcome: () => setDialog('welcome'),
     onToggleGridToPlayers: handleToggleGridToPlayers,
+    onToggleFogNewMaps: handleToggleFogNewMaps,
     onExportProject: () => void handleExportProject(),
     onImportProject: () => void handleImportProject(),
     onRevealLibraryFolder: () => void api?.revealLibraryFolder(),
@@ -1103,6 +1108,7 @@ export function App() {
           measureStraight={measureStraight}
           showRulerToPlayers={showRulerToPlayers}
           showGridToPlayers={showGridToPlayers}
+          fogNewMaps={fogNewMaps}
           measureNeedsGrid={!grid}
           playerOpen={playerOpen}
           blackout={blackout}
