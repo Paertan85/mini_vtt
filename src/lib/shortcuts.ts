@@ -1,5 +1,5 @@
 // The DM window's keyboard shortcuts, in one table: the key handler in
-// App.tsx looks keys up here, and the shortcuts list (Dialogs.tsx) takes its
+// useDmController looks keys up here, and the shortcuts list (Dialogs.tsx) takes its
 // key labels from here, so the two can't drift apart.
 //
 // Not in the table: keys other parts handle themselves (the Measure tool's
@@ -10,7 +10,7 @@
 // Pure data and functions, no DOM access. Keys are written for Windows and
 // Linux; the list shows Mac names with keyLabel.
 
-/** Something a shortcut does; App.tsx gives each one its handler. */
+/** Something a shortcut does; useDmController gives each one its handler. */
 export type Command =
   | 'cancel'
   | 'deleteArea'

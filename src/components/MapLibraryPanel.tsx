@@ -4,56 +4,32 @@
 
 import React, { memo, useEffect, useRef, useState } from 'react';
 import { MoreHorizontal } from 'lucide-react';
-import type { HandoutMeta, MapEntryMeta } from '../types/map';
 import { Button } from '../ui/controls';
 import { Menu, type MenuItem } from '../ui/Menu';
 import { gridSquares } from '../lib/grid';
 import { drawThumbnail, toDataUrl } from '../lib/thumbnail';
-
-export interface OrientationChange {
-  rotation?: number;
-  mirrorHorizontal?: boolean;
-  mirrorVertical?: boolean;
-}
+import type { DmLibrary, DmPlayerScreen, OrientationChange } from '../hooks/useDmController';
 
 interface MapLibraryPanelProps {
-  loading: boolean;
-  maps: MapEntryMeta[];
-  currentMapId: string | null;
-  selectedMapId: string | null;
-  onSelectMap: (id: string) => void;
-  onLoadMap: (id: string) => void;
-  /** Loads the map if need be and starts measuring its grid */
-  onMeasureMapGrid: (id: string) => void;
-  onReorderMaps: (ids: string[]) => void;
-  onRenameMap: (id: string, name: string) => void;
-  onRemoveMap: (id: string) => void;
-  onChangeOrientation: (id: string, change: OrientationChange) => void;
-  onAddMaps: () => void;
-  onDropMaps: (files: File[]) => void;
-
-  handouts: HandoutMeta[];
-  selectedHandoutId: string | null;
-  activeHandoutId: string | null;
-  /** Whether the player screen is open; cards are marked Live only then */
-  playerOpen: boolean;
-  /** Whether the player screen is blacked out; Live turns the Blackout button's red */
-  blackout: boolean;
-  onSelectHandout: (id: string) => void;
-  onToggleHandout: (handout: HandoutMeta) => void;
-  onRotateHandout: (id: string) => void;
-  onRemoveHandout: (id: string) => void;
-  onAddHandouts: () => void;
-  onDropHandouts: (files: File[]) => void;
+  /** The maps and handouts, which are selected, and what can be done with them */
+  library: DmLibrary;
+  /** Cards are marked Live only while the player screen is open, in Blackout's red during a blackout */
+  playerScreen: DmPlayerScreen;
   /** Hidden panels keep their state (such as the open tab) */
   hidden: boolean;
 }
 
 type Tab = 'maps' | 'handouts';
 
+type ListProps = Pick<MapLibraryPanelProps, 'library' | 'playerScreen'>;
+
 // Memoized: the DM window re-renders on every frame of a drag, and the list
 // of cards never depends on that
-export const MapLibraryPanel = memo(function MapLibraryPanel(props: MapLibraryPanelProps) {
+export const MapLibraryPanel = memo(function MapLibraryPanel({
+  library,
+  playerScreen,
+  hidden,
+}: MapLibraryPanelProps) {
   const [tab, setTab] = useState<Tab>('maps');
   const [filesOver, setFilesOver] = useState(false);
   const isMaps = tab === 'maps';
@@ -63,7 +39,7 @@ export const MapLibraryPanel = memo(function MapLibraryPanel(props: MapLibraryPa
   return (
     <aside
       id="library-panel"
-      className={`${props.hidden ? 'hidden' : 'flex'} min-h-0 w-72 shrink-0 flex-col border-r border-line bg-panel`}
+      className={`${hidden ? 'hidden' : 'flex'} min-h-0 w-72 shrink-0 flex-col border-r border-line bg-panel`}
     >
       <div className="flex h-12 shrink-0 items-center border-b border-line px-4">
         <h1 className="font-display text-[17px] font-semibold tracking-wider text-ink">Mini VTT</h1>
@@ -71,7 +47,7 @@ export const MapLibraryPanel = memo(function MapLibraryPanel(props: MapLibraryPa
 
       <div role="tablist" aria-label="Library" className="flex shrink-0 border-b border-line px-2">
         {(['maps', 'handouts'] as const).map((name) => {
-          const count = name === 'maps' ? props.maps.length : props.handouts.length;
+          const count = name === 'maps' ? library.maps.length : library.handouts.length;
           const selected = tab === name;
           return (
             <button
@@ -107,15 +83,19 @@ export const MapLibraryPanel = memo(function MapLibraryPanel(props: MapLibraryPa
           event.preventDefault();
           setFilesOver(false);
           const files = Array.from(event.dataTransfer.files);
-          if (isMaps) props.onDropMaps(files);
-          else props.onDropHandouts(files);
+          if (isMaps) library.dropMaps(files);
+          else library.dropHandouts(files);
         }}
       >
-        {isMaps ? <MapList {...props} /> : <HandoutList {...props} />}
+        {isMaps ? (
+          <MapList library={library} playerScreen={playerScreen} />
+        ) : (
+          <HandoutList library={library} playerScreen={playerScreen} />
+        )}
       </div>
 
       <div className="shrink-0 border-t border-line p-2">
-        <Button className="w-full" onClick={isMaps ? props.onAddMaps : props.onAddHandouts}>
+        <Button className="w-full" onClick={isMaps ? library.addMaps : library.addHandouts}>
           {isMaps ? 'Add maps…' : 'Add handouts…'}
         </Button>
       </div>
@@ -127,13 +107,13 @@ export const MapLibraryPanel = memo(function MapLibraryPanel(props: MapLibraryPa
 
 const MAP_DRAG_TYPE = 'application/x-mini-vtt-map';
 
-function MapList(props: MapLibraryPanelProps) {
-  const { maps, currentMapId, selectedMapId } = props;
+function MapList({ library, playerScreen }: ListProps) {
+  const { maps, currentMapId, selectedMapId } = library;
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
-  if (props.loading && maps.length === 0) return <EmptyState title="Loading library…" />;
+  if (library.loading && maps.length === 0) return <EmptyState title="Loading library…" />;
   if (maps.length === 0) {
     return (
       <EmptyState
@@ -150,7 +130,7 @@ function MapList(props: MapLibraryPanelProps) {
     if (from < 0 || to < 0 || from === to) return;
     const [moved] = ids.splice(from, 1);
     ids.splice(to, 0, moved);
-    props.onReorderMaps(ids);
+    library.reorderMaps(ids);
   };
 
   const endDrag = () => {
@@ -162,11 +142,11 @@ function MapList(props: MapLibraryPanelProps) {
     <ul className="flex flex-col gap-1" aria-label="Maps">
       {maps.map((map) => {
         const isCurrent = map.id === currentMapId;
-        const orient = (change: OrientationChange) => props.onChangeOrientation(map.id, change);
+        const orient = (change: OrientationChange) => library.changeOrientation(map.id, change);
         const menu: MenuItem[] = [
-          { label: 'Load', onSelect: () => props.onLoadMap(map.id), disabled: isCurrent },
+          { label: 'Load', onSelect: () => library.loadMap(map.id), disabled: isCurrent },
           { label: 'Rename', onSelect: () => setRenamingId(map.id) },
-          { label: 'Measure map grid…', onSelect: () => props.onMeasureMapGrid(map.id) },
+          { label: 'Measure map grid…', onSelect: () => library.measureMapGrid(map.id) },
           {
             label: 'Rotate left',
             separated: true,
@@ -183,7 +163,7 @@ function MapList(props: MapLibraryPanelProps) {
             checked: map.mirrorVertical,
             onSelect: () => orient({ mirrorVertical: !map.mirrorVertical }),
           },
-          { label: 'Remove…', danger: true, separated: true, onSelect: () => props.onRemoveMap(map.id) },
+          { label: 'Remove…', danger: true, separated: true, onSelect: () => library.removeMap(map.id) },
         ];
         const details: Detail[] = [
           map.mediaType === 'video' ? 'Video' : null,
@@ -225,17 +205,17 @@ function MapList(props: MapLibraryPanelProps) {
             <Card
               name={map.name}
               selected={map.id === selectedMapId}
-              live={props.playerOpen && isCurrent}
-              blackout={props.blackout}
+              live={playerScreen.playerOpen && isCurrent}
+              blackout={playerScreen.blackout}
               details={details}
               thumb={<Thumb id={map.id} kind="map" image={map.mediaType === 'image'} width={map.width} />}
               renaming={renamingId === map.id}
               onRename={(name) => {
                 setRenamingId(null);
-                if (name && name !== map.name) props.onRenameMap(map.id, name);
+                if (name && name !== map.name) library.renameMap(map.id, name);
               }}
-              onClick={() => props.onSelectMap(map.id)}
-              onDoubleClick={() => props.onLoadMap(map.id)}
+              onClick={() => library.selectMap(map.id)}
+              onDoubleClick={() => library.loadMap(map.id)}
               menu={menu}
               hint={isCurrent ? null : 'Double-click to load'}
             />
@@ -248,8 +228,9 @@ function MapList(props: MapLibraryPanelProps) {
 
 // ─── Handouts ─────────────────────────────────────────────────────────────────
 
-function HandoutList(props: MapLibraryPanelProps) {
-  const { handouts, activeHandoutId, selectedHandoutId } = props;
+function HandoutList({ library, playerScreen }: ListProps) {
+  const { handouts, selectedHandoutId } = library;
+  const { activeHandoutId } = playerScreen;
   if (handouts.length === 0) {
     return (
       <EmptyState
@@ -267,24 +248,24 @@ function HandoutList(props: MapLibraryPanelProps) {
             <Card
               name={handout.name}
               selected={handout.id === selectedHandoutId}
-              live={props.playerOpen && isActive}
-              blackout={props.blackout}
+              live={playerScreen.playerOpen && isActive}
+              blackout={playerScreen.blackout}
               details={handout.rotation ? [`Rotated ${handout.rotation}°`] : []}
               thumb={<Thumb id={handout.id} kind="handout" image width={handout.width} />}
-              onClick={() => props.onSelectHandout(handout.id)}
-              onDoubleClick={() => props.onToggleHandout(handout)}
+              onClick={() => library.selectHandout(handout.id)}
+              onDoubleClick={() => library.toggleHandout(handout)}
               hint={`Double-click to ${isActive ? 'hide' : 'show'}`}
               menu={[
                 {
                   label: isActive ? 'Hide from player screen' : 'Show on player screen',
-                  onSelect: () => props.onToggleHandout(handout),
+                  onSelect: () => library.toggleHandout(handout),
                 },
-                { label: 'Rotate right', onSelect: () => props.onRotateHandout(handout.id) },
+                { label: 'Rotate right', onSelect: () => library.rotateHandout(handout.id) },
                 {
                   label: 'Remove…',
                   danger: true,
                   separated: true,
-                  onSelect: () => props.onRemoveHandout(handout.id),
+                  onSelect: () => library.removeHandout(handout.id),
                 },
               ]}
             />

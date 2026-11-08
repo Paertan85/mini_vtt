@@ -5,7 +5,7 @@
 // left over from the previous map: a new field gets its value from the
 // library entry in `loadedFrom`, or the type check fails. The player frame's
 // pan, the fog, the effects and the spell areas have their own owners and are
-// restored by loadMap in App.tsx.
+// restored by loadMap in useDmController.
 
 import { useCallback, useState } from 'react';
 import type { FogRoom, MapEntryMeta, MapGrid, MediaType } from '../types/map';

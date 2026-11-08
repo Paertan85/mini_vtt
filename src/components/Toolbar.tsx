@@ -24,96 +24,32 @@ import { Button, ButtonGroup, Divider, inputClass } from '../ui/controls';
 import { Menu } from '../ui/Menu';
 import { Popover } from '../ui/Popover';
 import { clampZoom, MAX_ZOOM, MIN_ZOOM, stepZoom } from '../lib/geometry';
-import type { FogShape, Tool } from './MapStage';
-import type { AreaShape, EffectKind, MovementRule } from '../types/map';
+import type { FogShape } from './MapStage';
+import type { AreaShape, EffectKind } from '../types/map';
 import { MOVEMENT_LABELS, MOVEMENT_RULES, MOVEMENT_TITLES } from '../lib/grid';
 import { AREA_LABELS, AREA_SHAPES, DEFAULT_AREA_FT, MAX_AREAS } from '../lib/areas';
 import { EFFECT_KINDS, EFFECT_STYLES } from '../lib/effects';
 import { keyLabel } from '../lib/platform';
-
-export const MIN_BRUSH = 10;
-export const MAX_BRUSH = 600;
-export const BRUSH_STEP = 10;
+import {
+  BRUSH_STEP,
+  MAX_BRUSH,
+  MIN_BRUSH,
+  type DmApp,
+  type DmPlayerScreen,
+  type DmPlayerView,
+  type DmSettings,
+  type DmTools,
+  type TrueScaleNeed,
+} from '../hooks/useDmController';
 
 interface ToolbarProps {
-  hasMap: boolean;
-  tool: Tool;
-  onToolChange: (tool: Tool) => void;
-  brushSize: number;
-  onBrushSizeChange: (size: number) => void;
-  canUndo: boolean;
-  canRedo: boolean;
-  onUndo: () => void;
-  onRedo: () => void;
-  /** The colour painted, and given to new shapes */
-  effectKind: EffectKind;
-  onEffectKindChange: (kind: EffectKind) => void;
-  canClearEffects: boolean;
-  onClearEffects: () => void;
-  /** Adds a spell area, or starts measuring the grid when the map has none (it follows the save) */
-  onAddArea: (shape: AreaShape) => void;
-  /** What adding a shape needs first: the map's grid, or room (a full map); explained beneath the button */
-  shapesNeed: ShapesNeed | null;
-  /** Whether the Effects and Shapes tools and the spell areas are offered at all */
-  showEffectTools: boolean;
-  onToggleEffectTools: () => void;
-  onCalibrateGrid: () => void;
-  /** Whether the map's measured grid is drawn on the player screen */
-  showGridToPlayers: boolean;
-  onToggleGridToPlayers: () => void;
-  /** Whether maps start fully fogged when they are added; otherwise they start revealed */
-  fogNewMaps: boolean;
-  onToggleFogNewMaps: () => void;
-  /** How the Measure tool's Movement ruler counts diagonals; set in the settings menu */
-  movementRule: MovementRule;
-  onMovementRuleChange: (rule: MovementRule) => void;
-  /** The Measure tool measures a straight line instead of movement */
-  measureStraight: boolean;
-  onMeasureStraightChange: (straight: boolean) => void;
-  /** Whether players see the ruler too */
-  showRulerToPlayers: boolean;
-  onShowRulerToPlayersChange: (show: boolean) => void;
-  /** The loaded map has no grid yet, so distances can't be measured */
-  measureNeedsGrid: boolean;
-  onRevealAll: () => void;
-  onCoverAll: () => void;
-
-  zoom: number;
-  onZoomChange: (zoom: number) => void;
-  /** The player view zoom is locked against the wheel, the keys and the zoom controls */
-  zoomLocked: boolean;
-  onToggleZoomLock: () => void;
-  fit16by9: boolean;
-  onToggleFit16by9: () => void;
-  /** Whether the player view is at true scale: the map's squares the size set in Player screen setup */
-  atTrueScale: boolean;
-  /**
-   * What True scale needs first: the screen size, the player screen open (to
-   * know its pixels), or the map's grid. A click explains it beneath the button.
-   */
-  trueScaleNeeds: TrueScaleNeed | null;
-  /** Applies true scale, or starts measuring the grid when that is what it needs */
-  onTrueScale: () => void;
-
-  playerOpen: boolean;
-  onOpenPlayer: () => void;
-  blackout: boolean;
-  onToggleBlackout: () => void;
-  onOpenPlayerSetup: () => void;
-  onOpenShortcuts: () => void;
-  /** Opens the welcome screen again */
-  onOpenWelcome: () => void;
-  onExportProject: () => void;
-  onImportProject: () => void;
-  onRevealLibraryFolder: () => void;
-  onToggleFullScreen: () => void;
-  onReload: () => void;
-  onToggleDevTools: () => void;
-  onQuit: () => void;
-  fogShape: FogShape;
-  onFogShapeChange: (shape: FogShape) => void;
-  showLibrary: boolean;
-  onToggleLibrary: () => void;
+  tools: DmTools;
+  playerView: DmPlayerView;
+  playerScreen: DmPlayerScreen;
+  /** The settings it shows and changes, in its menu and beside the tools */
+  settings: DmSettings;
+  /** The commands of the settings menu and the welcome button */
+  app: DmApp;
 }
 
 /** The Fog tool's ways of drawing, as the toolbar offers them. */
@@ -138,9 +74,6 @@ const FOG_SHAPES: { shape: FogShape; label: string; title: string }[] = [
   },
 ];
 
-export type TrueScaleNeed = 'setup' | 'player' | 'grid';
-export type ShapesNeed = 'grid' | 'full';
-
 /** What the note beneath True scale says, and its button, for each thing it needs. */
 const TRUE_SCALE_NOTES: Record<TrueScaleNeed, { text: string; action: string }> = {
   setup: {
@@ -159,8 +92,15 @@ const TRUE_SCALE_NOTES: Record<TrueScaleNeed, { text: string; action: string }> 
 
 // Memoized: the DM window re-renders on every frame of a drag, and the toolbar
 // never depends on that
-export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
-  const { hasMap, tool, zoom, zoomLocked, trueScaleNeeds } = props;
+export const Toolbar = memo(function Toolbar({
+  tools,
+  playerView,
+  playerScreen,
+  settings,
+  app,
+}: ToolbarProps) {
+  const { hasMap, tool, shapesNeed } = tools;
+  const { zoom, zoomLocked, trueScaleNeeds } = playerView;
   const layerName = tool === 'effect' ? 'effects' : 'fog';
 
   // The note beneath True scale saying what it still needs
@@ -172,7 +112,6 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
   }, [trueScaleNeeds]);
 
   // The note beneath a shape button, when shapes can't be added yet
-  const { shapesNeed } = props;
   const shapeAnchorRef = useRef<HTMLButtonElement | null>(null);
   const [shapeNote, setShapeNote] = useState<AreaShape | null>(null);
   const closeShapeNote = useCallback(() => setShapeNote(null), []);
@@ -186,14 +125,18 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         square
         tone="quiet"
         aria-controls="library-panel"
-        aria-expanded={props.showLibrary}
-        aria-label={props.showLibrary ? 'Hide maps and handouts' : 'Show maps and handouts'}
+        aria-expanded={settings.showLibrary}
+        aria-label={settings.showLibrary ? 'Hide maps and handouts' : 'Show maps and handouts'}
         title={keyLabel(
-          props.showLibrary ? 'Hide maps and handouts (Ctrl+B)' : 'Show maps and handouts (Ctrl+B)',
+          settings.showLibrary ? 'Hide maps and handouts (Ctrl+B)' : 'Show maps and handouts (Ctrl+B)',
         )}
-        onClick={props.onToggleLibrary}
+        onClick={settings.toggleLibrary}
       >
-        {props.showLibrary ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
+        {settings.showLibrary ? (
+          <PanelLeftClose className="h-4 w-4" />
+        ) : (
+          <PanelLeftOpen className="h-4 w-4" />
+        )}
       </Button>
 
       {/* Tools and fog */}
@@ -201,7 +144,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         <Button
           tone={tool === 'view' ? 'active' : 'default'}
           aria-pressed={tool === 'view'}
-          onClick={() => props.onToolChange('view')}
+          onClick={() => tools.setTool('view')}
           title="View: drag the frame to move the player view (V). Hold Alt to move it while painting."
         >
           View
@@ -209,18 +152,18 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         <Button
           tone={tool === 'fog' ? 'active' : 'default'}
           aria-pressed={tool === 'fog'}
-          onClick={() => props.onToolChange('fog')}
+          onClick={() => tools.setTool('fog')}
           disabled={!hasMap}
           title="Paint fog (F): Left Mouse button reveals, Right mouse button covers"
         >
           Fog
         </Button>
-        {props.showEffectTools && (
+        {settings.showEffectTools && (
           <>
             <Button
               tone={tool === 'effect' ? 'active' : 'default'}
               aria-pressed={tool === 'effect'}
-              onClick={() => props.onToolChange('effect')}
+              onClick={() => tools.setTool('effect')}
               disabled={!hasMap}
               title="Paint effects such as fire or poison (E): Left Mouse button paints, Right mouse button erases"
             >
@@ -229,7 +172,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
             <Button
               tone={tool === 'shapes' ? 'active' : 'default'}
               aria-pressed={tool === 'shapes'}
-              onClick={() => props.onToolChange('shapes')}
+              onClick={() => tools.setTool('shapes')}
               disabled={!hasMap}
               title="Place spell areas sized in feet: circles, squares, cones and lines (S)"
             >
@@ -240,7 +183,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         <Button
           tone={tool === 'measure' ? 'active' : 'default'}
           aria-pressed={tool === 'measure'}
-          onClick={() => props.onToolChange('measure')}
+          onClick={() => tools.setTool('measure')}
           disabled={!hasMap}
           title="Measure (M): drag on the map to see the distance in feet, or click point by point to measure a path round corners (double-click or Enter finishes it)."
         >
@@ -258,19 +201,19 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
           min={MIN_BRUSH}
           max={MAX_BRUSH}
           step={BRUSH_STEP}
-          value={props.brushSize}
-          onChange={(event) => props.onBrushSizeChange(Number(event.target.value))}
+          value={tools.brushSize}
+          onChange={(event) => tools.setBrushSize(Number(event.target.value))}
           aria-label="Brush size"
           className="w-24 accent-gold"
         />
-        <span className="w-7 text-right tabular-nums text-ink">{props.brushSize}</span>
+        <span className="w-7 text-right tabular-nums text-ink">{tools.brushSize}</span>
       </label>
 
       <ButtonGroup label="History">
         <Button
           square
-          onClick={props.onUndo}
-          disabled={!props.canUndo}
+          onClick={tools.undo}
+          disabled={!tools.canUndo}
           title={keyLabel(`Undo ${layerName} change (Ctrl+Z)`)}
           aria-label="Undo"
         >
@@ -278,8 +221,8 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         </Button>
         <Button
           square
-          onClick={props.onRedo}
-          disabled={!props.canRedo}
+          onClick={tools.redo}
+          disabled={!tools.canRedo}
           title={keyLabel(`Redo ${layerName} change (Ctrl+Y or Ctrl+Shift+Z)`)}
           aria-label="Redo"
         >
@@ -290,13 +233,13 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
       {tool === 'effect' && (
         <>
           <EffectKindPicker
-            kind={props.effectKind}
-            onChange={props.onEffectKindChange}
+            kind={tools.effectKind}
+            onChange={tools.setEffectKind}
             title={(label) => `Paint ${label}`}
           />
           <Button
-            onClick={props.onClearEffects}
-            disabled={!props.canClearEffects}
+            onClick={tools.clearEffects}
+            disabled={!tools.canClearEffects}
             title={keyLabel('Remove all effects from this map (undo with Ctrl+Z)')}
           >
             Clear
@@ -306,8 +249,8 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
       {tool === 'shapes' && (
         <>
           <EffectKindPicker
-            kind={props.effectKind}
-            onChange={props.onEffectKindChange}
+            kind={tools.effectKind}
+            onChange={tools.setEffectKind}
             title={(label) => `Make new shapes, and the selected one, ${label}`}
           />
           <ButtonGroup label="Add a shape">
@@ -318,7 +261,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
                 aria-expanded={shapesNeed ? shapeNote === shape : undefined}
                 onClick={(event) => {
                   if (!shapesNeed) {
-                    props.onAddArea(shape);
+                    tools.addArea(shape);
                     return;
                   }
                   shapeAnchorRef.current = event.currentTarget;
@@ -347,7 +290,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
                     tone="active"
                     onClick={() => {
                       setShapeNote(null);
-                      props.onAddArea(shapeNote);
+                      tools.addArea(shapeNote);
                     }}
                   >
                     Measure grid
@@ -362,10 +305,10 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         </>
       )}
       {tool === 'measure' &&
-        (props.measureNeedsGrid ? (
+        (tools.measureNeedsGrid ? (
           <span className="flex items-center gap-2 text-[13px] text-muted">
             Measuring needs this map’s grid.
-            <Button tone="active" onClick={props.onCalibrateGrid}>
+            <Button tone="active" onClick={tools.measureGrid}>
               Measure grid
             </Button>
           </span>
@@ -373,17 +316,17 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
           <>
             <ButtonGroup label="Measure">
               <Button
-                tone={props.measureStraight ? 'default' : 'active'}
-                aria-pressed={!props.measureStraight}
-                onClick={() => props.onMeasureStraightChange(false)}
-                title={`Movement: counted in squares, from the middle of one to the middle of another; ${MOVEMENT_TITLES[props.movementRule]}. Settings switch how diagonals count.`}
+                tone={tools.measureStraight ? 'default' : 'active'}
+                aria-pressed={!tools.measureStraight}
+                onClick={() => tools.setMeasureStraight(false)}
+                title={`Movement: counted in squares, from the middle of one to the middle of another; ${MOVEMENT_TITLES[settings.movementRule]}. Settings switch how diagonals count.`}
               >
                 Movement
               </Button>
               <Button
-                tone={props.measureStraight ? 'active' : 'default'}
-                aria-pressed={props.measureStraight}
-                onClick={() => props.onMeasureStraightChange(true)}
+                tone={tools.measureStraight ? 'active' : 'default'}
+                aria-pressed={tools.measureStraight}
+                onClick={() => tools.setMeasureStraight(true)}
                 title={keyLabel(
                   'Straight line: the distance as the crow flies, not counted in squares (Ctrl snaps the ends to square centres)',
                 )}
@@ -392,9 +335,9 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
               </Button>
             </ButtonGroup>
             <Button
-              tone={props.showRulerToPlayers ? 'active' : 'default'}
-              aria-pressed={props.showRulerToPlayers}
-              onClick={() => props.onShowRulerToPlayersChange(!props.showRulerToPlayers)}
+              tone={settings.showRulerToPlayers ? 'active' : 'default'}
+              aria-pressed={settings.showRulerToPlayers}
+              onClick={() => settings.setShowRulerToPlayers(!settings.showRulerToPlayers)}
               title="Show the ruler on the player screen too, as you drag it"
             >
               Show players
@@ -408,9 +351,9 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
               {FOG_SHAPES.map(({ shape, label, title }) => (
                 <Button
                   key={shape}
-                  tone={props.fogShape === shape ? 'active' : 'default'}
-                  aria-pressed={props.fogShape === shape}
-                  onClick={() => props.onFogShapeChange(shape)}
+                  tone={tools.fogShape === shape ? 'active' : 'default'}
+                  aria-pressed={tools.fogShape === shape}
+                  onClick={() => tools.setFogShape(shape)}
                   title={keyLabel(title)}
                 >
                   {label}
@@ -420,8 +363,8 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
           )}
           <Menu
             items={[
-              { label: 'Reveal entire map', onSelect: props.onRevealAll },
-              { label: 'Cover entire map', onSelect: props.onCoverAll },
+              { label: 'Reveal entire map', onSelect: tools.revealAll },
+              { label: 'Cover entire map', onSelect: tools.coverAll },
             ]}
             trigger={(trigger) => (
               <Button {...trigger} disabled={!hasMap} title="Reveal or cover the whole map">
@@ -436,13 +379,13 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
       <Divider />
 
       {/* Player view zoom */}
-      <ZoomControl zoom={zoom} onChange={props.onZoomChange} disabled={!hasMap || zoomLocked} />
+      <ZoomControl zoom={zoom} onChange={playerView.setZoom} disabled={!hasMap || zoomLocked} />
       <Button
         square
         tone={zoomLocked ? 'active' : 'default'}
         aria-pressed={zoomLocked}
         aria-label="Lock zoom"
-        onClick={props.onToggleZoomLock}
+        onClick={playerView.toggleZoomLock}
         title={
           zoomLocked
             ? 'Player view zoom is locked: the mouse wheel, the + and − keys and the zoom buttons leave it alone. Click or press Space to unlock.'
@@ -452,22 +395,22 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         {zoomLocked ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}
       </Button>
       <Button
-        tone={props.fit16by9 ? 'active' : 'default'}
-        aria-pressed={props.fit16by9}
-        onClick={props.onToggleFit16by9}
+        tone={playerView.fit16by9 ? 'active' : 'default'}
+        aria-pressed={playerView.fit16by9}
+        onClick={playerView.toggleFit16by9}
         // Turning it on zooms the player view; turning it off doesn't
-        disabled={!hasMap || !props.playerOpen || (zoomLocked && !props.fit16by9)}
+        disabled={!hasMap || !playerScreen.playerOpen || (zoomLocked && !playerView.fit16by9)}
         title="Resize the player window to 16:9 and fill it with the map"
       >
         Fit 16:9
       </Button>
       <Button
         ref={trueScaleRef}
-        tone={props.atTrueScale ? 'active' : 'default'}
-        aria-pressed={props.atTrueScale}
+        tone={playerView.atTrueScale ? 'active' : 'default'}
+        aria-pressed={playerView.atTrueScale}
         aria-haspopup={trueScaleNeeds ? 'dialog' : undefined}
         aria-expanded={trueScaleNeeds ? trueScaleNote : undefined}
-        onClick={() => (trueScaleNeeds ? setTrueScaleNote((shown) => !shown) : props.onTrueScale())}
+        onClick={() => (trueScaleNeeds ? setTrueScaleNote((shown) => !shown) : playerView.trueScale())}
         disabled={!hasMap || zoomLocked}
         title="Zoom the player view so the map’s squares are the grid square size from Player screen setup, for miniatures. A map without a grid gets it measured first."
       >
@@ -487,9 +430,9 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
                 tone="active"
                 onClick={() => {
                   setTrueScaleNote(false);
-                  if (trueScaleNeeds === 'setup') props.onOpenPlayerSetup();
-                  else if (trueScaleNeeds === 'player') props.onOpenPlayer();
-                  else props.onTrueScale();
+                  if (trueScaleNeeds === 'setup') app.openPlayerSetup();
+                  else if (trueScaleNeeds === 'player') playerScreen.openPlayer();
+                  else playerView.trueScale();
                 }}
               >
                 {TRUE_SCALE_NOTES[trueScaleNeeds].action}
@@ -503,20 +446,20 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 
       {/* Player screen */}
       <Button
-        onClick={props.onOpenPlayer}
-        title={props.playerOpen ? 'Bring the player window to the front' : 'Open the player window'}
+        onClick={playerScreen.openPlayer}
+        title={playerScreen.playerOpen ? 'Bring the player window to the front' : 'Open the player window'}
         className="min-w-38"
       >
         <span
           aria-hidden="true"
-          className={`h-2 w-2 rounded-full ${props.playerOpen ? 'bg-crimson-bright' : 'border border-faint'}`}
+          className={`h-2 w-2 rounded-full ${playerScreen.playerOpen ? 'bg-crimson-bright' : 'border border-faint'}`}
         />
-        {props.playerOpen ? 'Player screen live' : 'Open player screen'}
+        {playerScreen.playerOpen ? 'Player screen live' : 'Open player screen'}
       </Button>
       <Button
-        tone={props.blackout ? 'live' : 'default'}
-        aria-pressed={props.blackout}
-        onClick={props.onToggleBlackout}
+        tone={playerScreen.blackout ? 'live' : 'default'}
+        aria-pressed={playerScreen.blackout}
+        onClick={playerScreen.toggleBlackout}
         title="Hide everything on the player screen (B)"
       >
         Blackout
@@ -524,7 +467,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
       <Button
         square
         tone="quiet"
-        onClick={props.onOpenWelcome}
+        onClick={app.openWelcome}
         aria-label="Welcome"
         title="Welcome: what Mini VTT is and what needs setting up"
       >
@@ -533,42 +476,42 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
       <Menu
         align="right"
         items={[
-          { label: 'Player screen setup…', onSelect: props.onOpenPlayerSetup },
-          { label: 'Keyboard shortcuts…', onSelect: props.onOpenShortcuts },
-          { label: 'Measure map grid…', onSelect: props.onCalibrateGrid, disabled: !hasMap, separated: true },
+          { label: 'Player screen setup…', onSelect: app.openPlayerSetup },
+          { label: 'Keyboard shortcuts…', onSelect: app.openShortcuts },
+          { label: 'Measure map grid…', onSelect: tools.measureGrid, disabled: !hasMap, separated: true },
           {
             label: 'Show grid on player screen',
-            onSelect: props.onToggleGridToPlayers,
-            checked: props.showGridToPlayers,
+            onSelect: settings.toggleGridToPlayers,
+            checked: settings.showGridToPlayers,
           },
           {
             label: 'Show effect and shape tools',
-            onSelect: props.onToggleEffectTools,
-            checked: props.showEffectTools,
+            onSelect: settings.toggleEffectTools,
+            checked: settings.showEffectTools,
           },
           {
             label: 'Cover new maps in fog',
-            onSelect: props.onToggleFogNewMaps,
-            checked: props.fogNewMaps,
+            onSelect: settings.toggleFogNewMaps,
+            checked: settings.fogNewMaps,
           },
           ...MOVEMENT_RULES.map((rule, index) => ({
             label: MOVEMENT_LABELS[rule],
-            onSelect: () => props.onMovementRuleChange(rule),
-            checked: props.movementRule === rule,
+            onSelect: () => settings.setMovementRule(rule),
+            checked: settings.movementRule === rule,
             separated: index === 0,
           })),
-          { label: 'Export project…', onSelect: props.onExportProject, separated: true },
-          { label: 'Import project…', onSelect: props.onImportProject },
-          { label: 'Open library folder', onSelect: props.onRevealLibraryFolder },
+          { label: 'Export project…', onSelect: app.exportProject, separated: true },
+          { label: 'Import project…', onSelect: app.importProject },
+          { label: 'Open library folder', onSelect: app.revealLibraryFolder },
           {
             label: 'Full screen',
-            onSelect: props.onToggleFullScreen,
+            onSelect: app.toggleFullScreen,
             hint: keyLabel('F11'),
             separated: true,
           },
-          { label: 'Reload', onSelect: props.onReload, hint: keyLabel('Ctrl+R') },
-          { label: 'Developer tools', onSelect: props.onToggleDevTools, hint: keyLabel('Ctrl+Shift+I') },
-          { label: 'Quit', onSelect: props.onQuit, separated: true },
+          { label: 'Reload', onSelect: app.reload, hint: keyLabel('Ctrl+R') },
+          { label: 'Developer tools', onSelect: app.toggleDevTools, hint: keyLabel('Ctrl+Shift+I') },
+          { label: 'Quit', onSelect: app.quit, separated: true },
         ]}
         trigger={(trigger) => (
           <Button {...trigger} square tone="quiet" aria-label="Settings" title="Settings">

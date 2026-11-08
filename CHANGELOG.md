@@ -36,6 +36,12 @@ All notable changes to this project are documented here. The format is based on
   macOS 11 and 12. React (19), Vite (8) and Tailwind CSS (4) are up to date
   too; the app looks and works as before.
 
+- For contributors: the DM window's state and actions live in one hook,
+  `useDmController`, apart from its layout in `App.tsx`. The toolbar and the
+  library panel take a few groups from it (tools, player view, player
+  screen, settings, library) instead of about 50 separate props, so a new
+  layout or interface needs no change to how the app works.
+
 - New maps start without fog, so players see the whole map until you cover
   it (Fill → Cover entire map). To have new maps start fully fogged as
   before, tick **Settings → Cover new maps in fog**. The setting applies as

@@ -64,7 +64,7 @@ export type Tool = 'view' | 'fog' | 'effect' | 'shapes' | 'measure';
 /** How the Fog tool draws: a round brush, a freehand lasso, a rectangle, or (Rooms) rooms to reveal later */
 export type FogShape = 'brush' | 'lasso' | 'rect' | 'rooms';
 
-interface MapStageProps {
+export interface MapStageProps {
   mediaUrl: string | null;
   mediaType: MediaType;
   /** Natural size of the loaded media; null until it has loaded */

@@ -19,7 +19,7 @@ export function useSettings(): Settings {
     void window.electronAPI?.saveSettings(patch);
   }, []);
   const restore = useCallback(
-    // Everything but the loaded map and the map order, which App and the library keep
+    // Everything but the loaded map and the map order, which useDmController and the library keep
     ({ currentMapId: _current, mapOrder: _order, ...stored }: LibrarySettings) => setSettings(stored),
     [],
   );

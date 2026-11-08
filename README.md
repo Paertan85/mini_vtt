@@ -181,7 +181,8 @@ electron/
   project.ts        Project files: the whole library in one .minivtt file
   delayedSave.ts    Saving fog and effects a moment after each change
 src/
-  App.tsx                      DM window: library, loaded map, player window, shortcuts
+  App.tsx                      DM window layout: library panel, toolbar, map area, dialogs
+  hooks/useDmController.ts     DM window state and actions: library, loaded map, player window, shortcuts
   hooks/useLoadedMap.ts        The loaded map's state, replaced whole on load and unload
   hooks/useFog.ts              Fog mask and painting
   hooks/useFogShapeDrag.ts     Drawing a lasso or rectangle of fog

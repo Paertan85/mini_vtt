@@ -1,6 +1,6 @@
 // Editing the loaded map's fog rooms. The rooms are part of the loaded map
 // (useLoadedMap), so they are replaced whole when another map loads; the
-// editing steps are lib/rooms.ts's. App.tsx saves them with the map's view,
+// editing steps are lib/rooms.ts's. useDmController saves them with the map's view,
 // a moment after each change.
 //
 // The edits keep a fixed identity, so passing them down re-renders nothing.
