@@ -20,6 +20,11 @@ import crypto from 'node:crypto';
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
+// A window another one covers completely is hidden, which holds back its
+// animation frames and mouse moves until it shows again. On the small screen
+// of a macOS runner the player window covers the DM window, so test windows
+// keep rendering whatever covers them.
+app.on('browser-window-created', (_event, window) => window.webContents.setBackgroundThrottling(false));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
