@@ -7,6 +7,7 @@ Have an idea? Open an [issue](https://github.com/Paertan85/mini_vtt/issues).
 ## Next
 
 - **No hidden menu on Windows and Linux.** The application menu is hidden there, but it is still what makes F11, Ctrl+R and Ctrl+Shift+I (and Ctrl+Q on Linux) work in both windows, and on Windows letting go of Alt used to give it keyboard focus without showing it. Remove it on Windows and Linux (the Mac keeps it: it is the menu bar at the top of the screen, and its Edit menu makes copy and paste work in text fields), handle those keys in each window's own key handler, and drop the Alt workaround in `hideMenuBar` together with the `window:altReleased` message.
+- **Kill screen.** A button the DM presses when a player kills a monster: the player screen goes black and shows a big line of text, such as "Finish Him!", until the DM presses it again. Builds on Blackout.
 - **Touch on the Steam Deck.** Try the Linux build on a Deck, then tune it if needed: a finger dragged over the map may scroll the page instead of painting.
 
 ## Ideas
