@@ -50,7 +50,7 @@ interface FogRoomsLayerProps {
   /** Map natural pixels → position on the stage surface */
   mapToSurface: (point: Point) => Point;
   /** The fog mask, read for each room's status, and when it changes */
-  maskRef: React.RefObject<HTMLCanvasElement>;
+  maskRef: React.RefObject<HTMLCanvasElement | null>;
   subscribeMask: (listener: () => void) => () => void;
   edits: RoomEdits;
   /** Reveal or cover a room's fog */
@@ -349,7 +349,7 @@ function RoomBar({
       aria-label={label}
       // An empty title keeps the room's own tooltip off the bar
       title=""
-      className="absolute left-1 top-1 z-10 flex cursor-default items-center gap-0.5 rounded border border-line bg-panel/95 p-0.5 text-[11px] shadow"
+      className="absolute left-1 top-1 z-10 flex cursor-default items-center gap-0.5 rounded-sm border border-line bg-panel/95 p-0.5 text-[11px] shadow-sm"
       // The bar's controls are not the room: pressing them starts no drag or reveal
       onPointerDown={(event) => event.stopPropagation()}
     >
@@ -364,7 +364,7 @@ function RoomBar({
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === 'Escape') event.currentTarget.blur();
         }}
-        className="w-24 rounded border border-transparent bg-transparent px-1 py-0.5 text-[12px] text-ink placeholder:text-muted hover:border-line focus:border-gold focus:outline-none"
+        className="w-24 rounded-sm border border-transparent bg-transparent px-1 py-0.5 text-[12px] text-ink placeholder:text-muted hover:border-line focus:border-gold focus:outline-hidden"
       />
       <button
         type="button"
@@ -375,7 +375,7 @@ function RoomBar({
             : 'Reveal the room to the players (or click inside it)'
         }
         onClick={() => onFill(open ? 'cover' : 'reveal')}
-        className="flex h-6 w-6 items-center justify-center rounded text-ink hover:bg-raised hover:text-crimson-text"
+        className="flex h-6 w-6 items-center justify-center rounded-sm text-ink hover:bg-raised hover:text-crimson-text"
       >
         {open ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
       </button>
@@ -384,7 +384,7 @@ function RoomBar({
         aria-label={`Delete ${label}`}
         title="Delete the room; the fog stays as it is"
         onClick={onDelete}
-        className="flex h-6 w-6 items-center justify-center rounded text-muted hover:bg-raised hover:text-crimson-bright"
+        className="flex h-6 w-6 items-center justify-center rounded-sm text-muted hover:bg-raised hover:text-crimson-bright"
       >
         <Trash2 className="h-3.5 w-3.5" />
       </button>

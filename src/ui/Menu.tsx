@@ -50,7 +50,7 @@ export function Menu({ items, align = 'left', trigger }: MenuProps) {
         <div
           ref={menuRef}
           role="menu"
-          className="fixed z-50 min-w-[12rem] rounded border border-line-strong bg-panel py-1"
+          className="fixed z-50 min-w-48 rounded-sm border border-line-strong bg-panel py-1"
           style={{ top: position?.top ?? -9999, left: position?.left ?? -9999 }}
           onKeyDown={(event) => {
             if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
@@ -75,7 +75,7 @@ export function Menu({ items, align = 'left', trigger }: MenuProps) {
                   close();
                   item.onSelect();
                 }}
-                className={`flex h-8 w-full items-center gap-2 px-3 text-left text-[13px] outline-none disabled:opacity-40 ${
+                className={`flex h-8 w-full items-center gap-2 px-3 text-left text-[13px] outline-hidden disabled:opacity-40 ${
                   item.danger ? 'text-crimson-text' : 'text-ink'
                 } hover:bg-raised focus:bg-raised`}
               >

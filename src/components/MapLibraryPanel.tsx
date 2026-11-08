@@ -219,7 +219,7 @@ function MapList(props: MapLibraryPanelProps) {
             }}
             onDragEnd={endDrag}
             className={`${draggingId === map.id ? 'opacity-40' : ''} ${
-              dropTargetId === map.id ? 'shadow-[0_-2px_0_0_theme(colors.gold)]' : ''
+              dropTargetId === map.id ? 'shadow-[0_-2px_0_0_var(--color-gold)]' : ''
             }`}
           >
             <Card
@@ -339,7 +339,7 @@ function Card(props: CardProps) {
             .filter(Boolean)
             .join(' · ') || undefined
         }
-        className="flex min-w-0 flex-1 items-center gap-2.5 text-left outline-none"
+        className="flex min-w-0 flex-1 items-center gap-2.5 text-left outline-hidden"
       >
         {props.thumb}
         <span className="flex min-w-0 flex-1 flex-col">
@@ -413,7 +413,7 @@ function RenameField({ initial, onDone }: { initial: string; onDone: (name: stri
         if (event.key === 'Enter') finish(value);
         if (event.key === 'Escape') finish(initial);
       }}
-      className="h-6 w-full rounded border border-gold bg-ground px-1 text-[13px] text-ink outline-none"
+      className="h-6 w-full rounded-sm border border-gold bg-ground px-1 text-[13px] text-ink outline-hidden"
     />
   );
 }
@@ -487,7 +487,7 @@ function Thumb({
   }, [id, kind, image, width, url]);
 
   return (
-    <span ref={ref} className="h-10 w-14 shrink-0 overflow-hidden rounded-sm border border-line bg-ground">
+    <span ref={ref} className="h-10 w-14 shrink-0 overflow-hidden rounded-xs border border-line bg-ground">
       {url && <img src={url} alt="" draggable={false} className="h-full w-full object-cover" />}
     </span>
   );

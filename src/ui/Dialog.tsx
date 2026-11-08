@@ -13,7 +13,7 @@ interface DialogProps {
   width?: string;
 }
 
-export function Dialog({ title, onClose, children, footer, width = 'w-[26rem]' }: DialogProps) {
+export function Dialog({ title, onClose, children, footer, width = 'w-104' }: DialogProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useRef(`dialog-${Math.random().toString(36).slice(2)}`).current;
   // Parents pass a new function on every render. Reading it through a ref lets
@@ -56,7 +56,7 @@ export function Dialog({ title, onClose, children, footer, width = 'w-[26rem]' }
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`${width} max-w-[calc(100vw-2rem)] rounded border border-line-strong bg-panel`}
+        className={`${width} max-w-[calc(100vw-2rem)] rounded-sm border border-line-strong bg-panel`}
       >
         <div className="flex items-center justify-between border-b border-line py-2 pl-4 pr-2">
           <h2 id={titleId} className="font-display text-[15px] font-semibold tracking-wide text-ink">

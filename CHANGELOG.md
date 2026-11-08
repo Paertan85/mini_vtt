@@ -30,6 +30,12 @@ All notable changes to this project are documented here. The format is based on
 
 ### Changed
 
+- Mini VTT now runs on Electron 45 (from 34), so it gets Chromium's security
+  fixes again: Electron supports only its three newest versions. On a Mac it
+  now needs macOS 13 (Ventura) or later, as Electron 45 no longer runs on
+  macOS 11 and 12. React (19), Vite (8) and Tailwind CSS (4) are up to date
+  too; the app looks and works as before.
+
 - New maps start without fog, so players see the whole map until you cover
   it (Fill → Cover entire map). To have new maps start fully fogged as
   before, tick **Settings → Cover new maps in fog**. The setting applies as

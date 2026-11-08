@@ -169,7 +169,7 @@ function AnchoredToasts({ anchor, items }: { anchor: Anchor; items: Toast[] }) {
     <div
       ref={ref}
       role="status"
-      className="pointer-events-none fixed z-[60] flex flex-col items-start gap-2"
+      className="pointer-events-none fixed z-60 flex flex-col items-start gap-2"
       style={{ top: position?.top ?? -9999, left: position?.left ?? -9999 }}
     >
       {items.map((toast) => (
@@ -193,7 +193,7 @@ export const NotificationHost = memo(function NotificationHost() {
   return (
     <>
       <div
-        className="pointer-events-none fixed bottom-4 right-4 z-[60] flex flex-col items-end gap-2"
+        className="pointer-events-none fixed bottom-4 right-4 z-60 flex flex-col items-end gap-2"
         role="status"
       >
         {currentToasts

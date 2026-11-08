@@ -30,7 +30,7 @@ import { useLayerHistory } from './useLayerHistory';
 export const DM_FOG_COLOR = '#1d1a2e';
 
 export interface Fog {
-  canvasRef: React.RefObject<HTMLCanvasElement>;
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
   /** Size the mask for a newly loaded map and show its saved fog (or full fog). */
   initialize: (mapId: string, media: Size, savedMask: string | null) => Promise<void>;
   /** No map loaded any more: free the mask and its history, and clear the player's copy. */

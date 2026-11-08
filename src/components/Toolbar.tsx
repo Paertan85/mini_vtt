@@ -505,7 +505,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
       <Button
         onClick={props.onOpenPlayer}
         title={props.playerOpen ? 'Bring the player window to the front' : 'Open the player window'}
-        className="min-w-[9.5rem]"
+        className="min-w-38"
       >
         <span
           aria-hidden="true"
@@ -633,7 +633,8 @@ function ZoomControl({
             onKeyDown={(event) => {
               if (event.key === 'Enter') event.currentTarget.blur();
             }}
-            className={`${inputClass} w-16 rounded-none pr-6 text-right disabled:opacity-40`}
+            // Square inside its group: rounded-none! wins over the field's own rounding
+            className={`${inputClass} w-16 rounded-none! pr-6 text-right disabled:opacity-40`}
           />
           <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[13px] text-muted">
             %
@@ -682,7 +683,7 @@ function EffectSwatch({ kind }: { kind: EffectKind }) {
   return (
     <span
       aria-hidden="true"
-      className="h-3 w-3 rounded-sm border border-black/40"
+      className="h-3 w-3 rounded-xs border border-black/40"
       style={{
         backgroundColor: color,
         backgroundImage: hatch

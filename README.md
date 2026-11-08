@@ -44,7 +44,7 @@ It's built to stay out of the way on modest hardware: no accounts, no server, no
 
 Prebuilt Windows, macOS and Linux builds are published on the [Releases](https://github.com/Paertan85/mini_vtt/releases) page when available. The builds are not code-signed, so Windows SmartScreen and macOS Gatekeeper will warn the first time you open them. On a Mac, right-click the app and choose **Open**; if macOS says the app is damaged, run `xattr -cr "/Applications/Mini VTT.app"` in Terminal once.
 
-The macOS build is tested automatically but hasn't been tried on a real Mac yet; reports are welcome.
+The macOS build needs macOS 13 (Ventura) or later. It is tested automatically but hasn't been tried on a real Mac yet; reports are welcome.
 
 On Linux, including a Steam Deck in desktop mode, download the `.AppImage`, make it executable (right-click → Properties → Permissions, or `chmod +x`) and open it. It runs from your home folder, so SteamOS updates don't remove it. Touch input on the Deck hasn't been tuned yet; a mouse and keyboard work as on a PC.
 
@@ -200,12 +200,13 @@ src/
   components/Dialogs.tsx       Player screen setup and keyboard shortcuts
   ui/                          Buttons, menus, dialogs, toasts and confirmations
   lib/                         Pure helpers shared by the windows and the main process:
-                               grid, spell areas, rectangles, fog rooms, settings, shortcuts, fog, geometry
+                               grid, spell areas, rectangles, fog rooms, settings, shortcuts, fog, geometry,
+                               and PNG encoding in a worker (png.ts)
   types/                       Types shared by all processes
 scripts/            Tests and the Windows icon patch used by electron-builder
 ```
 
-Both windows load the same page; the player screen is opened with `?mode=view`. The DM window owns all state and pushes it to the player screen over IPC. Fog strokes are painted in the DM window only; at the end of each stroke the DM window encodes the mask once, and the main process relays that snapshot to the player screen and saves it to disk. Players therefore see a whole stroke appear at once, never the brush moving. Each fog or effects snapshot names its map and is shown only while that map is on screen, and a player window that opens or reloads gets everything it shows from the main process in one request.
+Both windows load the same page; the player screen is opened with `?mode=view`. The DM window owns all state and pushes it to the player screen over IPC. Fog strokes are painted in the DM window only; at the end of each stroke the DM window encodes the mask once, in a worker so the window never waits, and the main process relays that snapshot to the player screen and saves it to disk. Players therefore see a whole stroke appear at once, never the brush moving. Each fog or effects snapshot names its map and is shown only while that map is on screen, and a player window that opens or reloads gets everything it shows from the main process in one request.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. The design rules for keeping the app light on low-end laptops are in [AGENTS.md](AGENTS.md). Plans, and ideas not decided on yet, are collected in [ROADMAP.md](ROADMAP.md).
 

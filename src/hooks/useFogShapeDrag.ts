@@ -25,7 +25,7 @@ interface ShapeDrag {
 
 export interface FogShapeDrag {
   /** The preview: a polygon in map pixels */
-  previewRef: React.RefObject<SVGPolygonElement>;
+  previewRef: React.RefObject<SVGPolygonElement | null>;
   /** `snap` (Ctrl held): a rectangle's corners snap to the grid */
   begin: (kind: FogShapeKind, mode: FogMode, point: Point, snap: boolean) => void;
   /** Whether a shape is being drawn: if so, the move was the shape's */

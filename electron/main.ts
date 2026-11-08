@@ -26,9 +26,15 @@ import { mediaUrlOf } from '../src/lib/media';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Must run before `ready`: lets the windows load library media by id
+// Must run before `ready`: lets the windows load library media by id. CORS is
+// enabled (the handler answers with Access-Control-Allow-Origin) for the DM
+// window's fetch of a GIF, WebP or BMP to draw its thumbnail, as its file://
+// page makes that fetch cross-origin. Only the app's own pages load here.
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'map-media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
+  {
+    scheme: 'map-media',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true },
+  },
 ]);
 
 // Build output:
@@ -567,7 +573,11 @@ app.whenReady().then(() => {
     // once and lets go of the file. A net.fetch of the file kept it open for
     // as long as it took to read it all, so a video map couldn't be deleted.
     const { size } = await fs.stat(mediaPath);
-    const headers = { 'Content-Type': library.mediaMimeType(mediaPath), 'Accept-Ranges': 'bytes' };
+    const headers = {
+      'Content-Type': library.mediaMimeType(mediaPath),
+      'Accept-Ranges': 'bytes',
+      'Access-Control-Allow-Origin': '*',
+    };
     // Exactly the bytes asked for: a video asks for the rest of the file from
     // where it left off (see byteRange)
     const range = library.byteRange(request.headers.get('range'), size);

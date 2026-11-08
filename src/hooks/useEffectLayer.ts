@@ -28,9 +28,9 @@ import { useLayerHistory } from './useLayerHistory';
 const ERASE_PREVIEW_COLOR = '#f2ece4';
 
 export interface EffectLayer {
-  canvasRef: React.RefObject<HTMLCanvasElement>;
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
   /** Hard-edged preview of the stroke being drawn */
-  scratchRef: React.RefObject<HTMLCanvasElement>;
+  scratchRef: React.RefObject<HTMLCanvasElement | null>;
   /** Show a newly loaded map's saved layer (or nothing). */
   initialize: (mapId: string, media: Size, saved: string | null) => Promise<void>;
   /** No map loaded any more: free the layer and clear the player's copy. */

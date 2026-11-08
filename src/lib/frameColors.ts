@@ -16,7 +16,7 @@ export const FRAME_COLOR_STYLES: Record<FrameColor, { label: string; rgb: string
   white: { label: 'White', rgb: '240 236 226' },
   magenta: { label: 'Magenta', rgb: '222 76 200' },
   sky: { label: 'Sky blue', rgb: '86 166 236' },
-  // The palette's gold and crimson-bright (tailwind.config.js)
+  // The palette's gold and crimson-bright (src/index.css)
   gold: { label: 'Gold', rgb: '201 162 39' },
   crimson: { label: 'Crimson', rgb: '196 58 63' },
 };

@@ -108,7 +108,7 @@ export function PlayerSetupDialog({
           />
         </label>
       </div>
-      <div className="mt-4 rounded border border-line bg-ground px-3 py-2 text-[13px] text-muted">
+      <div className="mt-4 rounded-sm border border-line bg-ground px-3 py-2 text-[13px] text-muted">
         {!validDiagonal ? (
           'Enter the diagonal to show a grid.'
         ) : !dimensions ? (
@@ -202,7 +202,7 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
     <Dialog
       title="Keyboard shortcuts"
       onClose={onClose}
-      width="w-[24rem] min-[900px]:w-[46rem] min-[1200px]:w-[66rem]"
+      width="w-[24rem] min-[900px]:w-184 min-[1200px]:w-264"
     >
       <div className="gap-x-8 min-[900px]:columns-2 min-[1200px]:columns-3">
         {SHORTCUT_GROUPS.map((group) => (
@@ -263,7 +263,7 @@ export function WelcomeDialog({
     <Dialog
       title="Welcome to Mini VTT"
       onClose={onClose}
-      width="w-[34rem]"
+      width="w-136"
       footer={
         <>
           <label className="mr-auto flex items-center gap-2 text-[13px] text-muted">

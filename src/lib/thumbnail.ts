@@ -2,6 +2,8 @@
 // GIF, WebP and BMP maps and handouts get theirs drawn here, in the DM
 // window, once: the main process keeps the result next to the image.
 
+import { encodePng } from './png';
+
 /** As wide as the thumbnails the main process makes */
 const THUMB_WIDTH = 240;
 
@@ -21,13 +23,8 @@ export function drawThumbnail(url: string, width: number): Promise<Blob | null> 
         source,
         resize ? { resizeWidth: THUMB_WIDTH, resizeQuality: 'medium' } : {},
       );
-      try {
-        const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-        canvas.getContext('2d')?.drawImage(bitmap, 0, 0);
-        return await canvas.convertToBlob({ type: 'image/png' });
-      } finally {
-        bitmap.close();
-      }
+      // Encoded in the worker the fog uses; the bitmap goes to it
+      return await encodePng(bitmap);
     } catch (err) {
       console.warn('Could not draw a thumbnail:', err);
       return null;

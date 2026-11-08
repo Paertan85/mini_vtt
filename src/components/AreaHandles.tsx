@@ -178,7 +178,7 @@ export function AreaHandles({
               onPointerCancel={endAreaDrag}
             />
             <div
-              className="pointer-events-none absolute z-30 -translate-x-1/2 whitespace-nowrap rounded bg-ground/85 px-1.5 text-[11px] font-medium tabular-nums text-ink"
+              className="pointer-events-none absolute z-30 -translate-x-1/2 whitespace-nowrap rounded-sm bg-ground/85 px-1.5 text-[11px] font-medium tabular-nums text-ink"
               style={{ left: center.x, top: center.y + 10 }}
             >
               {sizeText}
@@ -187,7 +187,7 @@ export function AreaHandles({
               <div
                 role="toolbar"
                 aria-label={`Selected ${label.toLowerCase()}`}
-                className="absolute z-30 flex -translate-x-1/2 items-center gap-0.5 rounded border border-line bg-panel p-0.5"
+                className="absolute z-30 flex -translate-x-1/2 items-center gap-0.5 rounded-sm border border-line bg-panel p-0.5"
                 style={{ left: center.x, top: center.y + 30 }}
               >
                 <label className="flex items-center gap-1 px-1 text-[11px] text-muted">
@@ -203,7 +203,7 @@ export function AreaHandles({
                       const value = event.currentTarget.valueAsNumber;
                       if (Number.isFinite(value) && value > 0) onSetSize(area.id, value);
                     }}
-                    className="w-12 rounded border border-line bg-ground px-1 py-0.5 text-right text-[12px] tabular-nums text-ink"
+                    className="w-12 rounded-sm border border-line bg-ground px-1 py-0.5 text-right text-[12px] tabular-nums text-ink"
                   />
                   ft
                 </label>
@@ -222,7 +222,7 @@ export function AreaHandles({
                         const value = event.currentTarget.valueAsNumber;
                         if (Number.isFinite(value) && value > 0) onSetWidth(area.id, value);
                       }}
-                      className="w-12 rounded border border-line bg-ground px-1 py-0.5 text-right text-[12px] tabular-nums text-ink"
+                      className="w-12 rounded-sm border border-line bg-ground px-1 py-0.5 text-right text-[12px] tabular-nums text-ink"
                     />
                   </label>
                 )}
@@ -234,7 +234,7 @@ export function AreaHandles({
                     aria-label={EFFECT_STYLES[kind].label}
                     aria-pressed={area.kind === kind}
                     onClick={() => onRecolor(area.id, kind)}
-                    className={`h-5 w-5 rounded-sm border-2 ${area.kind === kind ? 'border-gold' : 'border-transparent'}`}
+                    className={`h-5 w-5 rounded-xs border-2 ${area.kind === kind ? 'border-gold' : 'border-transparent'}`}
                     style={{ backgroundColor: EFFECT_STYLES[kind].color }}
                   />
                 ))}
@@ -243,7 +243,7 @@ export function AreaHandles({
                   title="Duplicate"
                   aria-label={`Duplicate ${label.toLowerCase()}`}
                   onClick={() => onDuplicate(area.id)}
-                  className="flex h-6 w-6 items-center justify-center rounded text-muted hover:bg-raised hover:text-ink"
+                  className="flex h-6 w-6 items-center justify-center rounded-sm text-muted hover:bg-raised hover:text-ink"
                 >
                   <Copy className="h-3.5 w-3.5" />
                 </button>
@@ -252,7 +252,7 @@ export function AreaHandles({
                   title="Delete (Del)"
                   aria-label={`Delete ${label.toLowerCase()}`}
                   onClick={() => onDelete(area.id)}
-                  className="flex h-6 w-6 items-center justify-center rounded text-muted hover:bg-raised hover:text-crimson-bright"
+                  className="flex h-6 w-6 items-center justify-center rounded-sm text-muted hover:bg-raised hover:text-crimson-bright"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>

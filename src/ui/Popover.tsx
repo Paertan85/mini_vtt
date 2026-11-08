@@ -9,7 +9,7 @@ interface PopoverProps {
   open: boolean;
   onClose: () => void;
   /** The button it belongs to; it is placed right beneath it */
-  anchorRef: React.RefObject<HTMLElement>;
+  anchorRef: React.RefObject<HTMLElement | null>;
   /** Names the popover for screen readers */
   label: string;
   children: React.ReactNode;
@@ -24,7 +24,7 @@ export function Popover({ open, onClose, anchorRef, label, children }: PopoverPr
       ref={popupRef}
       role="dialog"
       aria-label={label}
-      className="fixed z-50 w-72 rounded border border-line-strong bg-panel p-3 text-[13px] leading-relaxed text-ink"
+      className="fixed z-50 w-72 rounded-sm border border-line-strong bg-panel p-3 text-[13px] leading-relaxed text-ink"
       style={{ top: position?.top ?? -9999, left: position?.left ?? -9999 }}
     >
       {children}

@@ -8,8 +8,8 @@ import { useEffect, useLayoutEffect, useState, type RefObject } from 'react';
 export function useAnchoredPopup(
   open: boolean,
   close: () => void,
-  anchorRef: RefObject<HTMLElement>,
-  popupRef: RefObject<HTMLElement>,
+  anchorRef: RefObject<HTMLElement | null>,
+  popupRef: RefObject<HTMLElement | null>,
   align: 'left' | 'right' = 'left',
 ): { top: number; left: number } | null {
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);

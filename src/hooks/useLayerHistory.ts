@@ -137,7 +137,7 @@ export function useLayerHistory(options: LayerHistoryOptions): LayerHistory {
 
   /** Show a state from history; `from` loses it, `to` gains the current one. */
   const step = useCallback(
-    (from: React.MutableRefObject<LayerState[]>, to: React.MutableRefObject<LayerState[]>) =>
+    (from: React.RefObject<LayerState[]>, to: React.RefObject<LayerState[]>) =>
       enqueue(async () => {
         const mapId = mapIdRef.current;
         if (!mapId || from.current.length === 0 || optionsRef.current.busy()) return;

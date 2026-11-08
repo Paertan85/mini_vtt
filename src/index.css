@@ -1,6 +1,55 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+/*
+  Mini VTT's palette: warm stone neutrals, gold for the active choice, crimson
+  for anything players can see change, and arcane teal, one of the player
+  frame's colours (src/lib/frameColors.ts).
+*/
+@theme {
+  --color-ground: #171412; /* window background */
+  --color-panel: #201c19; /* sidebar, toolbar, menus, dialogs */
+  --color-raised: #2b2622; /* controls and hovered rows */
+  --color-raised-hover: #342e29;
+  --color-line: #3b3430; /* borders and dividers */
+  --color-line-strong: #4d4540;
+  --color-ink: #e6dcc8; /* parchment text */
+  --color-muted: #a1968a;
+  --color-faint: #6f665d;
+  --color-gold: #c9a227;
+  --color-gold-bright: #dcb53a;
+  --color-crimson: #a4262c;
+  --color-crimson-bright: #c43a3f;
+  --color-crimson-deep: #3a1517;
+  --color-crimson-text: #e07a7e;
+  --color-arcane: #4aa8a0;
+
+  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-display: Cinzel, Georgia, serif;
+}
+
+/*
+  Two defaults as Tailwind 3 had them: a border without a colour class is light
+  grey (Tailwind 4 gives it the text colour), and buttons show the hand pointer
+  (Tailwind 4 leaves them the arrow).
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+
+  button,
+  [role='button'] {
+    cursor: pointer;
+  }
+
+  :disabled {
+    cursor: default;
+  }
+}
 
 @layer base {
   html,
@@ -21,7 +70,7 @@
 
   /* Keyboard focus is always visible; mouse focus isn't */
   :focus-visible {
-    @apply outline outline-2 outline-offset-1 outline-gold;
+    @apply outline-solid outline-2 outline-offset-1 outline-gold;
   }
 
   input[type='range'] {

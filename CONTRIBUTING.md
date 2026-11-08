@@ -46,7 +46,7 @@ A few guidelines:
 - **Keep the main process in charge of the disk.** The renderer goes through
   the `window.electronAPI` bridge, whose type is derived from
   `electron/preload.ts`; validate anything that arrives over IPC.
-- **Keep the look consistent.** Use the colour tokens in `tailwind.config.js`
+- **Keep the look consistent.** Use the colour tokens in `src/index.css`
   and the controls in `src/ui/`: gold marks the active choice, crimson is only
   for things players can see change.
 - **Go through the index queue.** Changes to `index.json` must use

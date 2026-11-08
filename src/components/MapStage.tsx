@@ -142,7 +142,7 @@ interface MapStageProps {
   onCalibrationPoint: (point: Point) => void;
 
   /** Filled in by the stage, so keyboard shortcuts can zoom the DM view */
-  viewControls: React.MutableRefObject<ViewControls | null>;
+  viewControls: React.RefObject<ViewControls | null>;
 }
 
 export interface ViewControls {
@@ -434,7 +434,7 @@ export function MapStage(props: MapStageProps) {
         return;
       }
       /** Whole notches so far; trackpads send many small deltas */
-      const notchesFrom = (remainder: React.MutableRefObject<number>) => {
+      const notchesFrom = (remainder: React.RefObject<number>) => {
         const total = remainder.current - wheelPixels(event);
         const notches = Math.trunc(total / WHEEL_NOTCH);
         remainder.current = total - notches * WHEEL_NOTCH;
@@ -780,7 +780,7 @@ export function MapStage(props: MapStageProps) {
               {props.zoomLocked && (
                 <span
                   aria-label="Zoom locked"
-                  className="pointer-events-none absolute right-1 top-1 flex items-center rounded border bg-ground/85 p-1 text-ink"
+                  className="pointer-events-none absolute right-1 top-1 flex items-center rounded-sm border bg-ground/85 p-1 text-ink"
                   style={{ borderColor: `rgb(${frameRgb})` }}
                 >
                   <Lock className="h-3 w-3" aria-hidden="true" />
@@ -873,7 +873,7 @@ export function MapStage(props: MapStageProps) {
             'DM view only; players are unaffected. Ctrl + mouse wheel zooms, middle-drag pans. Click to fit the map.',
           )}
           onClick={() => setView(FIT_VIEW)}
-          className="absolute bottom-3 right-3 z-50 rounded border border-line bg-panel/90 px-2 py-1 text-[12px] tabular-nums text-ink hover:bg-raised"
+          className="absolute bottom-3 right-3 z-50 rounded-sm border border-line bg-panel/90 px-2 py-1 text-[12px] tabular-nums text-ink hover:bg-raised"
         >
           DM view {Math.round(shownView.zoom * 100)}% · Fit
         </button>

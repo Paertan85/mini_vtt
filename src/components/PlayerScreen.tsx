@@ -124,6 +124,9 @@ export function PlayerScreen() {
       currentMediaUrlRef.current = next.mediaUrl;
       latestFogRef.current = null;
       setRuler(null);
+      // In the same render as the new map, so its image's load (handleMediaLoad)
+      // always comes after: an effect could run after a cached image had loaded
+      setMediaSize(null);
       latestEffectsRef.current = null;
       void applyEffects();
     }
@@ -149,10 +152,6 @@ export function PlayerScreen() {
     if (latestFogRef.current) void applySnapshot(latestFogRef.current);
     void applyEffects();
   };
-
-  useEffect(() => {
-    setMediaSize(null);
-  }, [state.mediaUrl]);
 
   // ─── Subscriptions (registered before the first viewport report) ──────────
 

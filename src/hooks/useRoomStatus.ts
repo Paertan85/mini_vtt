@@ -18,7 +18,7 @@ export function useRoomStatus(
   active: boolean,
   rooms: FogRoom[],
   media: Size,
-  maskRef: React.RefObject<HTMLCanvasElement>,
+  maskRef: React.RefObject<HTMLCanvasElement | null>,
   subscribe: (listener: () => void) => () => void,
 ): Record<string, RoomStatus> {
   const [statuses, setStatuses] = useState(NONE);

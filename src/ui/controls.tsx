@@ -14,7 +14,7 @@ const TONES: Record<Tone, string> = {
 };
 
 const BASE =
-  'inline-flex items-center justify-center gap-1.5 h-8 rounded border text-[13px] font-medium ' +
+  'inline-flex items-center justify-center gap-1.5 h-8 rounded-sm border text-[13px] font-medium ' +
   'whitespace-nowrap select-none transition-colors disabled:opacity-40 disabled:pointer-events-none';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -46,7 +46,7 @@ export function ButtonGroup({ children, label }: { children: React.ReactNode; la
     <div
       role="group"
       aria-label={label}
-      className="inline-flex [&>*]:rounded-none [&>*:first-child]:rounded-l [&>*:last-child]:rounded-r [&>*+*]:-ml-px"
+      className="inline-flex *:rounded-none [&>*:first-child]:rounded-l [&>*:last-child]:rounded-r [&>*+*]:-ml-px"
     >
       {children}
     </div>
@@ -58,13 +58,13 @@ export const Divider = () => <span aria-hidden="true" className="mx-1 h-5 w-px b
 
 /** A keyboard shortcut hint, e.g. <Kbd>F</Kbd>. */
 export const Kbd = ({ children }: { children: React.ReactNode }) => (
-  <kbd className="min-w-[1.25rem] rounded border border-line bg-ground px-1 py-px text-center font-sans text-[11px] text-muted">
+  <kbd className="min-w-5 rounded-sm border border-line bg-ground px-1 py-px text-center font-sans text-[11px] text-muted">
     {children}
   </kbd>
 );
 
 /** Shared look for text and number inputs. */
 export const inputClass =
-  'h-8 rounded border border-line bg-ground px-2 text-[13px] text-ink tabular-nums ' +
-  'placeholder:text-faint focus:border-gold focus:outline-none ' +
+  'h-8 rounded-sm border border-line bg-ground px-2 text-[13px] text-ink tabular-nums ' +
+  'placeholder:text-faint focus:border-gold focus:outline-hidden ' +
   '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
