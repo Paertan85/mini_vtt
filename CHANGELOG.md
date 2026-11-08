@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format is based on
 
 ## Unreleased
 
+## 1.4.0 - 2026-11-08
+
 ### Added
 
 - **Rectangle** in the Fog tool (or R): drag a rectangle to reveal it all
