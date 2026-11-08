@@ -1,4 +1,4 @@
-import { app, nativeImage } from 'electron';
+import { app } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { createWriteStream } from 'node:fs';
@@ -36,16 +36,7 @@ import {
   sortMaps,
   tempPath,
 } from './libraryStore';
-import {
-  HEADER_BYTES,
-  detectExt,
-  isCompletePng,
-  makeThumb,
-  readHeader,
-  readJpegOrientation,
-  readVideoSize,
-  shownImageSize,
-} from './mediaFiles';
+import { HEADER_BYTES, detectExt, isCompletePng, probeImage, readHeader, readVideoSize } from './mediaFiles';
 
 // ─── Project files ────────────────────────────────────────────────────────────
 //
@@ -604,12 +595,12 @@ export async function importProject(sourcePath: string): Promise<ProjectImportSu
       if (!thumb || !width || !height) {
         const mediaPath = path.join(dir, `image.${ext}`);
         const header = await readHeader(mediaPath, HEADER_BYTES);
-        const probe = ext === 'webm' ? null : nativeImage.createFromPath(mediaPath);
-        if (!width || !height) {
-          const size = probe ? shownImageSize(probe, header, ext) : readVideoSize(header);
-          if (size) ({ width, height } = size);
-        }
-        if (!thumb && probe) thumb = makeThumb(probe, ext === 'jpg' ? readJpegOrientation(header) : 1);
+        const probe =
+          ext === 'webm'
+            ? { size: readVideoSize(header), thumb: null }
+            : probeImage(mediaPath, header, ext, !thumb);
+        if ((!width || !height) && probe.size) ({ width, height } = probe.size);
+        thumb ??= probe.thumb;
       }
       if (thumb) await fs.writeFile(path.join(dir, 'thumb.png'), thumb);
       return { width, height };

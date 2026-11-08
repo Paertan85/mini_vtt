@@ -155,6 +155,8 @@ Corner cases Mini VTT doesn't handle, so they don't come as a surprise.
 - Handouts are images only, not videos.
 - Universal VTT files (`.dd2vtt`, `.uvtt`) can't be imported yet; add the map's image instead.
 
+**Very large maps.** A map takes about 4 bytes of memory per pixel while it is shown, in each window that shows it, whatever the size of its file. An 18900 × 16800 map (318 megapixels) can use 3 GB or more while it is shown. On a laptop with little memory, use a smaller copy of such a map; 4K (3840 pixels on the long side) is plenty for a TV or a monitor.
+
 ## Development
 
 ```bash

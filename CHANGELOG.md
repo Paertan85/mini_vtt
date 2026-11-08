@@ -59,6 +59,17 @@ All notable changes to this project are documented here. The format is based on
 - A spell area's dot and the handle at its tip can be grabbed a little
   outside their edge, so they are easier to hit.
 
+### Fixed
+
+- Adding a large map no longer leaves its full-size picture in memory for
+  minutes afterwards: a 300-megapixel map kept 1.2 GB in use after its
+  thumbnail was made. That memory is now freed as soon as the map is added,
+  from the library or from a project file.
+
+- For contributors: `npm run memory` loads every map and handout in turn,
+  for several rounds, and prints each process's memory after each step, to
+  find leaks and unexpected memory use. See CONTRIBUTING.md.
+
 ## 1.3.0 - 2026-11-07
 
 ### Added

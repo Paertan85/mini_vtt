@@ -38,6 +38,15 @@ npm run test:app
 Linux without a display, prefix the test commands with `xvfb-run -a` (or run
 `xvfb-run -a npm run check`).
 
+For changes that affect memory, `npm run memory` loads every map and shows
+every handout in turn, for several rounds, and prints each process's memory
+after each step (garbage collected first). Memory that keeps rising from round
+to round is a leak. It uses plain grey test maps, or your own:
+`npm run memory -- <folder> --rounds 3 --csv report.csv` (files in a folder
+named `Handouts` become handouts). `--no-player` leaves out the player window,
+and `--switch name=value` tries a Chromium switch. Your real library is
+untouched.
+
 A few guidelines:
 
 - **Keep it light.** Mini VTT is meant to run well on low-end laptops. Read

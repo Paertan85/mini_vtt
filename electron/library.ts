@@ -42,11 +42,9 @@ import {
   HEADER_BYTES,
   detectExt,
   isCompletePng,
-  makeThumb,
+  probeImage,
   readHeader,
-  readJpegOrientation,
   readVideoSize,
-  shownImageSize,
   sniffVideoCodec,
   toDataUrl,
 } from './mediaFiles';
@@ -76,15 +74,13 @@ export async function addHandout(sourcePath: string): Promise<HandoutMeta | null
   const ext = detectExt(header);
   if (!ext || ext === 'webm') return null;
 
-  const probe = nativeImage.createFromPath(sourcePath);
-  const size = shownImageSize(probe, header, ext);
+  // GIF, WebP and BMP get no thumbnail: this process can't decode them
+  const { size, thumb } = probeImage(sourcePath, header, ext);
   if (!size) return null;
   const id = newId(HANDOUT_ID_PREFIX);
   const dir = handoutDir(id);
   await fs.mkdir(dir, { recursive: true });
   await fs.copyFile(sourcePath, path.join(dir, `image.${ext}`));
-  // GIF, WebP and BMP get no preview: this process can't decode them
-  const thumb = makeThumb(probe, ext === 'jpg' ? readJpegOrientation(header) : 1);
   if (thumb) await fs.writeFile(path.join(dir, 'thumb.png'), thumb);
 
   const handout: HandoutMeta = {
@@ -316,12 +312,10 @@ export async function addMap(sourcePath: string): Promise<MapEntryMeta | null> {
 
   // Decode straight from disk rather than buffering the whole file in JS; a
   // video's size comes from its track header
-  const probe = ext === 'webm' ? null : nativeImage.createFromPath(mediaPath);
-  const size = (probe ? shownImageSize(probe, header, ext) : readVideoSize(header)) ?? {
-    width: 0,
-    height: 0,
-  };
-  const thumb = probe ? makeThumb(probe, ext === 'jpg' ? readJpegOrientation(header) : 1) : null;
+  const probe =
+    ext === 'webm' ? { size: readVideoSize(header), thumb: null } : probeImage(mediaPath, header, ext);
+  const size = probe.size ?? { width: 0, height: 0 };
+  const { thumb } = probe;
   if (thumb) await fs.writeFile(path.join(dir, 'thumb.png'), thumb);
 
   const entry: MapEntryMeta = {

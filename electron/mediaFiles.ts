@@ -5,6 +5,8 @@
 import { nativeImage } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs/promises';
+import v8 from 'node:v8';
+import vm from 'node:vm';
 import type { VideoCodec } from '../src/types/map';
 
 // Image extensions we accept, probed from magic bytes rather than trusting the
@@ -233,6 +235,37 @@ export function shownImageSize(probe: Electron.NativeImage, header: Buffer, ext:
   const { width, height } = probe.getSize();
   const sideways = ext === 'jpg' && readJpegOrientation(header) >= 5;
   return sideways ? { width: height, height: width } : { width, height };
+}
+
+// A decoded image is held outside the JavaScript heap, where the garbage
+// collector doesn't see its size: a 300-megapixel map kept 1.2 GB in this
+// process for minutes after its import. Collecting garbage once the image is
+// let go of frees it at once, and takes a few milliseconds (this heap is small).
+const collectGarbage = (() => {
+  try {
+    v8.setFlagsFromString('--expose-gc');
+    return vm.runInNewContext('gc') as () => void;
+  } catch {
+    return () => {};
+  }
+})();
+
+/**
+ * Decode an image once for its shown size (see shownImageSize) and, unless
+ * `withThumb` is false, its thumbnail; the decoded image is freed before this
+ * returns.
+ */
+export function probeImage(filePath: string, header: Buffer, ext: string, withThumb = true) {
+  let image: Electron.NativeImage | null = nativeImage.createFromPath(filePath);
+  try {
+    return {
+      size: shownImageSize(image, header, ext),
+      thumb: withThumb ? makeThumb(image, ext === 'jpg' ? readJpegOrientation(header) : 1) : null,
+    };
+  } finally {
+    image = null;
+    collectGarbage();
+  }
 }
 
 /** Read the first few KB of a file so its type can be sniffed. */
