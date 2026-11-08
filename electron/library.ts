@@ -13,6 +13,7 @@ import fs from 'node:fs/promises';
 import type { HandoutMeta, MapEntryMeta, MapGrid, MapView, VideoCodec } from '../src/types/map';
 import { cellFromNames, DEFAULT_FEET_PER_CELL, NAME_FOLDER_LEVELS, normalizeGrid } from '../src/lib/grid';
 import { normalizeAreas } from '../src/lib/areas';
+import { normalizeRooms } from '../src/lib/rooms';
 import { mediaUrlOf } from '../src/lib/media';
 import { cleanSettingsPatch } from '../src/lib/settings';
 import {
@@ -337,6 +338,7 @@ export async function addMap(sourcePath: string): Promise<MapEntryMeta | null> {
     hasFog: false,
     grid: gridFromPath(sourcePath, size),
     circles: [],
+    rooms: [],
     addedAt: Date.now(),
   };
   await mutateIndex((index) => {
@@ -462,6 +464,7 @@ export async function saveMapView(id: string, view: MapView): Promise<boolean> {
     map.mirrorHorizontal = mirrorHorizontal === true;
     map.mirrorVertical = mirrorVertical === true;
     if (Array.isArray(view.circles)) map.circles = normalizeAreas(view.circles);
+    if (Array.isArray(view.rooms)) map.rooms = normalizeRooms(view.rooms);
     return true;
   });
 }

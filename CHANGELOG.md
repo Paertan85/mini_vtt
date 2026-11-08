@@ -6,6 +6,27 @@ All notable changes to this project are documented here. The format is based on
 
 ## Unreleased
 
+### Added
+
+- **Rectangle** in the Fog tool (or R): drag a rectangle to reveal it all
+  at once, or drag with the right mouse button to cover it. Holding Ctrl
+  snaps its corners to the map's grid. One undo takes it back.
+
+- **Rooms** in the Fog tool: mark out rooms ahead of time by dragging
+  around them, then click inside a room to reveal it when the party walks
+  in, or right-click to cover it again. Drag a room to move it, or drag an
+  edge or corner to resize it; Ctrl snaps to the grid. Each room has a bar
+  with its name (type one, such as "Throne room", or it shows its number),
+  whether it is hidden, partly open or open, a button that reveals or
+  covers it, and Delete, which leaves the fog as it is. Only you see the
+  rooms, as dashed outlines in the Fog tool; players see just the fog they
+  change. Rooms are saved with each map and travel in project files.
+
+### Changed
+
+- A shape added while your own view is zoomed in now appears where you are
+  looking, rather than in the middle of the player frame out of sight.
+
 ## 1.3.0 - 2026-11-07
 
 ### Added

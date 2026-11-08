@@ -138,6 +138,12 @@
           "items": { "$ref": "#/$defs/area" },
           "description": "Spell areas (named after the first shape, the circle)."
         },
+        "rooms": {
+          "type": "array",
+          "maxItems": 100,
+          "items": { "$ref": "#/$defs/room" },
+          "description": "Fog rooms the DM marked out; only the DM sees them."
+        },
         "extensions": { "$ref": "#/$defs/extensions" }
       }
     },
@@ -191,6 +197,23 @@
           "description": "The kind's colour, for readers that don't know the kind."
         },
         "extensions": { "$ref": "#/$defs/extensions" }
+      }
+    },
+    "room": {
+      "type": "object",
+      "required": ["id", "x", "y", "width", "height"],
+      "description": "In pixels of the unrotated map.",
+      "properties": {
+        "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,32}$", "description": "Unique on its map." },
+        "x": { "type": "number", "description": "The left edge." },
+        "y": { "type": "number", "description": "The top edge." },
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "height": { "type": "number", "exclusiveMinimum": 0 },
+        "name": {
+          "type": "string",
+          "maxLength": 40,
+          "description": "The DM's name for it. Without one, Mini VTT shows its number."
+        }
       }
     },
     "handout": {

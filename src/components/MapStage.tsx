@@ -1,6 +1,8 @@
 // The DM window's map area: the map, its fog, the player frame and the brush.
 //
-// Mouse:  fog tool      left button reveals, right button covers
+// Mouse:  fog tool      left button reveals, right button covers, with the
+//                       brush, a lasso or a rectangle (useFogShapeDrag); in
+//                       Rooms, FogRoomsLayer takes the mouse
 //         effects tool  left button paints the chosen effect, right button erases
 //         frame tool    drag the frame to move the player view
 //         measure tool  drag to measure a distance in feet
@@ -26,6 +28,7 @@ import type {
   SpellArea,
   DiagonalRule,
   EffectKind,
+  FogRoom,
   MapGrid,
   MapPan,
   MediaType,
@@ -34,17 +37,24 @@ import type {
 } from '../types/map';
 import type { Fog } from '../hooks/useFog';
 import type { EffectLayer } from '../hooks/useEffectLayer';
+import { useFogShapeDrag } from '../hooks/useFogShapeDrag';
+import type { RoomEdits } from '../hooks/useRoomEdits';
 import { EFFECT_OPACITY, EFFECT_STYLES } from '../lib/effects';
 import { areaContains, toDrawnAreas } from '../lib/areas';
+import { rectCorners } from '../lib/rect';
 import { AreaHandles } from './AreaHandles';
 import { DrawnAreas } from './DrawnAreas';
+import { FogRoomsLayer } from './FogRoomsLayer';
 import { MeasureLayer } from './MeasureLayer';
 import { mapToOriented, orientedSize, screenToMapDirection, wheelPixels, type Size } from '../lib/geometry';
-import { keyLabel } from '../lib/platform';
+import { ctrlHeld, keyLabel } from '../lib/platform';
 import { releaseVideo } from '../lib/video';
 import { FRAME_COLOR_STYLES, type FrameColor } from '../lib/frameColors';
 
 export type Tool = 'view' | 'fog' | 'effect' | 'shapes' | 'measure';
+
+/** How the Fog tool draws: a round brush, a freehand lasso, a rectangle, or (Rooms) rooms to reveal later */
+export type FogShape = 'brush' | 'lasso' | 'rect' | 'rooms';
 
 interface MapStageProps {
   mediaUrl: string | null;
@@ -62,8 +72,11 @@ interface MapStageProps {
   effectKind: EffectKind;
   tool: Tool;
   shiftHeld: boolean;
-  /** Fog tool draws outlines whose inside is revealed or covered, not brush strokes */
-  fogLasso: boolean;
+  /** How the Fog tool draws */
+  fogShape: FogShape;
+  /** The map's fog rooms; outlined in the Fog tool, and changed in its Rooms */
+  rooms: FogRoom[];
+  roomEdits: RoomEdits;
   /** Alt held: the player frame can be dragged from any tool */
   altHeld: boolean;
   brushSize: number;
@@ -128,6 +141,11 @@ export interface ViewControls {
   /** Zoom the DM view around the middle of the stage */
   zoomBy: (factor: number) => void;
   fit: () => void;
+  /**
+   * Where to put something new (map pixels): `preferred` when the DM can see
+   * it, else the middle of what the zoomed-in DM view shows
+   */
+  placeInView: (preferred: Point) => Point;
 }
 
 const STAGE_PADDING = 24;
@@ -164,7 +182,8 @@ export function MapStage(props: MapStageProps) {
     effectKind,
     tool,
     shiftHeld,
-    fogLasso,
+    fogShape,
+    rooms,
     altHeld,
     brushSize,
     pan,
@@ -233,28 +252,14 @@ export function MapStage(props: MapStageProps) {
     ? { w: mediaSize.w * displayScale, h: mediaSize.h * displayScale }
     : { w: 0, h: 0 };
 
-  // Shift always paints fog, whatever the tool
+  // How a drag paints fog: the Fog tool's choice; Shift from another tool is
+  // always the brush. In Rooms nothing is painted: FogRoomsLayer takes the mouse.
+  const fogDraw: FogShape = tool === 'fog' ? fogShape : 'brush';
   const paintsEffects = tool === 'effect' && !shiftHeld;
-  const canPaint = tool === 'fog' || tool === 'effect' || shiftHeld;
-  // The lasso is a Fog tool mode; Shift from another tool is always the brush
-  const drawsLasso = fogLasso && tool === 'fog';
-  const lassoRef = useRef<SVGPolygonElement>(null);
-  const lastLassoPointRef = useRef<Point | null>(null);
-
-  /** Extend the outline preview without re-rendering. */
-  const addLassoPoint = (point: Point) => {
-    const polygon = lassoRef.current;
-    const svg = polygon?.ownerSVGElement;
-    if (!polygon || !svg) return;
-    const added = svg.createSVGPoint();
-    added.x = point.x;
-    added.y = point.y;
-    polygon.points.appendItem(added);
-  };
-  const clearLassoPreview = () => {
-    lassoRef.current?.points.clear();
-    lastLassoPointRef.current = null;
-  };
+  const canPaint = fogDraw !== 'rooms' && (tool === 'fog' || tool === 'effect' || shiftHeld);
+  const drawsShape = canPaint && (fogDraw === 'lasso' || fogDraw === 'rect') ? fogDraw : null;
+  const brushShown = canPaint && !drawsShape;
+  const shapes = useFogShapeDrag(fog.fillOutline, grid, displayScale);
 
   /** Client coordinates → map natural pixels, undoing rotation and mirroring. */
   const toMapPoint = useCallback(
@@ -316,9 +321,9 @@ export function MapStage(props: MapStageProps) {
   const lastPointerRef = useRef<Point | null>(null);
   useEffect(() => {
     const last = lastPointerRef.current;
-    if (!canPaint || drawsLasso) hideCursor();
-    else if (last) moveCursor(last.x, last.y);
-  }, [canPaint, drawsLasso]);
+    if (brushShown && last) moveCursor(last.x, last.y);
+    else hideCursor();
+  }, [brushShown]);
 
   // ─── Painting ──────────────────────────────────────────────────────────────
 
@@ -328,30 +333,17 @@ export function MapStage(props: MapStageProps) {
     if (!point) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
+    const mode = event.button === 0 ? 'reveal' : 'cover';
     if (paintsEffects) effects.beginStroke(event.button === 0 ? effectKind : null, point, brushSize);
-    else if (drawsLasso) {
-      fog.beginLasso(event.button === 0 ? 'reveal' : 'cover', point);
-      clearLassoPreview();
-      addLassoPoint(point);
-      lastLassoPointRef.current = point;
-      lassoRef.current?.setAttribute('data-mode', event.button === 0 ? 'reveal' : 'cover');
-    } else fog.beginStroke(event.button === 0 ? 'reveal' : 'cover', point, brushSize);
+    else if (drawsShape) shapes.begin(drawsShape, mode, point, ctrlHeld(event));
+    else fog.beginStroke(mode, point, brushSize);
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    if (canPaint && !drawsLasso) moveCursor(event.clientX, event.clientY);
+    if (brushShown) moveCursor(event.clientX, event.clientY);
     if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
     const point = toMapPoint(event.clientX, event.clientY);
-    if (!point) return;
-    const last = lastLassoPointRef.current;
-    if (last) {
-      // Skip points under ~2 screen pixels apart; the outline needs no more
-      if (Math.hypot(point.x - last.x, point.y - last.y) * displayScale < 2) return;
-      lastLassoPointRef.current = point;
-      fog.continueLasso(point);
-      addLassoPoint(point);
-      return;
-    }
+    if (!point || shapes.move(point, ctrlHeld(event))) return;
     fog.continueStroke(point);
     effects.continueStroke(point);
   };
@@ -360,10 +352,11 @@ export function MapStage(props: MapStageProps) {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
+    // A cancelled drag (the window lost the mouse) fills no shape
+    const point = event.type === 'pointercancel' ? null : toMapPoint(event.clientX, event.clientY);
+    shapes.end(point, ctrlHeld(event));
     fog.endStroke();
-    fog.endLasso();
     effects.endStroke();
-    clearLassoPreview();
   };
 
   // ─── DM view zoom ──────────────────────────────────────────────────────────
@@ -384,6 +377,28 @@ export function MapStage(props: MapStageProps) {
   props.viewControls.current = {
     zoomBy: (factor) => zoomViewAt(0, 0, factor),
     fit: () => setView(FIT_VIEW),
+    placeInView: (preferred) => {
+      const container = containerRef.current;
+      const surface = surfaceRef.current;
+      // Fitted, the whole map is in view
+      if (!container || !surface || shownView.zoom <= 1) return preferred;
+      const stage = container.getBoundingClientRect();
+      const origin = surface.getBoundingClientRect();
+      const at = mapToSurface(preferred);
+      const x = origin.left + at.x;
+      const y = origin.top + at.y;
+      // Well inside, not just at the edge, so all of a new shape can be seen
+      const marginX = stage.width * 0.15;
+      const marginY = stage.height * 0.15;
+      const seen =
+        x >= stage.left + marginX &&
+        x <= stage.right - marginX &&
+        y >= stage.top + marginY &&
+        y <= stage.bottom - marginY;
+      return seen
+        ? preferred
+        : (toMapPoint(stage.left + stage.width / 2, stage.top + stage.height / 2) ?? preferred);
+    },
   };
 
   // ─── Wheel: zoom, area, brush and player view (native, so preventDefault works)
@@ -396,7 +411,7 @@ export function MapStage(props: MapStageProps) {
       if (!current.mediaUrl) return;
       // Ctrl or Cmd + wheel zooms the DM view in any tool, keeping the spot
       // under the pointer. A touchpad pinch arrives as Ctrl + wheel.
-      if (event.ctrlKey || event.metaKey) {
+      if (ctrlHeld(event)) {
         event.preventDefault();
         const rect = container.getBoundingClientRect();
         hideCursor(); // it would sit off the pointer until the next move
@@ -683,11 +698,11 @@ export function MapStage(props: MapStageProps) {
               onPointerCancel={handlePointerUp}
               onContextMenu={(event) => event.preventDefault()}
               className={`absolute inset-0 h-full w-full opacity-80 ${
-                drawsLasso ? 'cursor-crosshair' : canPaint ? 'cursor-none' : 'cursor-default'
+                drawsShape ? 'cursor-crosshair' : brushShown ? 'cursor-none' : 'cursor-default'
               }`}
             />
-            {/* The lasso's outline while drawing; the closing edge is implied */}
-            {mediaSize && drawsLasso && (
+            {/* A lasso or rectangle while it is drawn; a lasso's closing edge is implied */}
+            {mediaSize && drawsShape && (
               <svg
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
@@ -695,7 +710,7 @@ export function MapStage(props: MapStageProps) {
                 preserveAspectRatio="none"
               >
                 <polygon
-                  ref={lassoRef}
+                  ref={shapes.previewRef}
                   className="fill-gold/15 stroke-gold data-[mode=cover]:fill-ground/40"
                   strokeWidth={2}
                   strokeDasharray="6 4"
@@ -705,6 +720,24 @@ export function MapStage(props: MapStageProps) {
               </svg>
             )}
           </div>
+
+          {/* The rooms: outlined in the Fog tool, changed in its Rooms; players never see them */}
+          {tool === 'fog' && mediaSize && (
+            <FogRoomsLayer
+              rooms={rooms}
+              media={mediaSize}
+              grid={grid}
+              orientation={{ rotation, mirrorHorizontal, mirrorVertical }}
+              displayScale={displayScale}
+              editable={fogShape === 'rooms'}
+              toMapPoint={toMapPoint}
+              mapToSurface={mapToSurface}
+              maskRef={fog.canvasRef}
+              subscribeMask={fog.subscribe}
+              edits={props.roomEdits}
+              onFill={(room, mode) => fog.fillOutline(rectCorners(room), mode)}
+            />
+          )}
 
           {pan && viewportSize && (
             <div

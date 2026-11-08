@@ -18,7 +18,7 @@ import type {
   RulerState,
 } from './types/map';
 import { MapLibraryPanel, forgetThumb, type OrientationChange } from './components/MapLibraryPanel';
-import { MapStage, type Tool, type ViewControls } from './components/MapStage';
+import { MapStage, type FogShape, type Tool, type ViewControls } from './components/MapStage';
 import {
   BRUSH_STEP,
   MAX_BRUSH,
@@ -50,6 +50,7 @@ import { smallerVideoSize } from './lib/video';
 import type { FrameColor } from './lib/frameColors';
 import { DEFAULT_FEET_PER_CELL, gridFromCorners } from './lib/grid';
 import { MAX_AREAS, toDrawnAreas } from './lib/areas';
+import { useRoomEdits } from './hooks/useRoomEdits';
 import { GridCalibrationBar, type Calibration } from './components/GridCalibrationBar';
 import { Button } from './ui/controls';
 import { NotificationHost, confirmAction, notify, pressedControl, type Anchor } from './ui/notify';
@@ -131,8 +132,10 @@ export function App() {
     mirrorHorizontal,
     mirrorVertical,
     grid,
+    rooms,
   } = loadedMap.map;
-  const { setMediaSize, setZoom, setRotation, setMirrorHorizontal, setMirrorVertical, setGrid } = loadedMap;
+  const { setMediaSize, setZoom, setRotation, setMirrorHorizontal, setMirrorVertical, setGrid, setRooms } =
+    loadedMap;
   // The player frame, moved once per animation frame while dragged (see applyPan)
   const [pan, setPan] = useState<MapPan | null>(null);
 
@@ -146,8 +149,8 @@ export function App() {
   const { whenIdle: fogIdle } = fog;
   const { whenIdle: effectsIdle } = effects;
   const [effectKind, setEffectKind] = useState<EffectKind>('fire');
-  // Fog tool: freehand shapes instead of the brush
-  const [fogLasso, setFogLasso] = useState(false);
+  // Fog tool: brush, freehand lasso, rectangle, or marking out rooms
+  const [fogShape, setFogShape] = useState<FogShape>('brush');
   // Measure tool: whether the toolbar picked the straight line instead of
   // movement (counted by the movementRule setting)
   const [measureStraight, setMeasureStraight] = useState(false);
@@ -179,6 +182,9 @@ export function App() {
   const spellAreas = useAreas(grid, { rotation, mirrorHorizontal, mirrorVertical });
   const { areas, selectedId: selectedAreaId, select: setSelectedAreaId } = spellAreas;
   const [calibration, setCalibration] = useState<Calibration | null>(null);
+
+  // ─── Fog rooms (per map, part of the loaded map; saved with its view) ────────
+  const roomEdits = useRoomEdits(rooms, setRooms);
 
   // ─── Player screen ──────────────────────────────────────────────────────────
   const [playerOpen, setPlayerOpen] = useState(false);
@@ -291,14 +297,14 @@ export function App() {
 
   useEffect(() => {
     if (!currentMapId || restoringRef.current) return;
-    const view: MapView = { zoom, pan, rotation, mirrorHorizontal, mirrorVertical, circles: areas };
+    const view: MapView = { zoom, pan, rotation, mirrorHorizontal, mirrorVertical, circles: areas, rooms };
     if (pendingViewSave.current) window.clearTimeout(pendingViewSave.current.timer);
     const timer = window.setTimeout(() => {
       pendingViewSave.current = null;
       saveView(currentMapId, view);
     }, VIEW_SAVE_DELAY_MS);
     pendingViewSave.current = { id: currentMapId, view, timer };
-  }, [currentMapId, zoom, pan, rotation, mirrorHorizontal, mirrorVertical, areas, saveView]);
+  }, [currentMapId, zoom, pan, rotation, mirrorHorizontal, mirrorVertical, areas, rooms, saveView]);
 
   useEffect(() => {
     window.addEventListener('beforeunload', flushViewSave);
@@ -859,7 +865,8 @@ export function App() {
             mirrorVertical,
           })
         : { x: mediaSize.w / 2, y: mediaSize.h / 2 };
-    spellAreas.add(shape, center, effectKind);
+    // Zoomed in on another part of the map, the DM would not see it appear
+    spellAreas.add(shape, viewControls.current?.placeInView(center) ?? center, effectKind);
   };
 
   // The colour picked in the Shapes tool also goes to the selected shape
@@ -919,6 +926,13 @@ export function App() {
   const viewControls = useRef<ViewControls | null>(null);
   const hasMap = !!mediaUrl;
 
+  /** The Fog tool drawing with `shape`, or back with the brush if it already was (L, R). */
+  const toggleFogShape = (shape: FogShape) => {
+    if (!hasMap) return false;
+    changeTool('fog');
+    setFogShape((current) => (current === shape ? 'brush' : shape));
+  };
+
   // What each shortcut does (the keys are in lib/shortcuts.ts). A handler
   // that returns false didn't apply, so the key keeps its usual effect.
   const commands: Record<Command, (event: KeyboardEvent) => boolean | void> = {
@@ -947,12 +961,8 @@ export function App() {
     },
     viewTool: () => changeTool('view'),
     fogTool: () => hasMap && changeTool('fog'),
-    // Switches the Fog tool between brush and lasso
-    lasso: () => {
-      if (!hasMap) return false;
-      changeTool('fog');
-      setFogLasso((lasso) => !lasso);
-    },
+    lasso: () => toggleFogShape('lasso'),
+    rectangle: () => toggleFogShape('rect'),
     effectsTool: () => hasMap && showEffectTools && changeTool('effect'),
     shapesTool: () => hasMap && showEffectTools && changeTool('shapes'),
     measureTool: () => hasMap && changeTool('measure'),
@@ -1084,8 +1094,8 @@ export function App() {
           onClearEffects={effects.clear}
           showEffectTools={showEffectTools}
           showLibrary={showLibrary}
-          fogLasso={fogLasso}
-          onFogLassoChange={setFogLasso}
+          fogShape={fogShape}
+          onFogShapeChange={setFogShape}
           onCoverAll={fog.coverAll}
           zoom={zoom}
           zoomLocked={zoomLocked}
@@ -1146,7 +1156,9 @@ export function App() {
           effectKind={effectKind}
           tool={altHeld ? 'view' : tool}
           shiftHeld={shiftHeld}
-          fogLasso={fogLasso}
+          fogShape={fogShape}
+          rooms={rooms}
+          roomEdits={roomEdits}
           altHeld={altHeld}
           brushSize={brushSize}
           onBrushResize={resizeBrush}

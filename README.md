@@ -25,14 +25,15 @@ It's built to stay out of the way on modest hardware: no accounts, no server, no
 
 ## Features
 
-- **Fog of war.** Select the Fog tool and paint: the left mouse button reveals, the right button covers. Undo and redo any change, or reveal or cover the whole map at once. The DM sees fog as an indigo tint; players see solid black.
+- **Fog of war.** Select the Fog tool and paint: the left mouse button reveals, the right button covers. Draw around an area with the lasso, or drag a rectangle, to reveal it all at once. Undo and redo any change, or reveal or cover the whole map at once. The DM sees fog as an indigo tint; players see solid black.
+- **Fog rooms.** Mark out the rooms of a dungeon before the session, then reveal each one with a click as the party walks in. Rooms can be named, moved and resized, and each shows whether it is hidden, partly open or open. Only you see them.
 - **Painted effects.** The Effects tool paints fire, poison or magic onto the map with soft edges, for burning terrain, poison clouds or spell areas. Right-click erases, **Clear** removes them all. Effects and circles sit under the fog, so they never give away unexplored areas, and poison is hatched so it stays distinct from fire for colour-blind players. A map that never uses effects costs nothing extra, and **Settings → Show effect and shape tools** hides them, and spell areas, entirely.
 - **Spell areas.** In the Shapes tool, place a circle (Spirit Guardians, Fireball), square (cube), cone or line/wall, sized in feet. Drag its dot to move it, there or in the View tool (hold Ctrl to snap it to the grid), turn the mouse wheel over it to resize it in 5 ft steps (a line's width), or type the size. Cones and lines have a handle at their tip: drag it to aim and set the length (hold Ctrl to turn in 45° steps). A square's handle sits on one edge: drag it to turn the square (it settles square to the grid near a right angle). The DM sees the size; players only see the area. Measure the map's grid once (**Settings → Measure map grid…**: click two corners of a square) so feet match the map. A map whose file or folder name gives its size, such as `forest_32x32.jpg` or `140ppi`, gets its grid as it is added; the map library shows which maps have one.
 - **Measuring distances.** The Measure tool (M) shows the distance in feet as you drag across the map, or click point by point to measure a path round corners (double-click or Enter finishes it, right-click takes back a point, Esc or Backspace clears it). **Movement** counts squares, with diagonals 5, 10, 5 ft by default (**Settings → Movement: every square** counts them all the same); **Straight line** measures as the crow flies (hold Ctrl to snap its ends to square centres). Only you see the ruler until you turn on **Show players**.
 - **Player view framing.** A frame on the DM window (gold, or another colour picked in **Player screen setup**) shows exactly what the player screen shows. Drag it to pan and scroll over it to zoom. While the zoom is locked, a padlock shows in its corner.
 - **True-scale grid.** Enter the player screen's diagonal and your grid size, and the frame shows a grid that matches the physical screen, so 1-inch minis line up with the map. **True scale** (next to **Fit 16:9**) zooms the player view so the map's own squares come out at that size. On a map without a grid, it has you measure the grid first. **Settings → Show grid on player screen** draws the map's measured grid for the players too.
 - **Blackout.** One key hides everything on the player screen while you set up the next scene.
-- **Map library.** Maps, along with each map's fog, effects, zoom, framing, rotation and mirroring, are saved automatically and restored when you switch maps or restart.
+- **Map library.** Maps, along with each map's fog, rooms, effects, zoom, framing, rotation and mirroring, are saved automatically and restored when you switch maps or restart.
 - **Animated maps.** WebM videos work as maps alongside PNG, JPEG, GIF, WebP and BMP images. If a video is larger than your computer can decode in hardware, Mini VTT suggests a size that plays smoothly.
 - **Handouts.** Show a letter, portrait or clue fullscreen on the player screen, then hide it to return to the map.
 - **Clean player screen.** Its few buttons and the mouse cursor fade out when the mouse is idle, so players only see the map.
@@ -91,6 +92,9 @@ On a Mac, use Cmd for Ctrl and Option for Alt.
 | View / Fog / Effects / Shapes / Measure tool | V / F / E / S / M                                                                                                                                                                                                |
 | Reveal / cover fog                           | Fog tool, then drag with the Left Mouse button / Right mouse button                                                                                                                                              |
 | Reveal / cover a whole room                  | Fog tool, **Lasso** (or L), then draw around it with the Left / Right mouse button; the inside is filled on release                                                                                              |
+| Reveal / cover a rectangle                   | Fog tool, **Rectangle** (or R), then drag with the Left / Right mouse button (Ctrl: snap to the grid)                                                                                                            |
+| Prepare rooms to reveal later                | Fog tool, **Rooms**, then drag around each room (Ctrl: snap to the grid). Drag a room to move it, or an edge or corner to resize it, and type its name in its bar                                                |
+| Reveal / cover a prepared room               | Fog tool, **Rooms**, then click inside the room / right-click inside it, or use the eye on its bar. The bar says whether the room is hidden, partly open or open                                                 |
 | Paint / erase effects                        | Effects tool, pick a colour, then drag with the Left Mouse button / Right mouse button                                                                                                                           |
 | Add a spell area                             | Shapes tool, then **Circle**, **Square**, **Cone** or **Line**                                                                                                                                                   |
 | Move an area                                 | Shapes or View tool: drag its dot (Ctrl: snap to the grid), or arrow keys (one square; Shift: 1 ft)                                                                                                              |
@@ -178,19 +182,23 @@ src/
   App.tsx                      DM window: library, loaded map, player window, shortcuts
   hooks/useLoadedMap.ts        The loaded map's state, replaced whole on load and unload
   hooks/useFog.ts              Fog mask and painting
+  hooks/useFogShapeDrag.ts     Drawing a lasso or rectangle of fog
+  hooks/useRoomEdits.ts        Fog rooms: adding, moving, resizing, naming, deleting
+  hooks/useRoomStatus.ts       Whether each room is hidden or open, read from the fog
   hooks/useEffectLayer.ts      Painted effects
   hooks/useLayerHistory.ts     Undo, redo and sync, shared by fog and effects
   hooks/useAreas.ts            Spell areas: the list, the selection and every edit
   hooks/useSettings.ts         The DM's settings, saved as they change
   components/MapStage.tsx      Map, fog canvas, player frame and brush
   components/AreaHandles.tsx   Spell areas' handles and toolbar
+  components/FogRoomsLayer.tsx Fog rooms: outlines, and in Rooms marking out and changing them (DM only)
   components/Toolbar.tsx       Tools, zoom and player screen controls
   components/MapLibraryPanel.tsx
   components/PlayerScreen.tsx  The player window
   components/Dialogs.tsx       Player screen setup and keyboard shortcuts
   ui/                          Buttons, menus, dialogs, toasts and confirmations
   lib/                         Pure helpers shared by the windows and the main process:
-                               grid, spell areas, settings, shortcuts, fog, geometry
+                               grid, spell areas, rectangles, fog rooms, settings, shortcuts, fog, geometry
   types/                       Types shared by all processes
 scripts/            Tests and the Windows icon patch used by electron-builder
 ```

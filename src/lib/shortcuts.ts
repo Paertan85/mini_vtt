@@ -31,6 +31,7 @@ export type Command =
   | 'viewTool'
   | 'fogTool'
   | 'lasso'
+  | 'rectangle'
   | 'effectsTool'
   | 'shapesTool'
   | 'measureTool'
@@ -85,6 +86,7 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
   { command: 'fogTool', key: 'f', label: 'F' },
   // L for lasso, as in Photoshop
   { command: 'lasso', key: 'l', label: 'L' },
+  { command: 'rectangle', key: 'r', label: 'R' },
   { command: 'effectsTool', key: 'e', label: 'E' },
   { command: 'shapesTool', key: 's', label: 'S' },
   { command: 'measureTool', key: 'm', label: 'M' },
@@ -161,8 +163,25 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       ['Reveal', ['Drag']],
       ['Cover', ['Right-drag']],
       ['Lasso on or off', [keys('lasso')], 'Draw around a room to reveal or cover it all'],
+      [
+        'Rectangle on or off',
+        [keys('rectangle')],
+        'Drag a rectangle to reveal or cover; Ctrl snaps it to the grid',
+      ],
       ['Brush size', ['Wheel', keys('brushSize')]],
       ['Paint fog from any tool', ['Shift + drag']],
+    ],
+  },
+  {
+    title: 'Fog rooms',
+    note: 'Fog tool, Rooms; only you see the rooms',
+    shortcuts: [
+      ['Mark out a room', ['Drag on the map']],
+      ['Reveal a room to the players', ['Click inside it']],
+      ['Cover it again', ['Right-click inside it']],
+      ['Move a room', ['Drag inside it']],
+      ['Resize a room', ['Drag an edge or corner']],
+      ['Snap to the grid', ['Ctrl + drag']],
     ],
   },
   {

@@ -7,6 +7,7 @@
 
 import type { FogMode, FogStroke, Point } from '../types/map';
 import type { Size } from './geometry';
+import type { Rect } from './rect';
 
 /** Longest mask edge in pixels; bounds memory and PNG size for huge maps. */
 const MAX_FOG_EDGE = 1920;
@@ -49,9 +50,10 @@ export function drawStroke(ctx: CanvasRenderingContext2D, stroke: FogStroke, med
 }
 
 /**
- * Reveal or cover everything inside a freehand outline (map natural pixels).
- * The outline is closed with a straight line back to its start; overlapping
- * loops all count as inside. One fill, however large the area.
+ * Reveal or cover everything inside an outline (map natural pixels): a
+ * lasso, or a rectangle's or room's four corners. The outline is closed with
+ * a straight line back to its start; overlapping loops all count as inside.
+ * One fill, however large the area.
  */
 export function fillOutline(
   ctx: CanvasRenderingContext2D,
@@ -71,6 +73,49 @@ export function fillOutline(
   ctx.closePath();
   ctx.fill('nonzero');
   ctx.globalCompositeOperation = 'source-over';
+}
+
+/**
+ * Read the mask inside each rectangle (map natural pixels) at `samples` ×
+ * `samples` evenly spread points, the rectangles side by side in one row of
+ * `scratch`. One small draw per rectangle and one small read, never the whole
+ * mask, so it costs the same however large the map is.
+ */
+export function sampleMaskRects(
+  mask: HTMLCanvasElement,
+  scratch: HTMLCanvasElement,
+  rects: Rect[],
+  media: Size,
+  samples: number,
+): ImageData | null {
+  if (rects.length === 0 || !media.w || !media.h || mask.width === 0 || mask.height === 0) return null;
+  const width = rects.length * samples;
+  if (scratch.width !== width || scratch.height !== samples) {
+    scratch.width = width;
+    scratch.height = samples;
+  }
+  const ctx = scratch.getContext('2d');
+  if (!ctx) return null;
+  const scaleX = mask.width / media.w;
+  const scaleY = mask.height / media.h;
+  ctx.clearRect(0, 0, width, samples);
+  // The nearest mask pixel at each point, not a blend
+  ctx.imageSmoothingEnabled = false;
+  rects.forEach((rect, index) => {
+    if (rect.width <= 0 || rect.height <= 0) return;
+    ctx.drawImage(
+      mask,
+      rect.x * scaleX,
+      rect.y * scaleY,
+      rect.width * scaleX,
+      rect.height * scaleY,
+      index * samples,
+      0,
+      samples,
+      samples,
+    );
+  });
+  return ctx.getImageData(0, 0, width, samples);
 }
 
 /**

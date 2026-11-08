@@ -452,6 +452,169 @@ app.whenReady().then(async () => {
     await press('l');
     await sleep(100);
 
+    // Rectangle (R): drag a rectangle; its inside is revealed on release
+    const pressed = (label) =>
+      js(
+        `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}).getAttribute('aria-pressed')`,
+      );
+    await press('r');
+    await sleep(200);
+    check('R switches the Fog tool to the rectangle', (await pressed('Rectangle')) === 'true');
+    const playerBeforeRect = await playerFog();
+    const rectFrom = at(0.65, 0.65);
+    const rectTo = at(0.85, 0.85);
+    mouse('mouseDown', rectFrom.x, rectFrom.y);
+    for (let i = 1; i <= 5; i++) {
+      mouse(
+        'mouseMove',
+        rectFrom.x + ((rectTo.x - rectFrom.x) * i) / 5,
+        rectFrom.y + ((rectTo.y - rectFrom.y) * i) / 5,
+      );
+      await sleep(20);
+    }
+    await sleep(200);
+    check('a rectangle changes nothing while it is dragged', (await fogAlphaAt(0.75, 0.75)) > 0);
+    mouse('mouseUp', rectTo.x, rectTo.y);
+    await sleep(900);
+    check('releasing reveals the rectangle', (await fogAlphaAt(0.75, 0.75)) === 0);
+    check(
+      'outside the rectangle stays fogged',
+      (await fogAlphaAt(0.95, 0.95)) > 0 && (await fogAlphaAt(0.6, 0.75)) > 0,
+    );
+    check('players see the revealed rectangle', (await playerFog()) !== playerBeforeRect);
+    await drag(at(0.6, 0.6), area.w * 0.3, area.h * 0.3, 'right');
+    await sleep(900);
+    check('a right-drag covers a rectangle', (await fogAlphaAt(0.75, 0.75)) > 0);
+    await press('z', { ctrlKey: true });
+    await sleep(900);
+    await press('z', { ctrlKey: true });
+    await sleep(900);
+    check('undo takes rectangles back', (await fogAlphaAt(0.75, 0.75)) > 0);
+    await press('r');
+    await sleep(100);
+    check('R again goes back to the brush', (await pressed('Brush')) === 'true');
+
+    // Rooms: marked out ahead of time, then revealed or covered with a click,
+    // moved, resized and named
+    await clickText('Rooms');
+    await sleep(200);
+    const fogBeforeRoom = fogHash();
+    await drag(at(0.65, 0.65), area.w * 0.2, area.h * 0.2);
+    await sleep(900);
+    const savedRooms = () => readIndex().maps.find((m) => m.id === 'm_alpha').rooms ?? [];
+    check(
+      'dragging marks out a room, saved with the map',
+      savedRooms().length === 1,
+      JSON.stringify(savedRooms()),
+    );
+    check(
+      'marking out a room leaves the fog alone',
+      fogHash() === fogBeforeRoom && (await fogAlphaAt(0.75, 0.75)) > 0,
+    );
+    await drag(at(0.1, 0.1), 2, 2);
+    await sleep(600);
+    check('a click marks out no room', savedRooms().length === 1);
+    const roomStatus = (label = 'Room 1') =>
+      js(`document.querySelector('[role="group"][aria-label="${label}"] span')?.textContent ?? null`);
+    check('a new room reads as hidden', (await roomStatus()) === 'Hidden', await roomStatus());
+
+    // A click inside the room reveals it to the players, a right-click covers it
+    const roomInside = () => centerOf('[data-room]:not([data-side])');
+    const playerBeforeRoom = await playerFog();
+    let inside = await roomInside();
+    mouse('mouseDown', inside.x, inside.y);
+    mouse('mouseUp', inside.x, inside.y);
+    await sleep(900);
+    check(
+      'a click inside a room reveals it',
+      (await fogAlphaAt(0.75, 0.75)) === 0 && (await fogAlphaAt(0.95, 0.95)) > 0,
+    );
+    check('players see the revealed room', (await playerFog()) !== playerBeforeRoom);
+    check('its bar says it is open', (await roomStatus()) === 'Open', await roomStatus());
+    mouse('mouseDown', inside.x, inside.y, 'right');
+    mouse('mouseUp', inside.x, inside.y, 'right');
+    await sleep(900);
+    check(
+      'a right-click inside covers it again',
+      (await fogAlphaAt(0.75, 0.75)) > 0 && (await roomStatus()) === 'Hidden',
+      await roomStatus(),
+    );
+    const roomButton = (label) => `document.querySelector('button[aria-label="${label}"]')`;
+    await js(`${roomButton('Reveal Room 1')}.click()`);
+    await sleep(900);
+    check('the bar’s eye reveals it too', (await fogAlphaAt(0.75, 0.75)) === 0);
+    await js(`${roomButton('Cover Room 1')}.click()`);
+    await sleep(900);
+    check('and, once it is open, covers it', (await fogAlphaAt(0.75, 0.75)) > 0);
+    await press('z', { ctrlKey: true });
+    await sleep(900);
+    check('undo takes back a room’s cover', (await fogAlphaAt(0.75, 0.75)) === 0);
+    // Back to the fog from before the rooms, exactly: later tests compare with it
+    for (let i = 0; i < 3; i++) {
+      await press('z', { ctrlKey: true });
+      await sleep(900);
+    }
+    check('undo takes every room change back', fogHash() === fogBeforeRoom);
+
+    // Dragging a room moves it, dragging an edge resizes it; the fog stays
+    const fogBeforeMove = fogHash();
+    const beforeMove = savedRooms()[0];
+    inside = await roomInside();
+    await drag(inside, area.w * 0.05, 0);
+    await sleep(900);
+    const moved = savedRooms()[0];
+    check(
+      'dragging a room moves it',
+      moved.x > beforeMove.x && moved.y === beforeMove.y && moved.width === beforeMove.width,
+      JSON.stringify({ beforeMove, moved }),
+    );
+    const rightEdge = await centerOf('[data-room][data-side="1,0"]');
+    await drag(rightEdge, area.w * 0.05, 0);
+    await sleep(900);
+    const resized = savedRooms()[0];
+    check(
+      'dragging its right edge widens it',
+      resized.width > moved.width && resized.x === moved.x && resized.height === moved.height,
+      JSON.stringify({ moved, resized }),
+    );
+    check('moving and resizing leave the fog alone', fogHash() === fogBeforeMove);
+
+    // A name: saved with the room, and its bar and buttons use it; typing
+    // letters into it sets off no shortcuts
+    await js(`(() => {
+      const input = document.querySelector('input[aria-label="Name of Room 1"]');
+      input.focus();
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'Throne room');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      for (const key of ['r', 'b', 'l']) input.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+    })()`);
+    await sleep(900);
+    check('a room’s name is saved', savedRooms()[0]?.name === 'Throne room', JSON.stringify(savedRooms()[0]));
+    check(
+      'its buttons use the name',
+      (await js(`!!${roomButton('Reveal Throne room')} && !!${roomButton('Delete Throne room')}`)) === true,
+    );
+    check(
+      'typing a name sets off no shortcuts',
+      (await pressed('Rooms')) === 'true' &&
+        (await js(`!document.body.textContent.includes('The player screen is blacked out')`)) === true,
+    );
+    await js(`document.activeElement.blur()`);
+    check(
+      'players never see the rooms',
+      (await js(`!!document.querySelector('[data-room]')`)) === true &&
+        (await js(`!document.querySelector('[data-room]')`, player)) === true,
+    );
+
+    await js(`${roomButton('Delete Throne room')}.click()`);
+    await sleep(900);
+    check(
+      'Delete removes the room, and the fog stays',
+      savedRooms().length === 0 && (await fogAlphaAt(0.75, 0.75)) > 0,
+    );
+    await clickText('Brush');
+    await sleep(100);
+
     // Snapshots are encoded in the background: an undo pressed while the last
     // change is still encoding must undo that change, not the one before
     const fogBeforeCover = fogHash();
@@ -904,6 +1067,33 @@ app.whenReady().then(async () => {
       'the player screen drops it',
       (await js(`document.querySelectorAll('svg circle').length`, player)) === 0,
     );
+
+    // Zoomed in on a corner, far from the player frame, a new shape appears
+    // where the DM is looking
+    const stageRect = await js(`(() => { const r = document.querySelector('main').getBoundingClientRect();
+      return { left: r.left, top: r.top, right: r.right, bottom: r.bottom }; })()`);
+    const cornerRect =
+      await js(`(() => { const r = document.querySelector('canvas[aria-label="Fog of war"]').getBoundingClientRect();
+      return { x: r.x + r.width * 0.05, y: r.y + r.height * 0.05 }; })()`);
+    await js(`document.querySelector('canvas[aria-label="Fog of war"]').dispatchEvent(new WheelEvent('wheel',
+      { deltaY: -800, ctrlKey: true, clientX: ${cornerRect.x}, clientY: ${cornerRect.y}, bubbles: true, cancelable: true }))`);
+    await sleep(300);
+    await addArea('Circle');
+    await sleep(900);
+    const newDot = await centerOf('button[aria-label^="Circle,"]');
+    check(
+      'a shape added in a zoomed-in DM view appears in view',
+      !!newDot &&
+        newDot.x > stageRect.left &&
+        newDot.x < stageRect.right &&
+        newDot.y > stageRect.top &&
+        newDot.y < stageRect.bottom,
+      JSON.stringify({ dot: newDot, stage: stageRect }),
+    );
+    await press('Delete');
+    await sleep(600);
+    await press('0', { ctrlKey: true });
+    await sleep(300);
 
     // Cones aim and stretch with the handle at their tip; a line's width follows the wheel
     await addArea('Cone');

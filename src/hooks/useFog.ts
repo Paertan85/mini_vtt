@@ -7,8 +7,10 @@
 // a room the DM reveals in one drag appears all at once when the mouse is
 // released, and the encode happens exactly once per stroke.
 //
-// A lasso (freehand outline) only collects points while the mouse moves; the
-// inside is filled once on release and published like a stroke.
+// Shapes (a lasso, a rectangle, a fog room) are one fill of an outline,
+// published like a stroke; drawing them is useFogShapeDrag's. Whoever needs to
+// know when the mask changes (the rooms' status) subscribes; nothing is
+// watched while no one does.
 
 import { useCallback, useRef } from 'react';
 import type { FogMode, Point } from '../types/map';
@@ -36,10 +38,8 @@ export interface Fog {
   beginStroke: (mode: FogMode, point: Point, radius: number) => void;
   continueStroke: (point: Point) => void;
   endStroke: () => void;
-  /** Freehand outline: reveal or cover its inside when it ends */
-  beginLasso: (mode: FogMode, point: Point) => void;
-  continueLasso: (point: Point) => void;
-  endLasso: () => void;
+  /** Reveal or cover the inside of an outline (map pixels) in one step: a lasso, rectangle or room */
+  fillOutline: (outline: Point[], mode: FogMode) => void;
   revealAll: () => void;
   coverAll: () => void;
   undo: () => void;
@@ -48,15 +48,29 @@ export interface Fog {
   canRedo: boolean;
   /** Resolves once every change so far has been encoded and sent. */
   whenIdle: () => Promise<void>;
+  /**
+   * Call `listener` whenever the mask shown changes: a stroke or fill ends,
+   * an undo or redo is drawn, a map's fog is loaded or let go. Returns the
+   * unsubscribe.
+   */
+  subscribe: (listener: () => void) => () => void;
 }
 
 export function useFog(): Fog {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mediaRef = useRef<Size>({ w: 0, h: 0 });
   const strokeRef = useRef<{ mode: FogMode; last: Point; radius: number } | null>(null);
-  const lassoRef = useRef<{ mode: FogMode; points: Point[] } | null>(null);
+  const listenersRef = useRef(new Set<() => void>());
 
   const context = () => canvasRef.current?.getContext('2d') ?? null;
+
+  const subscribe = useCallback((listener: () => void) => {
+    listenersRef.current.add(listener);
+    return () => {
+      listenersRef.current.delete(listener);
+    };
+  }, []);
+  const changed = useCallback(() => listenersRef.current.forEach((listener) => listener()), []);
 
   const history = useLayerHistory({
     // A fog state is never empty: the mask always exists
@@ -67,17 +81,21 @@ export function useFog(): Fog {
       if (!state) return;
       const image = await loadImage(state);
       const ctx = context();
-      if (ctx && stillCurrent()) drawSnapshot(ctx, image, DM_FOG_COLOR);
+      if (!ctx || !stillCurrent()) return;
+      drawSnapshot(ctx, image, DM_FOG_COLOR);
+      changed();
     },
-    busy: () => !!strokeRef.current || !!lassoRef.current,
+    busy: () => !!strokeRef.current,
   });
   const { start, adopt, commit, release: releaseHistory } = history;
 
-  /** Send the mask as it is now; encoded in the background. */
+  /** The mask has just been painted: send it as it is now (encoded in the background). */
   const publish = useCallback(() => {
     const canvas = canvasRef.current;
-    if (canvas) commit(encodeMask(canvas));
-  }, [commit]);
+    if (!canvas) return;
+    changed();
+    commit(encodeMask(canvas));
+  }, [commit, changed]);
 
   const initialize = useCallback(
     async (mapId: string, media: Size, savedMask: string | null) => {
@@ -87,7 +105,6 @@ export function useFog(): Fog {
       const isLatest = start(mapId);
       mediaRef.current = media;
       strokeRef.current = null;
-      lassoRef.current = null;
       const size = fogMaskSize(media);
       canvas.width = size.width;
       canvas.height = size.height;
@@ -105,6 +122,7 @@ export function useFog(): Fog {
         }
       }
       if (!restored) fillMask(ctx, DM_FOG_COLOR);
+      changed();
       window.electronAPI?.sendFogReset();
       if (restored && savedMask) {
         // Already saved: relay the mask as loaded, without encoding it again
@@ -115,20 +133,20 @@ export function useFog(): Fog {
         commit(encodeMask(canvas), false);
       }
     },
-    [start, adopt, commit],
+    [start, adopt, commit, changed],
   );
 
   const release = useCallback(() => {
     releaseHistory();
     strokeRef.current = null;
-    lassoRef.current = null;
     const canvas = canvasRef.current;
     if (canvas) {
       canvas.width = 0;
       canvas.height = 0;
     }
+    changed();
     window.electronAPI?.sendFogReset();
-  }, [releaseHistory]);
+  }, [releaseHistory, changed]);
 
   /** Paint one segment in the DM window only. */
   const paint = useCallback((mode: FogMode, from: Point, to: Point, radius: number) => {
@@ -161,23 +179,16 @@ export function useFog(): Fog {
     publish();
   }, [publish]);
 
-  const beginLasso = useCallback((mode: FogMode, point: Point) => {
-    lassoRef.current = { mode, points: [point] };
-  }, []);
-
-  const continueLasso = useCallback((point: Point) => {
-    lassoRef.current?.points.push(point);
-  }, []);
-
-  const endLasso = useCallback(() => {
-    const shape = lassoRef.current;
-    lassoRef.current = null;
-    const ctx = context();
-    // A click or a line encloses nothing
-    if (!shape || shape.points.length < 3 || !ctx) return;
-    fillOutline(ctx, shape.points, shape.mode, mediaRef.current, DM_FOG_COLOR);
-    publish();
-  }, [publish]);
+  const fill = useCallback(
+    (outline: Point[], mode: FogMode) => {
+      const ctx = context();
+      // A click or a line encloses nothing
+      if (!ctx || outline.length < 3) return;
+      fillOutline(ctx, outline, mode, mediaRef.current, DM_FOG_COLOR);
+      publish();
+    },
+    [publish],
+  );
 
   const revealAll = useCallback(() => {
     const ctx = context();
@@ -200,9 +211,7 @@ export function useFog(): Fog {
     beginStroke,
     continueStroke,
     endStroke,
-    beginLasso,
-    continueLasso,
-    endLasso,
+    fillOutline: fill,
     revealAll,
     coverAll,
     undo: history.undo,
@@ -210,5 +219,6 @@ export function useFog(): Fog {
     canUndo: history.canUndo,
     canRedo: history.canRedo,
     whenIdle: history.whenIdle,
+    subscribe,
   };
 }

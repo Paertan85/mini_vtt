@@ -4,6 +4,9 @@
 
 export const IS_MAC = /Mac/i.test(navigator.platform);
 
+/** Ctrl held, or Cmd on a Mac: the key that snaps to the grid, and zooms with the wheel. */
+export const ctrlHeld = (event: { ctrlKey: boolean; metaKey: boolean }) => event.ctrlKey || event.metaKey;
+
 /** A shortcut written for Windows, as a Mac user would press it. */
 export function keyLabel(text: string): string {
   if (!IS_MAC) return text;

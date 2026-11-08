@@ -18,6 +18,7 @@
 import React, { useEffect, useState } from 'react';
 import type { DiagonalRule, MapGrid, Point, RulerState } from '../types/map';
 import { MAX_RULER_POINTS, measurePathFeet, snapToCell } from '../lib/grid';
+import { ctrlHeld } from '../lib/platform';
 
 interface MeasureLayerProps {
   grid: MapGrid;
@@ -104,7 +105,7 @@ export function MeasureLayer({
   const pointAt = (event: React.MouseEvent) => {
     const point = toMapPoint(event.clientX, event.clientY);
     if (!point) return null;
-    const snaps = rule !== 'straight' || event.ctrlKey || event.metaKey;
+    const snaps = rule !== 'straight' || ctrlHeld(event);
     return snaps ? snapToCell(point, grid) : point;
   };
 

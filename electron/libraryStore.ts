@@ -17,6 +17,7 @@ import type { HandoutMeta, LibrarySettings, LibrarySnapshot, MapEntryMeta } from
 import { DEFAULT_SETTINGS, LIBRARY_ID, normalizeSettings } from '../src/lib/settings';
 import { EXTENSIONS } from './mediaFiles';
 import { normalizeAreas } from '../src/lib/areas';
+import { normalizeRooms } from '../src/lib/rooms';
 import { normalizeGrid } from '../src/lib/grid';
 
 export const LIBRARY_DIR = () => path.join(app.getPath('userData'), 'library');
@@ -111,6 +112,7 @@ async function readIndex(): Promise<IndexShape> {
             mirrorVertical: m.mirrorVertical === true,
             grid: normalizeGrid(m.grid),
             circles: normalizeAreas(m.circles),
+            rooms: normalizeRooms(m.rooms),
           };
         }),
     };

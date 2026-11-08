@@ -55,6 +55,8 @@ app.whenReady().then(async () => {
   const videoLib = await import('../dist-electron/video.test.mjs');
   const saveLib = await import('../dist-electron/delayedSave.test.mjs');
   const areasLib = await import('../dist-electron/areas.test.mjs');
+  const roomsLib = await import('../dist-electron/rooms.test.mjs');
+  const rectLib = await import('../dist-electron/rect.test.mjs');
   const geometryLib = await import('../dist-electron/geometry.test.mjs');
   const shortcutsLib = await import('../dist-electron/shortcuts.test.mjs');
   const fixtures = path.join(tmp, 'fixtures');
@@ -1103,8 +1105,146 @@ app.whenReady().then(async () => {
         { id: 'c2', x: 1, y: 1, radiusFt: 5, kind: 'lava' }, // unknown kind: kept as magic
         { id: 'c3', x: 1, y: 1, radiusFt: 9999, kind: 'poison' }, // clamped
       ],
+      rooms: [
+        { id: 'r1', x: 10, y: 20, width: 100, height: 50, name: '  Throne room  ' },
+        { id: 'r1', x: 0, y: 0, width: 5, height: 5 }, // duplicate id
+        { id: 'r2', x: 0, y: 0, width: 0, height: 5 }, // no area
+        { id: 'r3', x: 0, y: 0, width: Infinity, height: 5 }, // not finite
+        { id: '../r', x: 0, y: 0, width: 5, height: 5 }, // unsafe id
+        { id: 'r4', x: 200, y: 0, width: 40, height: 40, name: 42 }, // a name that isn't text
+      ],
     });
     const calibrated = (await lib.loadSnapshot()).maps.find((m) => m.id === c.id);
+    check(
+      'fog rooms persist, invalid ones are dropped',
+      JSON.stringify(calibrated.rooms?.map((room) => room.id)) === '["r1","r4"]' &&
+        calibrated.rooms[0].width === 100,
+      JSON.stringify(calibrated.rooms),
+    );
+    check(
+      'room names are saved trimmed, and one that is not text is dropped',
+      calibrated.rooms[0].name === 'Throne room' && !('name' in calibrated.rooms[1]),
+      JSON.stringify(calibrated.rooms),
+    );
+    check(
+      'a map has at most MAX_ROOMS rooms, and names are cut to MAX_ROOM_NAME',
+      roomsLib.normalizeRooms(
+        Array.from({ length: roomsLib.MAX_ROOMS + 5 }, (_, i) => ({
+          id: `r${i}`,
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1,
+        })),
+      ).length === roomsLib.MAX_ROOMS &&
+        roomsLib.normalizeRooms('nope').length === 0 &&
+        roomsLib.normalizeRooms([{ id: 'a', x: 0, y: 0, width: 1, height: 1, name: 'x'.repeat(99) }])[0].name
+          .length === roomsLib.MAX_ROOM_NAME,
+    );
+
+    // Rooms are edited with pure steps; the name is kept as typed until it is saved
+    const [added] = roomsLib.addRoom([], { x: 1, y: 2, width: 3, height: 4, extra: true });
+    check(
+      'a new room has an id and only a rectangle',
+      /^r[a-z0-9]+$/.test(added.id) &&
+        JSON.stringify({ ...added, id: 0 }) === '{"id":0,"x":1,"y":2,"width":3,"height":4}',
+      JSON.stringify(added),
+    );
+    const fullMap = Array.from({ length: roomsLib.MAX_ROOMS }, (_, i) => ({ ...added, id: `f${i}` }));
+    check('a full map takes no more rooms', roomsLib.addRoom(fullMap, added).length === roomsLib.MAX_ROOMS);
+    const named = roomsLib.renameRoom([added], added.id, 'Hall ');
+    const reshaped = roomsLib.reshapeRoom(named, added.id, { x: 5, y: 6, width: 7, height: 8 });
+    check(
+      'renaming keeps the name as typed, reshaping keeps the id and name, an empty name goes',
+      named[0].name === 'Hall ' &&
+        reshaped[0].id === added.id &&
+        reshaped[0].name === 'Hall ' &&
+        reshaped[0].x === 5 &&
+        reshaped[0].height === 8 &&
+        !('name' in roomsLib.renameRoom(named, added.id, '')[0]) &&
+        roomsLib.removeRoom(reshaped, added.id).length === 0,
+      JSON.stringify(reshaped),
+    );
+    check(
+      'a room shows its name, or its number',
+      roomsLib.roomLabel(named[0], 0) === 'Hall ' && roomsLib.roomLabel(added, 2) === 'Room 3',
+    );
+
+    // A room's status is read from points sampled off the fog mask
+    const S = roomsLib.ROOM_SAMPLES;
+    const sampleWidth = 4 * S;
+    const sampleData = new Uint8ClampedArray(sampleWidth * S * 4);
+    for (let row = 0; row < S; row++) {
+      for (let col = 0; col < sampleWidth; col++) {
+        const room = Math.floor(col / S);
+        const fogged =
+          room === 0 || (room === 2 && col % S < S / 2) || (room === 3 && row === 0 && col % S === 0);
+        sampleData[(row * sampleWidth + col) * 4 + 3] = fogged ? 255 : 0;
+      }
+    }
+    check(
+      'rooms read as hidden, open or partly open; one stray fogged point still reads as open',
+      JSON.stringify(roomsLib.roomStatuses({ data: sampleData, width: sampleWidth }, 4)) ===
+        '["hidden","open","partly","open"]',
+      JSON.stringify(roomsLib.roomStatuses({ data: sampleData, width: sampleWidth }, 4)),
+    );
+
+    // Rectangles: drawn from either corner, clipped to the map, moved and resized
+    check(
+      'a rectangle is the same from either corner, and Ctrl snaps it to grid corners',
+      JSON.stringify(rectLib.rectFromCorners({ x: 50, y: 80 }, { x: 10, y: 20 })) ===
+        JSON.stringify({ x: 10, y: 20, width: 40, height: 60 }) &&
+        JSON.stringify(rectLib.rectFromCorners({ x: 104, y: 96 }, { x: 290, y: 160 }, measured)) ===
+          JSON.stringify({ x: 110, y: 60, width: 200, height: 100 }),
+      JSON.stringify(rectLib.rectFromCorners({ x: 104, y: 96 }, { x: 290, y: 160 }, measured)),
+    );
+    const smallMap = { w: 100, h: 100 };
+    const largeMap = { w: 1000, h: 1000 };
+    check(
+      'a rectangle is clipped to the map',
+      JSON.stringify(rectLib.clipToMap({ x: -10, y: -10, width: 50, height: 50 }, smallMap)) ===
+        JSON.stringify({ x: 0, y: 0, width: 40, height: 40 }) &&
+        rectLib.clipToMap({ x: 200, y: 0, width: 50, height: 50 }, smallMap).width === 0,
+    );
+    const box = { x: 10, y: 10, width: 30, height: 20 };
+    check(
+      'a moved rectangle stays on the map; with the grid its corner snaps to a grid corner',
+      rectLib.moveRect(box, { x: 100, y: 0 }, smallMap).x === 70 &&
+        rectLib.moveRect(box, { x: -50, y: 5 }, smallMap).x === 0 &&
+        rectLib.moveRect(box, { x: -50, y: 5 }, smallMap).y === 15 &&
+        JSON.stringify(
+          rectLib.moveRect({ x: 12, y: 65, width: 100, height: 100 }, { x: 95, y: 2 }, largeMap, measured),
+        ) === JSON.stringify({ x: 110, y: 60, width: 100, height: 100 }),
+      JSON.stringify(
+        rectLib.moveRect({ x: 12, y: 65, width: 100, height: 100 }, { x: 95, y: 2 }, largeMap, measured),
+      ),
+    );
+    check(
+      'resizing moves only the dragged edges, turns inside out past the other edge, and snaps to grid lines',
+      JSON.stringify(rectLib.resizeRect(box, { x: 1, y: 0 }, { x: 80, y: 999 }, smallMap)) ===
+        JSON.stringify({ x: 10, y: 10, width: 70, height: 20 }) &&
+        JSON.stringify(rectLib.resizeRect(box, { x: -1, y: 0 }, { x: 60, y: 0 }, smallMap)) ===
+          JSON.stringify({ x: 40, y: 10, width: 20, height: 20 }) &&
+        JSON.stringify(
+          rectLib.resizeRect(
+            { x: 10, y: 60, width: 100, height: 100 },
+            { x: 1, y: 1 },
+            { x: 290, y: 170 },
+            largeMap,
+            measured,
+          ),
+        ) === JSON.stringify({ x: 10, y: 60, width: 300, height: 100 }),
+    );
+    const edges = (side, rotation, mirrorHorizontal = false) =>
+      JSON.stringify(rectLib.edgesOnMap(side, { rotation, mirrorHorizontal, mirrorVertical: false }));
+    check(
+      'a handle on screen moves the map edge that shows there, however the map is turned',
+      edges({ x: 1, y: 0 }, 0) === '{"x":1,"y":0}' &&
+        edges({ x: 1, y: 0 }, 90) === '{"x":0,"y":-1}' &&
+        edges({ x: 1, y: 0 }, 0, true) === '{"x":-1,"y":0}' &&
+        edges({ x: -1, y: -1 }, 180) === '{"x":1,"y":1}',
+      edges({ x: 1, y: 0 }, 90),
+    );
     check('the grid persists', calibrated.grid?.cell === 100, JSON.stringify(calibrated.grid));
     check(
       'circles persist, invalid ones are dropped and radii clamped',
@@ -1242,6 +1382,11 @@ app.whenReady().then(async () => {
       'grid and circles travel with the project',
       second.grid?.cell === 100 && second.circles.length === 3 && first.grid === null,
       JSON.stringify({ grid: second.grid, circles: second.circles.length }),
+    );
+    check(
+      'fog rooms travel with the project',
+      JSON.stringify(second.rooms?.map((room) => room.id)) === '["r1","r4"]' && first.rooms.length === 0,
+      JSON.stringify({ first: first.rooms, second: second.rooms }),
     );
     check('map media resolves', !!(await lib.resolveMapMediaPath(second.id)));
     check('map thumbnail is kept', !!(await lib.loadMapThumb(second.id)));

@@ -67,6 +67,24 @@ export interface MapView {
   mirrorVertical: boolean;
   /** Spell areas placed on this map (saved as `circles`, after the first shape) */
   circles: SpellArea[];
+  /** Fog rooms marked out on this map */
+  rooms: FogRoom[];
+}
+
+/**
+ * A room the DM marked out on a map ahead of time, to reveal (or cover) in one
+ * click. Only the DM sees it; players see the fog it changes. An axis-aligned
+ * rectangle in map natural pixels, unrotated: rotating or mirroring the map in
+ * 90° steps keeps it a rectangle on screen.
+ */
+export interface FogRoom {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** The DM's name for it, such as "Throne room"; without one it shows its number */
+  name?: string;
 }
 
 /**
@@ -126,6 +144,7 @@ export interface MapEntryMeta {
   /** The map's measured grid, or null until it is calibrated */
   grid: MapGrid | null;
   circles: SpellArea[];
+  rooms: FogRoom[];
   /** Epoch ms when the map was added */
   addedAt: number;
 }

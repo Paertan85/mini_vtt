@@ -9,7 +9,7 @@ import type { SpellArea, DrawnArea, EffectKind, MapGrid, Point } from '../types/
 import { EFFECT_KINDS, EFFECT_STYLES } from '../lib/effects';
 import { feetToPixels } from '../lib/grid';
 import { AREA_LABELS, areaHandle, areaOutline, snapArea } from '../lib/areas';
-import { keyLabel } from '../lib/platform';
+import { ctrlHeld, keyLabel } from '../lib/platform';
 
 interface AreaHandlesProps {
   areas: SpellArea[];
@@ -79,11 +79,11 @@ export function AreaHandles({
     const point = toMapPoint(event.clientX, event.clientY);
     if (!point) return;
     if (drag.aim) {
-      onAim(drag.id, point, event.ctrlKey || event.metaKey);
+      onAim(drag.id, point, ctrlHeld(event));
       return;
     }
     const area = areas.find((area) => area.id === drag.id);
-    onMove(drag.id, grid && area && (event.ctrlKey || event.metaKey) ? snapArea(point, area, grid) : point);
+    onMove(drag.id, grid && area && ctrlHeld(event) ? snapArea(point, area, grid) : point);
   };
 
   const endAreaDrag = () => {

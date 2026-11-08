@@ -24,7 +24,7 @@ import { Button, ButtonGroup, Divider, inputClass } from '../ui/controls';
 import { Menu } from '../ui/Menu';
 import { Popover } from '../ui/Popover';
 import { clampZoom, MAX_ZOOM, MIN_ZOOM, stepZoom } from '../lib/geometry';
-import type { Tool } from './MapStage';
+import type { FogShape, Tool } from './MapStage';
 import type { AreaShape, EffectKind, MovementRule } from '../types/map';
 import { MOVEMENT_LABELS, MOVEMENT_RULES, MOVEMENT_TITLES } from '../lib/grid';
 import { AREA_LABELS, AREA_SHAPES, DEFAULT_AREA_FT, MAX_AREAS } from '../lib/areas';
@@ -107,11 +107,33 @@ interface ToolbarProps {
   onReload: () => void;
   onToggleDevTools: () => void;
   onQuit: () => void;
-  fogLasso: boolean;
-  onFogLassoChange: (shape: boolean) => void;
+  fogShape: FogShape;
+  onFogShapeChange: (shape: FogShape) => void;
   showLibrary: boolean;
   onToggleLibrary: () => void;
 }
+
+/** The Fog tool's ways of drawing, as the toolbar offers them. */
+const FOG_SHAPES: { shape: FogShape; label: string; title: string }[] = [
+  { shape: 'brush', label: 'Brush', title: 'Paint fog with a round brush' },
+  {
+    shape: 'lasso',
+    label: 'Lasso',
+    title: 'Lasso: draw around an area to reveal it all at once; Right Mouse button covers it (L switches)',
+  },
+  {
+    shape: 'rect',
+    label: 'Rectangle',
+    title:
+      'Rectangle: drag to reveal a rectangle; Right Mouse button covers it. Ctrl snaps it to the grid (R switches)',
+  },
+  {
+    shape: 'rooms',
+    label: 'Rooms',
+    title:
+      'Rooms: drag to mark out a room ahead of time, then reveal or cover it with one click. Only you see the rooms. Ctrl snaps to the grid',
+  },
+];
 
 export type TrueScaleNeed = 'setup' | 'player' | 'grid';
 export type ShapesNeed = 'grid' | 'full';
@@ -380,22 +402,17 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         <>
           {tool === 'fog' && (
             <ButtonGroup label="Fog drawing">
-              <Button
-                tone={props.fogLasso ? 'default' : 'active'}
-                aria-pressed={!props.fogLasso}
-                onClick={() => props.onFogLassoChange(false)}
-                title="Paint fog with a round brush (L switches)"
-              >
-                Brush
-              </Button>
-              <Button
-                tone={props.fogLasso ? 'active' : 'default'}
-                aria-pressed={props.fogLasso}
-                onClick={() => props.onFogLassoChange(true)}
-                title="Lasso: draw around an area to reveal it all at once; Right Mouse button covers it (L switches)"
-              >
-                Lasso
-              </Button>
+              {FOG_SHAPES.map(({ shape, label, title }) => (
+                <Button
+                  key={shape}
+                  tone={props.fogShape === shape ? 'active' : 'default'}
+                  aria-pressed={props.fogShape === shape}
+                  onClick={() => props.onFogShapeChange(shape)}
+                  title={keyLabel(title)}
+                >
+                  {label}
+                </Button>
+              ))}
             </ButtonGroup>
           )}
           <Menu

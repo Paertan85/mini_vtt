@@ -202,6 +202,7 @@ All optional. They are only taken over when the library being imported into is e
 | `mirrorVertical`   | `false`         | Flip top to bottom.                                                                          |
 | `grid`             | `null`          | The map's own grid, below. `null` until measured.                                            |
 | `circles`          | none            | Spell areas, below, at most 50. (Named after the first shape, the circle.)                   |
+| `rooms`            | none            | Fog rooms, below, at most 100. Only the DM sees them.                                        |
 
 ### grid
 
@@ -226,6 +227,17 @@ The squares drawn on the map image, in map pixels.
 | `angle`    | `0`      | Degrees: where a cone or line points, or how a square is turned.                                                     |
 | `widthFt`  | `5`      | A line's width in feet, 1 to 500.                                                                                    |
 | `color`    | none     | The kind's colour: fire `#ff6a1a`, poison `#45b649`, magic `#5c7cff`. Used only by readers that don't know the kind. |
+
+### A fog room
+
+A rectangle the DM marked out to reveal or cover in one click. It doesn't change the fog by itself, so a reader that ignores rooms shows players nothing extra.
+
+| Field             | Default  | Value                                                                              |
+| ----------------- | -------- | ---------------------------------------------------------------------------------- |
+| `id`              | required | 1 to 32 of `A–Z a–z 0–9 _ -`, unique on its map.                                   |
+| `x`, `y`          | required | The top-left corner, in pixels of the unrotated map.                               |
+| `width`, `height` | required | In pixels of the unrotated map, more than 0.                                       |
+| `name`            | none     | The DM's name for it, up to 40 characters. Without one, Mini VTT shows its number. |
 
 ### A handout
 

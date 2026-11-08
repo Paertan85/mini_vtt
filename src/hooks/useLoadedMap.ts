@@ -1,5 +1,5 @@
 // The map loaded in the DM window: its media and the per-map view the DM
-// changes (zoom, orientation, grid), held as one object.
+// changes (zoom, orientation, grid, fog rooms), held as one object.
 //
 // Loading and unloading replace the whole object, so no per-map value can be
 // left over from the previous map: a new field gets its value from the
@@ -8,7 +8,7 @@
 // restored by loadMap in App.tsx.
 
 import { useCallback, useState } from 'react';
-import type { MapEntryMeta, MapGrid, MediaType } from '../types/map';
+import type { FogRoom, MapEntryMeta, MapGrid, MediaType } from '../types/map';
 import type { Size } from '../lib/geometry';
 
 export interface LoadedMap {
@@ -24,6 +24,8 @@ export interface LoadedMap {
   mirrorHorizontal: boolean;
   mirrorVertical: boolean;
   grid: MapGrid | null;
+  /** Fog rooms marked out on the map; only the DM sees them */
+  rooms: FogRoom[];
 }
 
 const NO_MAP: LoadedMap = {
@@ -36,6 +38,7 @@ const NO_MAP: LoadedMap = {
   mirrorHorizontal: false,
   mirrorVertical: false,
   grid: null,
+  rooms: [],
 };
 
 /** A library entry, loaded from `mediaUrl`; its size follows once the media has loaded. */
@@ -49,6 +52,7 @@ const loadedFrom = (meta: MapEntryMeta, mediaUrl: string): LoadedMap => ({
   mirrorHorizontal: meta.mirrorHorizontal,
   mirrorVertical: meta.mirrorVertical,
   grid: meta.grid,
+  rooms: meta.rooms,
 });
 
 type Change<T> = T | ((current: T) => T);
@@ -78,5 +82,6 @@ export function useLoadedMap() {
     setMirrorHorizontal: useCallback((mirrored: boolean) => set('mirrorHorizontal', mirrored), [set]),
     setMirrorVertical: useCallback((mirrored: boolean) => set('mirrorVertical', mirrored), [set]),
     setGrid: useCallback((grid: MapGrid | null) => set('grid', grid), [set]),
+    setRooms: useCallback((change: Change<FogRoom[]>) => set('rooms', change), [set]),
   };
 }
