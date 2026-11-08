@@ -9,8 +9,17 @@
 
 import { useCallback, useRef, useState } from 'react';
 import type { AreaShape, SpellArea, EffectKind, MapGrid, Point } from '../types/map';
-import { type Orientation, screenToMapDirection } from '../lib/geometry';
-import { aimArea, clampRadius, MAX_AREAS, newArea, newAreaId, resizeArea } from '../lib/areas';
+import { type Orientation, screenToMapDirection, type Size } from '../lib/geometry';
+import {
+  aimArea,
+  clampRadius,
+  freeSpot,
+  MAX_AREAS,
+  newArea,
+  newAreaId,
+  newAreaStep,
+  resizeArea,
+} from '../lib/areas';
 import { notify } from '../ui/notify';
 
 export interface Areas {
@@ -22,8 +31,13 @@ export interface Areas {
   select: (id: string | null) => void;
   /** A map was loaded (or unloaded): its areas, none selected. */
   load: (areas: SpellArea[]) => void;
-  /** Add a shape at `center` (map pixels), pointing right on screen; false when the map is full. */
-  add: (shape: AreaShape, center: Point, kind: EffectKind) => boolean;
+  /**
+   * Add a shape at `center` (map pixels), or further down and to the right
+   * on screen while another area is there, pointing right on screen; false
+   * when the map is full. `displayScale` (screen px per map px in the DM
+   * view) keeps shapes added one after another far enough apart to grab.
+   */
+  add: (shape: AreaShape, center: Point, kind: EffectKind, displayScale: number) => boolean;
   /** A drag started (true) or ended (false). */
   drag: (dragging: boolean) => void;
   move: (id: string, center: Point) => void;
@@ -33,6 +47,7 @@ export interface Areas {
   setWidth: (id: string, feet: number) => void;
   /** The handle dragged to `point`; `snap` (Ctrl) keeps a cone or line to 45° steps. */
   aim: (id: string, point: Point, snap: boolean) => void;
+  /** A copy one square along the map, or further along while another area is there */
   duplicate: (id: string) => void;
   /** Arrow keys: one square, or 1 ft when `fine`, in the direction shown on screen. */
   nudge: (id: string, direction: Point, fine: boolean) => void;
@@ -40,7 +55,8 @@ export interface Areas {
   recolor: (id: string, kind: EffectKind) => void;
 }
 
-export function useAreas(grid: MapGrid | null, orientation: Orientation): Areas {
+/** `media`: the map's natural size, so new areas are always placed on it; null until it has loaded. */
+export function useAreas(grid: MapGrid | null, orientation: Orientation, media: Size | null): Areas {
   const [areas, setAreas] = useState<SpellArea[]>([]);
   // While the DM drags an area, players keep seeing it where it was
   const [playerAreas, setPlayerAreas] = useState<SpellArea[] | null>(null);
@@ -48,8 +64,8 @@ export function useAreas(grid: MapGrid | null, orientation: Orientation): Areas 
   const areasRef = useRef<SpellArea[]>([]);
   const frameRequest = useRef<number | null>(null);
   // The latest grid and orientation, so the edits keep a fixed identity
-  const latest = useRef({ grid, orientation });
-  latest.current = { grid, orientation };
+  const latest = useRef({ grid, orientation, media });
+  latest.current = { grid, orientation, media };
 
   /** Change the areas now; rendered on the next animation frame. */
   const update = useCallback((change: (current: SpellArea[]) => SpellArea[]) => {
@@ -84,11 +100,14 @@ export function useAreas(grid: MapGrid | null, orientation: Orientation): Areas 
   );
 
   const add = useCallback(
-    (shape: AreaShape, center: Point, kind: EffectKind) => {
+    (shape: AreaShape, center: Point, kind: EffectKind, displayScale: number) => {
       if (areasRef.current.length >= MAX_AREAS) return false;
+      const { grid: mapGrid, orientation, media: size } = latest.current;
       // Cones and lines start pointing right on screen, whatever the map's orientation
-      const right = screenToMapDirection({ x: 1, y: 0 }, latest.current.orientation);
-      const area = newArea(shape, center, kind, right);
+      const right = screenToMapDirection({ x: 1, y: 0 }, orientation);
+      const step = mapGrid ? newAreaStep(mapGrid, orientation, displayScale) : { x: 0, y: 0 };
+      const spot = freeSpot(center, step, areasRef.current, size);
+      const area = newArea(shape, spot, kind, right);
       replace([...areasRef.current, area]);
       setSelectedId(area.id);
       return true;
@@ -143,7 +162,14 @@ export function useAreas(grid: MapGrid | null, orientation: Orientation): Areas 
         notify(`A map can have at most ${MAX_AREAS} areas.`, 'error');
         return;
       }
-      const copy = { ...source, id: newAreaId(), x: source.x + mapGrid.cell };
+      const step = { x: mapGrid.cell, y: 0 };
+      const spot = freeSpot(
+        { x: source.x + step.x, y: source.y },
+        step,
+        areasRef.current,
+        latest.current.media,
+      );
+      const copy = { ...source, id: newAreaId(), ...spot };
       replace([...areasRef.current, copy]);
       setSelectedId(copy.id);
     },

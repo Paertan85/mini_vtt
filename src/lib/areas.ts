@@ -9,6 +9,7 @@
 
 import type { AreaShape, SpellArea, DrawnArea, EffectKind, MapGrid, Point } from '../types/map';
 import { EFFECT_KINDS, nearestEffectKind } from './effects';
+import { clamp, screenToMapDirection, type Orientation, type Size } from './geometry';
 import { feetToPixels, pixelsToFeet, snapToCell, snapToCorner } from './grid';
 
 export const MAX_AREAS = 50;
@@ -218,6 +219,56 @@ export function newArea(shape: AreaShape, center: Point, kind: EffectKind, direc
     angle: angleOf(direction),
     widthFt: DEFAULT_LINE_WIDTH_FT,
   };
+}
+
+/** How far apart (screen px) areas added one after another land, so each dot can be grabbed */
+export const NEW_AREA_GAP_PX = 32;
+
+/**
+ * The step between areas added one after another: down and to the right on
+ * screen, by whole squares, at least NEW_AREA_GAP_PX across on screen.
+ * `displayScale` is screen px per map px.
+ */
+export function newAreaStep(grid: MapGrid, orientation: Orientation, displayScale: number): Point {
+  const squarePx = grid.cell * displayScale;
+  const squares = squarePx > 0 ? Math.max(1, Math.ceil(NEW_AREA_GAP_PX / squarePx)) : 1;
+  const { x, y } = screenToMapDirection({ x: 1, y: 1 }, orientation);
+  return { x: x * squares * grid.cell, y: y * squares * grid.cell };
+}
+
+/** `value` brought into 0..size by whole sizes, so a row that runs off one edge goes on from the other. */
+const wrap = (value: number, size: number) => ((value % size) + size) % size;
+
+/**
+ * Where a new area goes: `start`, or, while another area's centre is there,
+ * a `step` further on, so areas added one after another don't land on top
+ * of each other. Nearer than half a step counts as the same spot.
+ *
+ * With the map's size, every spot is on the map: `start` is kept on it, and
+ * a row that runs off one edge goes on from the opposite one. Such a row can
+ * come back round to spots already tried, so it stops after a few times as
+ * many tries as there are areas and settles for `start`, which is on the map.
+ */
+export function freeSpot(
+  start: Point,
+  step: Point,
+  areas: readonly Point[],
+  media: Size | null = null,
+): Point {
+  const near = Math.hypot(step.x, step.y) / 2;
+  // Only a spot past an edge is wrapped; one on the edge stays where it is
+  const onAxis = (value: number, size: number) => (value < 0 || value > size ? wrap(value, size) : value);
+  const onMap = (point: Point) =>
+    media && media.w > 0 && media.h > 0
+      ? { x: onAxis(point.x, media.w), y: onAxis(point.y, media.h) }
+      : point;
+  const first = media ? { x: clamp(start.x, 0, media.w), y: clamp(start.y, 0, media.h) } : start;
+  const tries = (areas.length + 1) * 4;
+  for (let k = 0; k < tries; k++) {
+    const spot = onMap({ x: first.x + step.x * k, y: first.y + step.y * k });
+    if (!areas.some((area) => Math.hypot(area.x - spot.x, area.y - spot.y) < near)) return spot;
+  }
+  return first;
 }
 
 /** `value` grown or shrunk by whole wheel notches, each to the next multiple of 5 ft. */

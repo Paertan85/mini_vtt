@@ -4,7 +4,8 @@
 //                       brush, a lasso or a rectangle (useFogShapeDrag); in
 //                       Rooms, FogRoomsLayer takes the mouse
 //         effects tool  left button paints the chosen effect, right button erases
-//         frame tool    drag the frame to move the player view
+//         frame tool    drag the frame to move the player view (Ctrl: its
+//                       corner keeps to the grid, on a map with one)
 //         measure tool  drag to measure a distance in feet
 //         any tool      Shift + left/right paints fog
 //
@@ -18,7 +19,7 @@
 //                       is locked)
 //
 // Panning a zoomed DM view: middle-button drag. Alt + drag on the player
-// frame moves it from any tool, zoomed in or not.
+// frame moves it from any tool, zoomed in or not (Ctrl too: on the grid).
 // Circles (View and Shapes tools): drag the centre dot to move (Ctrl: snap
 // to square centres).
 
@@ -46,7 +47,14 @@ import { AreaHandles } from './AreaHandles';
 import { DrawnAreas } from './DrawnAreas';
 import { FogRoomsLayer } from './FogRoomsLayer';
 import { MeasureLayer } from './MeasureLayer';
-import { mapToOriented, orientedSize, screenToMapDirection, wheelPixels, type Size } from '../lib/geometry';
+import {
+  mapToOriented,
+  orientedSize,
+  screenToMapDirection,
+  snapPanToGrid,
+  wheelPixels,
+  type Size,
+} from '../lib/geometry';
 import { ctrlHeld, keyLabel } from '../lib/platform';
 import { releaseVideo } from '../lib/video';
 import { FRAME_COLOR_STYLES, type FrameColor } from '../lib/frameColors';
@@ -146,6 +154,8 @@ export interface ViewControls {
    * it, else the middle of what the zoomed-in DM view shows
    */
   placeInView: (preferred: Point) => Point;
+  /** Screen px per map px in the DM view, as last drawn */
+  displayScale: number;
 }
 
 const STAGE_PADDING = 24;
@@ -399,6 +409,7 @@ export function MapStage(props: MapStageProps) {
         ? preferred
         : (toMapPoint(stage.left + stage.width / 2, stage.top + stage.height / 2) ?? preferred);
     },
+    displayScale,
   };
 
   // ─── Wheel: zoom, area, brush and player view (native, so preventDefault works)
@@ -483,6 +494,24 @@ export function MapStage(props: MapStageProps) {
   // ─── DM view: middle-button drag pans a zoomed map; Alt + drag the frame ───
 
   /**
+   * Where the player frame goes when dragged from `startPan`, the mouse
+   * having moved from `start`. With Ctrl (Cmd) held its corner keeps to the
+   * corners of the map's grid squares; on a map without a grid, Ctrl
+   * changes nothing.
+   */
+  const draggedPan = (start: Point, startPan: MapPan, event: React.PointerEvent): MapPan => {
+    const next = {
+      x: startPan.x + (event.clientX - start.x) / displayScale,
+      y: startPan.y + (event.clientY - start.y) / displayScale,
+    };
+    const snapped =
+      grid && mediaSize && ctrlHeld(event)
+        ? snapPanToGrid(next, grid, mediaSize, { rotation, mirrorHorizontal, mirrorVertical })
+        : next;
+    return props.constrainPan(snapped);
+  };
+
+  /**
    * Runs in the capture phase, so a pan never also paints or drags the frame.
    * Alt + drag also moves the player frame from any tool. Alt is read from the
    * press itself as well as the key: Windows doesn't always deliver the Alt
@@ -523,12 +552,7 @@ export function MapStage(props: MapStageProps) {
   const handleViewPointerMove = (event: React.PointerEvent<HTMLElement>) => {
     const frameDrag = altFrameDragRef.current;
     if (frameDrag?.pointerId === event.pointerId) {
-      props.onPanChange(
-        props.constrainPan({
-          x: frameDrag.startPan.x + (event.clientX - frameDrag.start.x) / displayScale,
-          y: frameDrag.startPan.y + (event.clientY - frameDrag.start.y) / displayScale,
-        }),
-      );
+      props.onPanChange(draggedPan(frameDrag.start, frameDrag.startPan, event));
       return;
     }
     const drag = viewDragRef.current;
@@ -560,12 +584,7 @@ export function MapStage(props: MapStageProps) {
 
   const handleFramePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     const drag = frameDragRef.current;
-    if (!drag) return;
-    const next = {
-      x: drag.startPan.x + (event.clientX - drag.start.x) / displayScale,
-      y: drag.startPan.y + (event.clientY - drag.start.y) / displayScale,
-    };
-    props.onPanChange(props.constrainPan(next));
+    if (drag) props.onPanChange(draggedPan(drag.start, drag.startPan, event));
   };
 
   const endFrameDrag = () => {

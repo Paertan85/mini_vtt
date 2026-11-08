@@ -3,8 +3,9 @@
 // key labels from here, so the two can't drift apart.
 //
 // Not in the table: keys other parts handle themselves (the Measure tool's
-// ruler, a handout on the player screen, dialogs and text fields) and the
-// window's own keys (F11, Ctrl+R); the list names those as text.
+// ruler, copying and pasting fog rooms, a handout on the player screen,
+// dialogs and text fields) and the window's own keys (F11, Ctrl+R); the list
+// names those as text.
 //
 // Pure data and functions, no DOM access. Keys are written for Windows and
 // Linux; the list shows Mac names with keyLabel.
@@ -182,12 +183,14 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       ['Move a room', ['Drag inside it']],
       ['Resize a room', ['Drag an edge or corner']],
       ['Snap to the grid', ['Ctrl + drag']],
+      ['Copy a room', ['Ctrl+C'], 'With the mouse pointer over it'],
+      ['Paste it at the mouse pointer', ['Ctrl+V'], 'On the grid if the room was'],
     ],
   },
   {
     title: 'Player view',
     shortcuts: [
-      ['Move it', ['Drag the frame'], 'View tool'],
+      ['Move it', ['Drag the frame'], 'View tool; Ctrl keeps it to the grid'],
       ['Move it from any tool', ['Alt + drag']],
       ['Zoom in', [keys('zoomIn')]],
       ['Zoom out', [keys('zoomOut')]],

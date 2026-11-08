@@ -169,16 +169,19 @@ app.whenReady().then(async () => {
       `document.querySelector('button[aria-label="${name}"]').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`,
     );
   // Presses and moves report the held button, as a real drag does (or pointer
-  // capture is never taken)
-  const mouse = (type, x, y, button = 'left') =>
+  // capture is never taken); `keys` are held throughout, such as ['control']
+  const mouse = (type, x, y, button = 'left', keys = []) =>
     main.webContents.sendInputEvent({
       type,
       x: Math.round(x),
       y: Math.round(y),
       button,
       clickCount: 1,
-      modifiers: type === 'mouseUp' ? [] : [`${button}ButtonDown`],
+      modifiers: type === 'mouseUp' ? keys : [...keys, `${button}ButtonDown`],
     });
+  // The mouse moved with no button held
+  const hover = (point) =>
+    main.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(point.x), y: Math.round(point.y) });
   const centerOf = (selector) =>
     js(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return null;
       const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
@@ -192,13 +195,13 @@ app.whenReady().then(async () => {
       await sleep(100);
     }
   };
-  const drag = async (from, dx, dy, button = 'left') => {
-    mouse('mouseDown', from.x, from.y, button);
+  const drag = async (from, dx, dy, button = 'left', keys = []) => {
+    mouse('mouseDown', from.x, from.y, button, keys);
     for (let i = 1; i <= 5; i++) {
-      mouse('mouseMove', from.x + (dx * i) / 5, from.y + (dy * i) / 5, button);
+      mouse('mouseMove', from.x + (dx * i) / 5, from.y + (dy * i) / 5, button, keys);
       await sleep(30);
     }
-    mouse('mouseUp', from.x + dx, from.y + dy, button);
+    mouse('mouseUp', from.x + dx, from.y + dy, button, keys);
   };
 
   try {
@@ -363,6 +366,19 @@ app.whenReady().then(async () => {
       await sleep(900);
       const { pan } = readIndex().maps.find((m) => m.id === 'm_alpha');
       check('dragging the frame saves the pan', pan.x !== 50 || pan.y !== 40, JSON.stringify(pan));
+      // This map has no grid yet: Ctrl, which keeps the frame to the grid, changes nothing
+      const frameCorner = () =>
+        js(`(() => { const r = document.querySelector('[aria-label="Player view"]').getBoundingClientRect();
+          return { x: r.x, y: r.y }; })()`);
+      const beforeCtrl = await frameCorner();
+      await drag(await centerOf('[aria-label="Player view"]'), 40, 30, 'left', ['control']);
+      await sleep(900);
+      const afterCtrl = await frameCorner();
+      check(
+        'without a grid, Ctrl + drag moves the frame just as a drag does',
+        Math.abs(afterCtrl.x - beforeCtrl.x - 40) < 1 && Math.abs(afterCtrl.y - beforeCtrl.y - 30) < 1,
+        JSON.stringify({ beforeCtrl, afterCtrl }),
+      );
     }
 
     // Fog tool: paint, then undo restores the previous mask (on disk too)
@@ -605,6 +621,50 @@ app.whenReady().then(async () => {
       (await js(`!!document.querySelector('[data-room]')`)) === true &&
         (await js(`!document.querySelector('[data-room]')`, player)) === true,
     );
+
+    // Ctrl+C over a room copies it, Ctrl+V pastes a copy centred on the mouse pointer
+    const roomBox = (index) =>
+      js(`(() => { const r = document.querySelectorAll('[data-room]:not([data-side])')[${index}]?.getBoundingClientRect();
+        return r ? { x: r.x, y: r.y, w: r.width, h: r.height } : null; })()`);
+    const copiedBox = await roomBox(0);
+    hover({ x: copiedBox.x + copiedBox.w / 2, y: copiedBox.y + copiedBox.h / 2 });
+    await sleep(100);
+    await press('c', { ctrlKey: true });
+    await sleep(200);
+    check(
+      'Ctrl+C over a room copies it, and says so',
+      (await js(
+        `[...document.querySelectorAll('[role="status"] > div')].some((t) => t.textContent.startsWith('Throne room copied'))`,
+      )) === true,
+    );
+    // The copy lasts while another tool is used
+    await press('v');
+    await sleep(200);
+    await press('f');
+    await sleep(200);
+    const pasteAt = at(0.3, 0.3);
+    hover(pasteAt);
+    await sleep(100);
+    await press('v', { ctrlKey: true });
+    await sleep(900);
+    const pastedBox = await roomBox(1);
+    check(
+      'back in Rooms after another tool, Ctrl+V pastes a copy of the same size, centred on the mouse pointer',
+      savedRooms().length === 2 &&
+        !!pastedBox &&
+        Math.abs(pastedBox.w - copiedBox.w) < 1 &&
+        Math.abs(pastedBox.h - copiedBox.h) < 1 &&
+        Math.abs(pastedBox.x + pastedBox.w / 2 - Math.round(pasteAt.x)) < 1.5 &&
+        Math.abs(pastedBox.y + pastedBox.h / 2 - Math.round(pasteAt.y)) < 1.5,
+      JSON.stringify({ copiedBox, pastedBox, pasteAt }),
+    );
+    check(
+      'the copy is a room of its own, with its number rather than the name',
+      !savedRooms()[1]?.name && savedRooms()[1]?.id !== savedRooms()[0].id,
+      JSON.stringify(savedRooms()),
+    );
+    await js(`${roomButton('Delete Room 2')}.click()`);
+    await sleep(900);
 
     await js(`${roomButton('Delete Throne room')}.click()`);
     await sleep(900);
@@ -1038,6 +1098,18 @@ app.whenReady().then(async () => {
       alpha().circles.length === 1 && alpha().circles[0].x > beforeNudge.x + cell,
       JSON.stringify(alpha().circles),
     );
+    // Its dot can be grabbed a little outside its edge
+    const dotBox =
+      await js(`(() => { const r = document.querySelector('button[aria-label^="Circle,"]').getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2, radius: r.width / 2 }; })()`);
+    const beforeEdgeGrab = alpha().circles[0];
+    await drag({ x: dotBox.x + dotBox.radius + 3, y: dotBox.y }, 0, 40);
+    await sleep(900);
+    check(
+      'a dot can be grabbed just outside its edge',
+      alpha().circles[0].y > beforeEdgeGrab.y,
+      JSON.stringify({ dotBox, before: beforeEdgeGrab, after: alpha().circles[0] }),
+    );
 
     // A dragged circle stays put for players until it is dropped
     const playerCircleX = () => js(`document.querySelector('svg circle').getAttribute('cx')`, player);
@@ -1205,6 +1277,49 @@ app.whenReady().then(async () => {
     check('near a right angle the square settles onto the grid', settled?.angle === 0, `${settled?.angle}°`);
     await press('Delete');
     await sleep(600);
+
+    // A shape added twice lands beside the first, far enough away to grab each
+    await addArea('Circle');
+    await addArea('Circle');
+    await sleep(900);
+    const [firstCircle, secondCircle] = alpha().circles;
+    const circleDots = await js(`[...document.querySelectorAll('button[aria-label^="Circle,"]')].map((b) => {
+      const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })`);
+    check(
+      'a shape added twice does not land on the first',
+      alpha().circles.length === 2 &&
+        Math.hypot(secondCircle.x - firstCircle.x, secondCircle.y - firstCircle.y) >= alpha().grid.cell &&
+        circleDots.length === 2 &&
+        circleDots[1].x - circleDots[0].x > 31.5 &&
+        circleDots[1].y - circleDots[0].y > 31.5,
+      JSON.stringify({ circles: alpha().circles, circleDots }),
+    );
+    await press('Delete');
+    await sleep(300);
+    mouse('mouseDown', circleDots[0].x, circleDots[0].y);
+    mouse('mouseUp', circleDots[0].x, circleDots[0].y);
+    await sleep(200);
+    await press('Delete');
+    await sleep(600);
+    check('both are gone again', alpha().circles.length === 0, JSON.stringify(alpha().circles));
+
+    // On a map with a grid, Ctrl + drag keeps the player frame's corner on its corners
+    await press('v');
+    await sleep(200);
+    await drag(await centerOf('[aria-label="Player view"]'), 37, 23, 'left', ['control']);
+    await sleep(900);
+    {
+      const { pan: gridPan, grid: frameGrid } = alpha();
+      const onLine = (value, offset) => {
+        const squares = (value - offset) / frameGrid.cell;
+        return Math.abs(squares - Math.round(squares)) < 1e-6;
+      };
+      check(
+        'with a grid, Ctrl + drag puts the player frame’s corner on a grid corner',
+        onLine(gridPan.x, frameGrid.offsetX) && onLine(gridPan.y, frameGrid.offsetY),
+        JSON.stringify({ pan: gridPan, grid: frameGrid }),
+      );
+    }
 
     // The Measure tool: a drag shows the distance in feet. Movement counts
     // diagonals 5/10 until the settings menu says otherwise, and players only

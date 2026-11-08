@@ -77,6 +77,18 @@ export function moveRect(rect: Rect, delta: Point, media: Size, grid: MapGrid | 
 }
 
 /**
+ * A copy of `rect` centred on `point`, and kept on the map. A rectangle on
+ * the grid (its first corner on a grid corner, as Ctrl puts it) gives a
+ * copy on the grid; any other copy lands exactly where it is put.
+ */
+export function pasteRect(rect: Rect, point: Point, media: Size, grid: MapGrid | null = null): Rect {
+  const corner = grid && snapToCorner({ x: rect.x, y: rect.y }, grid);
+  const onGrid = !!corner && Math.hypot(corner.x - rect.x, corner.y - rect.y) < 0.001;
+  const delta = { x: point.x - rect.x - rect.width / 2, y: point.y - rect.y - rect.height / 2 };
+  return moveRect(rect, delta, media, onGrid ? grid : null);
+}
+
+/**
  * The `edges` moved to `point`, and kept on the map; with a grid, the moved
  * edges snap to its lines. Dragged past the opposite edge, the rectangle
  * turns inside out rather than vanishing.

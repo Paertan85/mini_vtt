@@ -1,5 +1,8 @@
 // Small geometry helpers shared by the DM window components.
 
+import type { MapGrid } from '../types/map';
+import { snapToCorner } from './grid';
+
 export interface Size {
   w: number;
   h: number;
@@ -62,6 +65,15 @@ export function orientedToMap(point: Vector, media: Size, orientation: Orientati
   const at = screenToMapDirection({ x: point.x - oriented.w / 2, y: point.y - oriented.h / 2 }, orientation);
   return { x: at.x + media.w / 2, y: at.y + media.h / 2 };
 }
+
+/**
+ * The player view's top-left corner (its pan, on the turned and mirrored
+ * map) moved to the nearest corner of the map's grid squares, so whole
+ * squares start at the edges of the player screen. At true scale the map's
+ * squares then line up with the frame's own grid.
+ */
+export const snapPanToGrid = (pan: Vector, grid: MapGrid, media: Size, orientation: Orientation): Vector =>
+  mapToOriented(snapToCorner(orientedToMap(pan, media, orientation), grid), media, orientation);
 
 // ─── Player view zoom ────────────────────────────────────────────────────────
 

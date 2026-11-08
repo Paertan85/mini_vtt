@@ -4,6 +4,8 @@
 // a moment after each change.
 //
 // The edits keep a fixed identity, so passing them down re-renders nothing.
+// They also keep the room last copied (Ctrl+C in FogRoomsLayer), so a copy
+// lasts while the Fog tool is left and picked again.
 
 import { useMemo, useRef } from 'react';
 import type { FogRoom } from '../types/map';
@@ -12,7 +14,7 @@ import { addRoom, MAX_ROOMS, removeRoom, renameRoom, reshapeRoom } from '../lib/
 import { notify } from '../ui/notify';
 
 export interface RoomEdits {
-  /** A room marked out; refused, with a message, when the map already has MAX_ROOMS */
+  /** A room marked out or pasted; refused, with a message, when the map already has MAX_ROOMS */
   add: (rect: Rect) => void;
   /** Moved or resized */
   reshape: (id: string, rect: Rect) => void;
@@ -20,6 +22,10 @@ export interface RoomEdits {
   rename: (id: string, name: string) => void;
   /** The fog stays as it is */
   remove: (id: string) => void;
+  /** Keep a room's rectangle to paste copies of; it stays when the tool or map changes */
+  copy: (rect: Rect) => void;
+  /** The rectangle last copied, or null */
+  copied: () => Rect | null;
 }
 
 export function useRoomEdits(
@@ -29,6 +35,8 @@ export function useRoomEdits(
   // Read when a room is added, so the edits don't change with the rooms
   const countRef = useRef(rooms.length);
   countRef.current = rooms.length;
+  // Nothing shows what was copied, so a change renders nothing
+  const copiedRef = useRef<Rect | null>(null);
   return useMemo(
     () => ({
       add: (rect: Rect) => {
@@ -41,6 +49,10 @@ export function useRoomEdits(
       reshape: (id: string, rect: Rect) => setRooms((current) => reshapeRoom(current, id, rect)),
       rename: (id: string, name: string) => setRooms((current) => renameRoom(current, id, name)),
       remove: (id: string) => setRooms((current) => removeRoom(current, id)),
+      copy: ({ x, y, width, height }: Rect) => {
+        copiedRef.current = { x, y, width, height };
+      },
+      copied: () => copiedRef.current,
     }),
     [setRooms],
   );

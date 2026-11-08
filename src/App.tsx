@@ -45,7 +45,7 @@ import {
   stepZoom,
   type Size,
 } from './lib/geometry';
-import { keyLabel } from './lib/platform';
+import { isTypingTarget, keyLabel } from './lib/platform';
 import { smallerVideoSize } from './lib/video';
 import type { FrameColor } from './lib/frameColors';
 import { DEFAULT_FEET_PER_CELL, gridFromCorners } from './lib/grid';
@@ -103,11 +103,6 @@ async function adviseOnVideo(mapId: string, name: string, size: Size) {
     { durationMs: 15000 },
   );
 }
-
-/** True when a key press should go to a text field or dialog rather than a shortcut. */
-const isTypingTarget = (target: EventTarget | null) =>
-  target instanceof HTMLElement &&
-  (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
 
 export function App() {
   const api = window.electronAPI;
@@ -179,7 +174,7 @@ export function App() {
   const rulerRef = useRef<RulerState | null>(null);
 
   // ─── Spell areas and grid measuring (per map) ───────────────────────────────
-  const spellAreas = useAreas(grid, { rotation, mirrorHorizontal, mirrorVertical });
+  const spellAreas = useAreas(grid, { rotation, mirrorHorizontal, mirrorVertical }, mediaSize);
   const { areas, selectedId: selectedAreaId, select: setSelectedAreaId } = spellAreas;
   const [calibration, setCalibration] = useState<Calibration | null>(null);
 
@@ -866,7 +861,8 @@ export function App() {
           })
         : { x: mediaSize.w / 2, y: mediaSize.h / 2 };
     // Zoomed in on another part of the map, the DM would not see it appear
-    spellAreas.add(shape, viewControls.current?.placeInView(center) ?? center, effectKind);
+    const view = viewControls.current;
+    spellAreas.add(shape, view?.placeInView(center) ?? center, effectKind, view?.displayScale ?? 1);
   };
 
   // The colour picked in the Shapes tool also goes to the selected shape

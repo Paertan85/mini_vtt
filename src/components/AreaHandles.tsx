@@ -134,7 +134,8 @@ export function AreaHandles({
                     ? 'Drag to turn the square (it settles square to the grid near a right angle)'
                     : 'Drag to aim and set the length (5 ft steps; Ctrl: turn in 45° steps)'
                 }
-                className="absolute z-40 h-3.5 w-3.5 rotate-45 cursor-crosshair border-2 border-gold bg-ground"
+                // Its ::before reaches 4px past its edge, so it is easier to grab than it looks
+                className="absolute z-40 h-3.5 w-3.5 rotate-45 cursor-crosshair border-2 border-gold bg-ground before:absolute before:-inset-1.5"
                 style={{ left: tip.x - 7, top: tip.y - 7 }}
                 onPointerDown={(event) => handleAreaPointerDown(event, area.id, true)}
                 onPointerMove={handleAreaPointerMove}
@@ -162,7 +163,8 @@ export function AreaHandles({
                   area.shape === 'line' ? 'width' : 'size'
                 }; arrow keys nudge it.`,
               )}
-              className={`absolute z-30 h-4 w-4 cursor-move rounded-full border-2 ${
+              // Its ::before reaches 4px past its edge, so it is easier to grab than it looks
+              className={`absolute z-30 h-4 w-4 cursor-move rounded-full border-2 before:absolute before:-inset-1.5 before:rounded-full ${
                 selected ? 'border-ground bg-gold' : 'border-gold'
               }`}
               style={{

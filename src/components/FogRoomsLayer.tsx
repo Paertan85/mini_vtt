@@ -6,15 +6,17 @@
 //   drag inside a room        moves it
 //   drag an edge or corner    resizes it
 //   Ctrl (Cmd on a Mac)       snaps what is dragged to the grid
-//   the room's bar            its name, whether it is hidden or open, a
-//                             button that reveals or covers it, and Delete
+//   Ctrl+C over a room        copies it; Ctrl+V pastes a copy at the mouse
+//                             pointer, on the grid if the room was on it
+//   the room's bar            its name, a button that reveals or covers it,
+//                             Delete, and whether it is hidden or open
 //
 // Players never see the rooms, only the fog a click changes. The rooms are
 // laid out on the unturned stage surface, so their bars stay upright however
 // the map is turned. A drag re-renders only this layer, and changes the room
 // (which is then saved) once, when it is dropped.
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Eye, EyeOff, Trash2 } from 'lucide-react';
 import type { FogMode, FogRoom, MapGrid, Point } from '../types/map';
 import type { Orientation, Size } from '../lib/geometry';
@@ -22,15 +24,17 @@ import {
   clipToMap,
   edgesOnMap,
   moveRect,
+  pasteRect,
   rectFromCorners,
   resizeRect,
   type Edges,
   type Rect,
 } from '../lib/rect';
 import { MAX_ROOM_NAME, ROOM_STATUS_LABELS, roomLabel, type RoomStatus } from '../lib/rooms';
-import { ctrlHeld, keyLabel } from '../lib/platform';
+import { ctrlHeld, isTypingTarget, keyLabel } from '../lib/platform';
 import type { RoomEdits } from '../hooks/useRoomEdits';
 import { useRoomStatus } from '../hooks/useRoomStatus';
+import { notify } from '../ui/notify';
 
 interface FogRoomsLayerProps {
   rooms: FogRoom[];
@@ -142,6 +146,47 @@ export function FogRoomsLayer({
   const bigEnough = (rect: Rect) => Math.min(rect.width, rect.height) * displayScale >= MIN_ROOM_PX;
   const roomById = (id: string) => rooms.find((room) => room.id === id);
 
+  // ─── Copy and paste: Ctrl+C over a room, Ctrl+V where a copy should go ────
+  //
+  // Only in Rooms, and never while a name is typed. Where the mouse is over
+  // the map is kept in a ref, so moving it renders nothing; the room under it
+  // is looked up when Ctrl+C is pressed. The copy is kept by the edits, so it
+  // lasts while another tool is used.
+
+  const pointerRef = useRef<Point | null>(null);
+  // The key listener is added once per visit to Rooms, so it reads these here
+  const latest = useRef({ rooms, media, grid, toMapPoint, edits });
+  latest.current = { rooms, media, grid, toMapPoint, edits };
+
+  useEffect(() => {
+    if (!editable) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase();
+      if ((key !== 'c' && key !== 'v') || !ctrlHeld(event) || event.altKey || event.shiftKey) return;
+      if (event.repeat || isTypingTarget(event.target) || document.querySelector('[role="dialog"]')) return;
+      const pointer = pointerRef.current;
+      if (!pointer) return;
+      const { rooms: current, media: size, grid: mapGrid, toMapPoint: toMap, edits: change } = latest.current;
+      if (key === 'c') {
+        const over = document.elementFromPoint(pointer.x, pointer.y)?.closest<HTMLElement>('[data-room]');
+        const index = current.findIndex((room) => room.id === over?.dataset.room);
+        if (index < 0) return;
+        change.copy(current[index]);
+        notify(
+          keyLabel(`${roomLabel(current[index], index)} copied. Ctrl+V pastes it at the mouse pointer.`),
+        );
+      } else {
+        const copied = change.copied();
+        const at = toMap(pointer.x, pointer.y);
+        if (!copied || !at) return;
+        change.add(pasteRect(copied, at, size, mapGrid));
+      }
+      event.preventDefault();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [editable]);
+
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!editable || (event.button !== 0 && event.button !== 2)) return;
     const point = toMapPoint(event.clientX, event.clientY);
@@ -165,6 +210,7 @@ export function FogRoomsLayer({
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    pointerRef.current = { x: event.clientX, y: event.clientY };
     if (!drag || drag.pointerId !== event.pointerId) return;
     const point = toMapPoint(event.clientX, event.clientY);
     if (!point) return;
@@ -207,7 +253,7 @@ export function FogRoomsLayer({
   };
 
   const roomTitle = keyLabel(
-    'Click to reveal this room to the players, right-click to cover it. Drag to move it, drag an edge or corner to resize it (Ctrl snaps to the grid).',
+    'Click to reveal this room to the players, right-click to cover it. Drag to move it, drag an edge or corner to resize it (Ctrl snaps to the grid). Ctrl+C copies it.',
   );
 
   return (
@@ -218,6 +264,7 @@ export function FogRoomsLayer({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={() => setDrag(null)}
+      onPointerLeave={() => (pointerRef.current = null)}
       onContextMenu={(event) => event.preventDefault()}
     >
       {rooms.map((room, index) => {
@@ -277,7 +324,7 @@ export function FogRoomsLayer({
   );
 }
 
-/** A room's bar, in its top-left corner on screen: name, status, reveal or cover, delete. */
+/** A room's bar, in its top-left corner on screen: name, reveal or cover, delete, status. */
 function RoomBar({
   room,
   label,
@@ -319,11 +366,6 @@ function RoomBar({
         }}
         className="w-24 rounded border border-transparent bg-transparent px-1 py-0.5 text-[12px] text-ink placeholder:text-muted hover:border-line focus:border-gold focus:outline-none"
       />
-      {status && (
-        <span className={`whitespace-nowrap px-1 ${STATUS_COLORS[status]}`}>
-          {ROOM_STATUS_LABELS[status]}
-        </span>
-      )}
       <button
         type="button"
         aria-label={`${open ? 'Cover' : 'Reveal'} ${label}`}
@@ -346,6 +388,12 @@ function RoomBar({
       >
         <Trash2 className="h-3.5 w-3.5" />
       </button>
+      {/* Last, so its changing width never moves the buttons */}
+      {status && (
+        <span className={`whitespace-nowrap px-1 ${STATUS_COLORS[status]}`}>
+          {ROOM_STATUS_LABELS[status]}
+        </span>
+      )}
     </div>
   );
 }

@@ -997,6 +997,59 @@ app.whenReady().then(async () => {
           added.kind === 'magic',
         JSON.stringify(added),
       );
+      const spot = (taken) =>
+        JSON.stringify(areasLib.freeSpot({ x: 500, y: 500 }, { x: 100, y: 100 }, taken));
+      check(
+        'a new area goes where it is asked, or steps on past the areas already there',
+        spot([]) === '{"x":500,"y":500}' &&
+          spot([{ x: 900, y: 100 }]) === '{"x":500,"y":500}' &&
+          spot([{ x: 520, y: 490 }]) === '{"x":600,"y":600}' &&
+          spot([{ x: 600, y: 600 }]) === '{"x":500,"y":500}' &&
+          spot([
+            { x: 600, y: 600 },
+            { x: 500, y: 500 },
+          ]) === '{"x":700,"y":700}',
+        spot([{ x: 520, y: 490 }]),
+      );
+      // On a 1000 × 800 map, a row of new areas never leaves it
+      const mapSize = { w: 1000, h: 800 };
+      const row = [];
+      for (let i = 0; i < 40; i++) {
+        row.push(areasLib.freeSpot({ x: 500, y: 500 }, { x: 100, y: 100 }, row, mapSize));
+      }
+      const offMap = row.filter((p) => p.x < 0 || p.y < 0 || p.x > mapSize.w || p.y > mapSize.h);
+      const wrapped = areasLib.freeSpot(
+        { x: 500, y: 500 },
+        { x: 100, y: 100 },
+        [
+          { x: 500, y: 500 },
+          { x: 600, y: 600 },
+          { x: 700, y: 700 },
+          { x: 800, y: 800 },
+        ],
+        mapSize,
+      );
+      check(
+        'new areas stay on the map: a row that runs past an edge goes on from the other side',
+        offMap.length === 0 && wrapped.x === 900 && wrapped.y === 100,
+        JSON.stringify({ offMap, wrapped }),
+      );
+      const outside = areasLib.freeSpot({ x: -50, y: 900 }, { x: 100, y: 100 }, [], mapSize);
+      check(
+        'a new area asked for off the map is put on its edge',
+        outside.x === 0 && outside.y === 800,
+        JSON.stringify(outside),
+      );
+      const upright = { rotation: 0, mirrorHorizontal: false, mirrorVertical: false };
+      const step = (orientation, displayScale) =>
+        JSON.stringify(areasLib.newAreaStep(measured, orientation, displayScale));
+      check(
+        'areas added one after another step down and to the right on screen, whole squares far enough apart to grab',
+        step(upright, 1) === '{"x":100,"y":100}' &&
+          step(upright, 0.1) === '{"x":400,"y":400}' &&
+          step({ ...upright, rotation: 90 }, 1) === '{"x":100,"y":-100}',
+        step(upright, 0.1),
+      );
     }
 
     // Keyboard shortcuts: one table for the key handler and the shortcuts list
@@ -1082,6 +1135,36 @@ app.whenReady().then(async () => {
         'map and screen coordinates convert both ways in every orientation',
         roundTrips && turned.x === 300 && turned.y === 0,
         JSON.stringify(turned),
+      );
+      // Ctrl + drag on the player frame: its corner (on the turned map) goes
+      // to the nearest corner of the grid's squares, in every orientation
+      const gridMedia = { w: 1000, h: 800 };
+      const pan = { x: 333, y: 257 };
+      const onLine = (value, offset) => {
+        const squares = (value - offset) / measured.cell;
+        return Math.abs(squares - Math.round(squares)) < 1e-9;
+      };
+      let panOnGrid = true;
+      for (const rotation of [0, 90, 180, 270]) {
+        for (const mirrorHorizontal of [false, true]) {
+          const orientation = { rotation, mirrorHorizontal, mirrorVertical: false };
+          const snapped = geometryLib.snapPanToGrid(pan, measured, gridMedia, orientation);
+          const corner = geometryLib.orientedToMap(snapped, gridMedia, orientation);
+          if (!onLine(corner.x, measured.offsetX) || !onLine(corner.y, measured.offsetY)) panOnGrid = false;
+          if (Math.hypot(snapped.x - pan.x, snapped.y - pan.y) > measured.cell / Math.SQRT2 + 1e-9) {
+            panOnGrid = false;
+          }
+        }
+      }
+      const uprightPan = geometryLib.snapPanToGrid(pan, measured, gridMedia, {
+        rotation: 0,
+        mirrorHorizontal: false,
+        mirrorVertical: false,
+      });
+      check(
+        'Ctrl puts the player view’s corner on the nearest grid corner, however the map is turned',
+        panOnGrid && uprightPan.x === 310 && uprightPan.y === 260,
+        JSON.stringify(uprightPan),
       );
     }
 
@@ -1234,6 +1317,19 @@ app.whenReady().then(async () => {
             measured,
           ),
         ) === JSON.stringify({ x: 10, y: 60, width: 300, height: 100 }),
+    );
+    const onGridRoom = { x: 10, y: 60, width: 200, height: 100 };
+    const paste = (rect, point) => JSON.stringify(rectLib.pasteRect(rect, point, largeMap, measured));
+    check(
+      'a pasted copy is centred on the pointer and kept on the map; a copy of a room on the grid lands on it',
+      paste(onGridRoom, { x: 437, y: 512 }) === JSON.stringify({ x: 310, y: 460, width: 200, height: 100 }) &&
+        paste({ ...onGridRoom, x: 15 }, { x: 437, y: 512 }) ===
+          JSON.stringify({ x: 337, y: 462, width: 200, height: 100 }) &&
+        paste(onGridRoom, { x: 990, y: 990 }) ===
+          JSON.stringify({ x: 800, y: 900, width: 200, height: 100 }) &&
+        JSON.stringify(rectLib.pasteRect(onGridRoom, { x: 437, y: 512 }, largeMap)) ===
+          JSON.stringify({ x: 337, y: 462, width: 200, height: 100 }),
+      paste(onGridRoom, { x: 437, y: 512 }),
     );
     const edges = (side, rotation, mirrorHorizontal = false) =>
       JSON.stringify(rectLib.edgesOnMap(side, { rotation, mirrorHorizontal, mirrorVertical: false }));
