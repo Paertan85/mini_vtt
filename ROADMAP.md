@@ -19,7 +19,7 @@ Have an idea? Open an [issue](https://github.com/Paertan85/mini_vtt/issues).
 - **DM notes:** pins on the map that only the DM sees.
 - **Grid from the image size**, as Mini Gridder does: from the map's pixel size, work out the square sizes that fit a whole number of squares both across and down, and step through them (arrow keys or wheel, say) with the grid shown over the map until it lines up. A quicker way to set a grid than measuring, for maps whose names give no grid.
 - **Universal VTT import** (`.dd2vtt`, `.uvtt`, from Dungeondraft and others): the map image together with its grid size, so it needs no measuring.
-- **Smaller copies of very large maps** (maybe): when a map much larger than the screens can show is added, offer to keep a smaller copy, as the app already suggests for videos too large to play smoothly. A 318-megapixel map uses 3 GB or more while it is shown (see Known limitations in the README).
+- **Smaller copies of very large maps** (maybe): when a map much larger than the screens can show is added, offer to keep a smaller copy, as the app already suggests for videos too large to play smoothly. A 318-megapixel map uses 3 GB or more while it is shown (see Known limitations in the README), and on the game laptop (integrated graphics, player screen on a 4K TV) dragging the view lags with it, though play with a still view is fine.
 
 ### Platforms
 
