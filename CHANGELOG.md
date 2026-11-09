@@ -20,6 +20,9 @@ All notable changes to this project are documented here. The format is based on
   and the next undo went to the wrong step. An undo that hasn't finished
   when you paint is now dropped whole.
 
+- Switching maps could briefly show the previous map's fog on the player
+  screen.
+
 ## 1.4.0 - 2026-11-08
 
 ### Added

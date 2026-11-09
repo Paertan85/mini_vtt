@@ -123,6 +123,8 @@ export function PlayerScreen() {
     if (next.mediaUrl !== currentMediaUrlRef.current) {
       currentMediaUrlRef.current = next.mediaUrl;
       latestFogRef.current = null;
+      // A snapshot of the old map still decoding must not draw on the new one
+      snapshotSeqRef.current += 1;
       setRuler(null);
       // In the same render as the new map, so its image's load (handleMediaLoad)
       // always comes after: an effect could run after a cached image had loaded
