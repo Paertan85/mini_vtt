@@ -44,8 +44,10 @@ after each step (garbage collected first). Memory that keeps rising from round
 to round is a leak. It uses plain grey test maps, or your own:
 `npm run memory -- <folder> --rounds 3 --csv report.csv` (files in a folder
 named `Handouts` become handouts). `--no-player` leaves out the player window,
-and `--switch name=value` tries a Chromium switch. Your real library is
-untouched.
+`--fullscreen` puts the DM window full screen on the main display and the
+player window full screen on another (a TV), `--cpu` adds the CPU each
+process uses over two seconds at every step, and `--switch name=value` tries
+a Chromium switch. Your real library is untouched.
 
 A few guidelines:
 

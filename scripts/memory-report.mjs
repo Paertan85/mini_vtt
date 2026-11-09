@@ -6,6 +6,11 @@
 //   npm run memory                          plain grey test maps
 //   npm run memory -- <folder>              your own maps and handouts
 //   npm run memory -- <folder> --rounds 5 --no-player --csv report.csv
+//   npm run memory -- <folder> --fullscreen --cpu
+//
+// --fullscreen puts the DM window full screen on the main display and the
+// player window full screen on another one (the TV), as at the table.
+// --cpu adds the CPU used over two seconds after each step (100 = one core).
 //
 // Image and video files in a folder named "Handouts" (any depth) are imported
 // as handouts, the others as maps; other files (notes, scripts) are left out.
@@ -13,7 +18,7 @@
 // Garbage is collected in both windows before each reading, so what is left is
 // what the app keeps.
 
-import { app, BrowserWindow, protocol } from 'electron';
+import { app, BrowserWindow, protocol, screen } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -28,6 +33,10 @@ const option = (name) => {
 };
 const ROUNDS = Number(option('--rounds') ?? 3);
 const WITH_PLAYER = !args.includes('--no-player');
+// Both windows full screen, the player window on another display (a TV) if there is one
+const FULLSCREEN = args.includes('--fullscreen');
+// Also read the CPU each process uses over two seconds at every step
+const CPU = args.includes('--cpu');
 const CSV = option('--csv');
 const valued = new Set(['--rounds', '--csv', '--switch']);
 const folder = args.find((arg, i) => !arg.startsWith('--') && !valued.has(args[i - 1]));
@@ -193,6 +202,23 @@ async function run() {
   }
   const windows = () => [dm, player].filter((w) => w && !w.isDestroyed());
 
+  if (FULLSCREEN) {
+    const main = screen.getPrimaryDisplay();
+    const other = screen.getAllDisplays().find((display) => display.id !== main.id);
+    const pixels = (display) =>
+      `${Math.round(display.size.width * display.scaleFactor)}×${Math.round(display.size.height * display.scaleFactor)}`;
+    if (player && other) {
+      player.setBounds(other.workArea);
+      player.setFullScreen(true);
+      console.log(`Player window full screen on ${pixels(other)}`);
+    } else if (player) {
+      console.log('Only one display: the player window stays a window');
+    }
+    dm.setFullScreen(true);
+    console.log(`DM window full screen on ${pixels(main)}`);
+    await sleep(2000);
+  }
+
   const attach = (window) => {
     if (!window.webContents.debugger.isAttached()) window.webContents.debugger.attach('1.3');
     return window.webContents.debugger;
@@ -222,6 +248,17 @@ async function run() {
       counters[role] = { nodes: dom.nodes, listeners: dom.jsEventListeners, documents: dom.documents };
     }
     const total = Object.values(processes).reduce((sum, kb) => sum + kb, 0);
+    // Each reading is the use since the one before: start now, read in two seconds
+    const cpu = {};
+    if (CPU) {
+      app.getAppMetrics();
+      await sleep(2000);
+      for (const metric of app.getAppMetrics()) {
+        const name = roles.get(metric.pid) ?? metric.type;
+        cpu[`${name} cpu`] = Math.round((cpu[`${name} cpu`] ?? 0) + metric.cpu.percentCPUUsage);
+      }
+      cpu['total cpu'] = Object.values(cpu).reduce((sum, value) => sum + value, 0);
+    }
     const row = {
       step,
       total: MB(total),
@@ -233,6 +270,7 @@ async function run() {
       'Player nodes': counters.Player?.nodes,
       'Player listeners': counters.Player?.listeners,
       'main heap': Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+      ...cpu,
       ...extra,
     };
     rows.push(row);
