@@ -1945,6 +1945,31 @@ app.whenReady().then(async () => {
       f.startsWith('index.json.corrupt-'),
     );
     check('the corrupt index is backed up, not discarded', backups.length === 1, backups.join(', '));
+
+    // ── An index that is there but can't be read ─────────────────────────────
+    // Not an empty library: a save would write that, and removeLeftovers
+    // would then delete every folder. A folder in its place fails to read
+    // (EISDIR) on every system, as a file another program holds can.
+    const unreadable = path.join(tmp, 'library', 'index.json');
+    await fs.rm(unreadable, { force: true });
+    await fs.mkdir(unreadable);
+    const refused = await lib.loadSnapshot().then(
+      () => false,
+      () => true,
+    );
+    check('an unreadable index is an error, not an empty library', refused);
+    const saveRefused = await lib.saveSettings({ gridSize: 10 }).then(
+      () => false,
+      () => true,
+    );
+    check(
+      'nothing is saved over an unreadable index',
+      saveRefused && (await fs.stat(unreadable)).isDirectory(),
+    );
+    const stillKept = await leftover('m_unlisted_unreadable');
+    await lib.removeLeftovers();
+    check('with an unreadable index, unlisted folders are left alone', await exists(stillKept));
+    await fs.rm(unreadable, { recursive: true, force: true });
   } catch (err) {
     check('test run completed without throwing', false, err?.stack ?? String(err));
   }

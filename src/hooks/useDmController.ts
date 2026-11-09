@@ -15,6 +15,7 @@ import type {
   EffectKind,
   HandoutMeta,
   ImportResult,
+  LibrarySnapshot,
   MapEntryMeta,
   MapGrid,
   MapPan,
@@ -393,7 +394,19 @@ export function useDmController(): DmController {
   const loadTokenRef = useRef(0);
 
   const reloadLibrary = useCallback(async () => {
-    const snapshot = await api?.loadLibrary();
+    let snapshot: LibrarySnapshot | null | undefined;
+    try {
+      snapshot = await api?.loadLibrary();
+    } catch (err) {
+      // Not an empty library: the index is there but can't be read. Saves
+      // fail the same way, so nothing overwrites it.
+      console.error('Could not read the library.', err);
+      notify(
+        'Couldn’t read the library. If another program (a virus scanner or backup) has it open, wait a moment and restart Mini VTT.',
+        'error',
+      );
+      return null;
+    }
     if (!snapshot) return null;
     setMaps(snapshot.maps);
     setHandouts(snapshot.handouts);

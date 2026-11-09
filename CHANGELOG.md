@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format is based on
 
 ## Unreleased
 
+### Fixed
+
+- If another program (such as a virus scanner or a backup) briefly held
+  the library's list of maps when Mini VTT read it, the library could look
+  empty, and the next change saved that. The next start would then have
+  deleted every map's folder as left over. Mini VTT now tries again for a
+  moment, and if it still can't read the list it says so and changes
+  nothing.
+
 ## 1.4.0 - 2026-11-08
 
 ### Added

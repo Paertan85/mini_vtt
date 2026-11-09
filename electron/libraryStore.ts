@@ -81,13 +81,25 @@ export interface IndexShape {
   handouts: HandoutMeta[];
 }
 
+/** Tries after the first at reading an index another program holds (0.1 + 0.2 + 0.3 s). */
+const INDEX_READ_RETRIES = 3;
+
 async function readIndex(): Promise<IndexShape> {
-  let raw: string;
-  try {
-    raw = await fs.readFile(INDEX_FILE(), 'utf8');
-  } catch {
-    // No index yet (first run) - start with an empty library
-    return { settings: { ...DEFAULT_SETTINGS }, maps: [], handouts: [] };
+  let raw: string | null = null;
+  for (let attempt = 0; raw === null; attempt++) {
+    try {
+      raw = await fs.readFile(INDEX_FILE(), 'utf8');
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      // No index yet (first run): start with an empty library
+      if (code === 'ENOENT') return { settings: { ...DEFAULT_SETTINGS }, maps: [], handouts: [] };
+      // Anything else must never look like an empty library: the next save
+      // would write it, and removeLeftovers would then delete every folder.
+      // A virus scanner or backup holds a file for a moment: try again first.
+      const locked = code === 'EBUSY' || code === 'EPERM' || code === 'EACCES';
+      if (!locked || attempt >= INDEX_READ_RETRIES) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 100 * (attempt + 1)));
+    }
   }
   try {
     const parsed = JSON.parse(raw) as Partial<IndexShape>;
