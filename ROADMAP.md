@@ -26,6 +26,7 @@ Have an idea? Open an [issue](https://github.com/Paertan85/mini_vtt/issues).
 - **Code-signed builds**, so Windows SmartScreen and macOS Gatekeeper stop warning on first launch. Needs paid certificates (Apple's costs $99 a year).
 - **Flatpak** for the Steam Deck's Discover store. The AppImage covers the Deck for now.
 - **A Steam Deck without keyboard and mouse:** controller and trackpad bindings for the tools.
+- **Move from Electron to Tauri**, once the app is more feature complete. The main process (`electron/`) would be rewritten in Rust, and the windows would use the system's web view instead of a bundled Chromium. The download would shrink from about 100 MB to about 10 MB. Memory would drop less than that, since most of it goes to the map pictures and the GPU, and Windows' web view (WebView2) is Chromium too. Check first: WebM video (VP8, VP9 and transparency) and canvas speed in Safari's engine on macOS and WebKitGTK on Linux and the Steam Deck. The app test would need rewriting, as it drives Electron directly. Until then, keep the project format and the logic in `src/lib/` free of Electron.
 
 ### Under the hood
 
