@@ -78,12 +78,13 @@ export function useFog(): Fog {
       if (state) window.electronAPI?.sendFogSnapshot({ mapId, dataUrl: state, persist });
     },
     show: async (state, stillCurrent) => {
-      if (!state) return;
+      if (!state) return false;
       const image = await loadImage(state);
       const ctx = context();
-      if (!ctx || !stillCurrent()) return;
+      if (!ctx || !stillCurrent()) return false;
       drawSnapshot(ctx, image, DM_FOG_COLOR);
       changed();
+      return true;
     },
     busy: () => !!strokeRef.current,
   });

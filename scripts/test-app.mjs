@@ -408,6 +408,30 @@ app.whenReady().then(async () => {
     await sleep(900);
     check('redo re-applies the stroke', fogHash() === fogAfter);
 
+    // An undo still decoding when a stroke is painted is dropped whole: the
+    // history keeps matching the canvas, so the next undo takes that stroke
+    // back. The stroke runs a few microtasks after the key, once the undo has
+    // started, and an image never decodes before the next task.
+    await js(`(async () => {
+      const canvas = document.querySelector('canvas[aria-label="Fog of war"]');
+      const r = canvas.getBoundingClientRect();
+      const at = (type, dx) => canvas.dispatchEvent(new PointerEvent(type, {
+        pointerId: 1, pointerType: 'mouse', isPrimary: true, button: 0, buttons: type === 'pointerup' ? 0 : 1,
+        clientX: r.x + r.width / 2 + dx, clientY: r.y + r.height * 0.3, bubbles: true }));
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true }));
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+      at('pointerdown', -40);
+      at('pointermove', 0);
+      at('pointermove', 40);
+      at('pointerup', 40);
+    })()`);
+    await sleep(900);
+    const fogRaced = fogHash();
+    check('a stroke painted while an undo decodes is kept', fogRaced !== fogAfter && fogRaced !== fogBefore);
+    await press('z', { ctrlKey: true });
+    await sleep(900);
+    check('and the next undo takes that stroke back, not the one before', fogHash() === fogAfter);
+
     // Players see a stroke only when it ends, so a room is revealed at once
     const playerFog = () => js(`[...document.querySelectorAll('canvas')].at(-1).toDataURL()`, player);
     const playerFogBefore = await playerFog();

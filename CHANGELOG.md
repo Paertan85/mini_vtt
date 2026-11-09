@@ -15,6 +15,11 @@ All notable changes to this project are documented here. The format is based on
   moment, and if it still can't read the list it says so and changes
   nothing.
 
+- Painting fog or effects right after pressing undo could leave undo out
+  of step with the map: the undo was half done (players briefly saw it),
+  and the next undo went to the wrong step. An undo that hasn't finished
+  when you paint is now dropped whole.
+
 ## 1.4.0 - 2026-11-08
 
 ### Added

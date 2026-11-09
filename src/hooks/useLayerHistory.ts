@@ -24,9 +24,10 @@ export interface LayerHistoryOptions {
   /**
    * Show a state from the history on the canvas, decoding it first; draw
    * only if `stillCurrent()` holds once it is decoded (no other map loaded, no
-   * stroke begun).
+   * stroke begun, no change made). Resolves to whether it was drawn: only then does the
+   * history move to it.
    */
-  show: (state: LayerState, stillCurrent: () => boolean) => Promise<void>;
+  show: (state: LayerState, stillCurrent: () => boolean) => Promise<boolean>;
   /** Whether a stroke is under way; undo and redo do nothing then. */
   busy: () => boolean;
 }
@@ -61,6 +62,8 @@ export function useLayerHistory(options: LayerHistoryOptions): LayerHistory {
   const mapIdRef = useRef<string | null>(null);
   // Bumped by every start and release, so work for an earlier map leaves this one alone
   const runRef = useRef(0);
+  // Bumped by every change as it is made, so an undo still decoding knows one came after it
+  const changesRef = useRef(0);
   const currentRef = useRef<LayerState>(null);
   const undoRef = useRef<LayerState[]>([]);
   const redoRef = useRef<LayerState[]>([]);
@@ -119,6 +122,7 @@ export function useLayerHistory(options: LayerHistoryOptions): LayerHistory {
       const mapId = mapIdRef.current;
       const run = runRef.current;
       if (!mapId) return;
+      changesRef.current += 1;
       enqueue(async () => {
         const encoded = await state;
         // Saved even when another map has been loaded since: it belongs to this one
@@ -142,18 +146,28 @@ export function useLayerHistory(options: LayerHistoryOptions): LayerHistory {
         const mapId = mapIdRef.current;
         if (!mapId || from.current.length === 0 || optionsRef.current.busy()) return;
         const run = runRef.current;
+        const changes = changesRef.current;
         const target = from.current[from.current.length - 1];
-        from.current = from.current.slice(0, -1);
-        to.current = [...to.current.slice(-(MAX_HISTORY - 1)), currentRef.current];
-        currentRef.current = target;
-        sync();
+        let shown: boolean;
         try {
-          await optionsRef.current.show(target, () => run === runRef.current && !optionsRef.current.busy());
+          shown = await optionsRef.current.show(
+            target,
+            () => run === runRef.current && changes === changesRef.current && !optionsRef.current.busy(),
+          );
         } catch (err) {
           console.error('Could not restore that step.', err);
           return;
         }
-        if (run === runRef.current) optionsRef.current.send(mapId, target, true);
+        // Not drawn (a stroke began, a change was made or another map loaded
+        // while it decoded):
+        // the history stays as the canvas is, and nothing is sent. Changes
+        // queue behind this step, so the history hasn't moved meanwhile.
+        if (!shown || run !== runRef.current) return;
+        from.current = from.current.slice(0, -1);
+        to.current = [...to.current.slice(-(MAX_HISTORY - 1)), currentRef.current];
+        currentRef.current = target;
+        sync();
+        optionsRef.current.send(mapId, target, true);
       }),
     [enqueue, sync],
   );

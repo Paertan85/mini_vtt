@@ -63,7 +63,9 @@ export function useEffectLayer(): EffectLayer {
     show: async (state, stillCurrent) => {
       const image = state ? await loadImage(state) : null;
       const canvas = canvasRef.current;
-      if (canvas && stillCurrent()) showLayer(canvas, image);
+      if (!canvas || !stillCurrent()) return false;
+      showLayer(canvas, image);
+      return true;
     },
     busy: () => !!strokeRef.current,
   });
