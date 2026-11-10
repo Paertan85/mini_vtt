@@ -173,7 +173,11 @@ export interface DmPlayerScreen {
 /** The DM's settings that the toolbar and its menu change; saved as they change. */
 export interface DmSettings {
   showLibrary: boolean;
+  /** Brings the interface back first if it is hidden */
   toggleLibrary: () => void;
+  /** Toolbar and panel hidden so the map fills the window; not saved, so the app always starts with them */
+  interfaceHidden: boolean;
+  toggleInterface: () => void;
   showEffectTools: boolean;
   /** Hiding them also leaves the Effects and Shapes tools */
   toggleEffectTools: () => void;
@@ -1108,7 +1112,17 @@ export function useDmController(): DmController {
 
   const handleMovementRuleChange = (rule: MovementRule) => updateSettings({ diagonalRule: rule });
 
-  const handleToggleLibrary = () => updateSettings({ showLibrary: !showLibrary });
+  const [interfaceHidden, setInterfaceHidden] = useState(false);
+  const handleToggleInterface = () => setInterfaceHidden((hidden) => !hidden);
+
+  // With the interface hidden, Ctrl+B brings it back with the panel showing
+  const handleToggleLibrary = () => {
+    if (!interfaceHidden) updateSettings({ showLibrary: !showLibrary });
+    else {
+      setInterfaceHidden(false);
+      if (!showLibrary) updateSettings({ showLibrary: true });
+    }
+  };
 
   const handleToggleEffectTools = () => {
     const next = !showEffectTools;
@@ -1152,6 +1166,7 @@ export function useDmController(): DmController {
     duplicateArea: () => !!selectedAreaId && spellAreas.duplicate(selectedAreaId),
     addMaps: () => void handleAddMaps(),
     toggleLibrary: () => handleToggleLibrary(),
+    toggleInterface: () => handleToggleInterface(),
     nudgeArea: (event) =>
       !!selectedAreaId && spellAreas.nudge(selectedAreaId, ARROW_DIRECTIONS[event.key], event.shiftKey),
     // A focused button handles Enter itself
@@ -1302,6 +1317,7 @@ export function useDmController(): DmController {
 
   const settingsActions = useHandlers({
     toggleLibrary: handleToggleLibrary,
+    toggleInterface: handleToggleInterface,
     toggleEffectTools: handleToggleEffectTools,
     toggleGridToPlayers: handleToggleGridToPlayers,
     toggleFogNewMaps: handleToggleFogNewMaps,
@@ -1311,6 +1327,7 @@ export function useDmController(): DmController {
   const settingsGroup = useMemo<DmSettings>(
     () => ({
       showLibrary,
+      interfaceHidden,
       showEffectTools,
       showGridToPlayers,
       fogNewMaps,
@@ -1320,6 +1337,7 @@ export function useDmController(): DmController {
     }),
     [
       showLibrary,
+      interfaceHidden,
       showEffectTools,
       showGridToPlayers,
       fogNewMaps,

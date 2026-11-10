@@ -23,6 +23,7 @@ export type Command =
   | 'duplicateArea'
   | 'addMaps'
   | 'toggleLibrary'
+  | 'toggleInterface'
   | 'nudgeArea'
   | 'loadSelectedMap'
   | 'showShortcuts'
@@ -72,7 +73,9 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
   { command: 'duplicateArea', key: 'd', ctrl: true, label: 'Ctrl+D' },
   { command: 'addMaps', key: 'o', ctrl: true, label: 'Ctrl+O' },
   // The sidebar toggle in editors and file browsers
-  { command: 'toggleLibrary', key: 'b', ctrl: true, label: 'Ctrl+B' },
+  { command: 'toggleLibrary', key: 'b', ctrl: true, shift: false, label: 'Ctrl+B' },
+  // Everything but the map, for small screens such as the Steam Deck's
+  { command: 'toggleInterface', key: 'b', ctrl: true, shift: true, label: 'Ctrl+Shift+B' },
   { command: 'nudgeArea', key: 'ArrowLeft', label: 'Arrow keys' },
   { command: 'nudgeArea', key: 'ArrowRight' },
   { command: 'nudgeArea', key: 'ArrowUp' },
@@ -153,6 +156,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       ['Effects tool', [keys('effectsTool')]],
       ['Shapes tool', [keys('shapesTool')]],
       ['Blackout the player screen', [keys('blackout')]],
+      ['Hide or show everything but the map', [keys('toggleInterface')], 'For small screens'],
       ['Undo', [keys('undo')], 'Fog, or effects in the Effects tool'],
       ['Redo', [keys('redo')]],
       ['Show this list', [keys('showShortcuts')]],
@@ -197,7 +201,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       ['Zoom', ['Wheel over the frame'], 'View tool'],
       ['Zoom in 1% steps', ['Alt + wheel'], 'Any tool'],
       ['Lock or unlock the zoom', [keys('toggleZoomLock')]],
-      ['Full screen', ['F11']],
+      ['Full screen', ['F11', 'Double-click the player screen']],
     ],
   },
   {

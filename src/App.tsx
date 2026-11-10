@@ -17,16 +17,23 @@ export function App() {
 
   return (
     <div className="flex h-full bg-ground text-ink">
-      <MapLibraryPanel library={dm.library} playerScreen={playerScreen} hidden={!dm.settings.showLibrary} />
+      <MapLibraryPanel
+        library={dm.library}
+        playerScreen={playerScreen}
+        hidden={!dm.settings.showLibrary || dm.settings.interfaceHidden}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <Toolbar
-          tools={dm.tools}
-          playerView={dm.playerView}
-          playerScreen={playerScreen}
-          settings={dm.settings}
-          app={dm.app}
-        />
+        {/* Hidden, not removed, so the toolbar keeps its state while the map fills the window */}
+        <div className={dm.settings.interfaceHidden ? 'hidden' : 'contents'}>
+          <Toolbar
+            tools={dm.tools}
+            playerView={dm.playerView}
+            playerScreen={playerScreen}
+            settings={dm.settings}
+            app={dm.app}
+          />
+        </div>
 
         {(playerScreen.blackout || playerScreen.activeHandoutId) && (
           <div className="flex h-9 shrink-0 items-center gap-3 border-b border-crimson bg-crimson-deep px-3 text-[13px]">

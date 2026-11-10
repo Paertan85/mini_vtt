@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format is based on
 
 ## Unreleased
 
+### Added
+
+- **Ctrl+Shift+B** hides the toolbar and the maps and handouts panel, so
+  the map fills the DM window on a small screen such as the Steam Deck's.
+  Press it again, or Ctrl+B, to bring them back. The app always starts
+  with them showing.
+
+- Double-click the player screen to go full screen or leave it, as well as
+  F11 and its corner button.
+
 ### Fixed
 
 - If another program (such as a virus scanner or a backup) briefly held

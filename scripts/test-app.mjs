@@ -363,6 +363,46 @@ app.whenReady().then(async () => {
       (await panelShown()) === true && readIndex().settings.showLibrary === true,
     );
 
+    // Ctrl+Shift+B hides the toolbar too, for small screens, without saving it
+    const toolbarShown = () =>
+      js(`document.querySelector('[aria-controls="library-panel"]').offsetParent !== null`);
+    const mapHeight = () => js(`document.querySelector('main').getBoundingClientRect().height`);
+    const heightWithToolbar = await mapHeight();
+    await press('B', { ctrlKey: true, shiftKey: true });
+    await sleep(600);
+    check(
+      'Ctrl+Shift+B hides the toolbar and the panel',
+      (await toolbarShown()) === false && (await panelShown()) === false,
+    );
+    check('the map gets the toolbar’s room', (await mapHeight()) > heightWithToolbar);
+    check('hiding everything isn’t saved', readIndex().settings.showLibrary === true);
+    await press('B', { ctrlKey: true, shiftKey: true });
+    await sleep(600);
+    check('Ctrl+Shift+B shows them again', (await toolbarShown()) === true && (await panelShown()) === true);
+    await press('B', { ctrlKey: true, shiftKey: true });
+    await sleep(300);
+    await press('b', { ctrlKey: true });
+    await sleep(600);
+    check(
+      'with everything hidden, Ctrl+B brings it all back',
+      (await toolbarShown()) === true && (await panelShown()) === true,
+    );
+
+    // A double-click on the player screen toggles its full screen
+    const playerDoubleClick = () =>
+      js(
+        `document.querySelector('main').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`,
+        player,
+      );
+    await playerDoubleClick();
+    check(
+      'double-clicking the player screen makes it full screen',
+      await waitFor(() => player.isFullScreen()),
+    );
+    await playerDoubleClick();
+    check('and again leaves full screen', await waitFor(() => !player.isFullScreen()));
+    await sleep(600);
+
     // View tool (default): dragging the frame saves the pan
     const frame = await centerOf('[aria-label="Player view"]');
     check('player frame is shown', !!frame);

@@ -74,7 +74,7 @@ Without a Mac or Linux machine, run the **CI** workflow by hand on GitHub (Actio
 A welcome screen on first start sums this up; tick **Don’t show on start-up** to skip it, and open it again with the **?** button next to Settings.
 
 1. Click **Add maps…** in the library, or drop image or WebM files onto it. New maps start without fog: cover one with **Fill → Cover entire map**, or tick **Settings → Cover new maps in fog** to have new maps start fully fogged.
-2. Click **Open player screen** and drag that window onto the table screen. Press F11, or use the button in its corner, to go fullscreen.
+2. Click **Open player screen** and drag that window onto the table screen. Press F11, double-click it, or use the button in its corner, to go fullscreen.
 3. Optionally, open **Settings → Player screen setup…** and enter the screen's diagonal and your grid size to get a true-scale grid in the frame.
 4. With the **View** tool, drag the frame to choose what the players see, and scroll over it to zoom.
 5. Switch to the **Fog** tool and paint to reveal areas as the party explores.
@@ -118,9 +118,10 @@ On a Mac, use Cmd for Ctrl and Option for Alt.
 | Load a map / show a handout                  | Double-click it in the library (a selected map: Enter)                                                                                                                                                           |
 | Add maps                                     | Ctrl+O, **Add maps…**, or drop files on the library                                                                                                                                                              |
 | Hide / show maps and handouts                | The panel button at the left of the toolbar, or Ctrl+B (more room for the map)                                                                                                                                   |
+| Hide / show everything but the map           | Ctrl+Shift+B hides the toolbar and the panel, for small screens such as the Steam Deck's; Ctrl+Shift+B or Ctrl+B brings them back                                                                                |
 | Rename, rotate, mirror or remove             | The ⋯ menu on the map or handout                                                                                                                                                                                 |
 | Move or zoom a handout                       | On the player screen: drag it or use the arrow keys (Shift: bigger steps); the mouse wheel or a pinch zooms at the pointer; Esc closes                                                                           |
-| Player screen fullscreen                     | F11 or the corner button                                                                                                                                                                                         |
+| Player screen fullscreen                     | F11, a double-click, or the corner button                                                                                                                                                                        |
 | Show all shortcuts                           | ?                                                                                                                                                                                                                |
 
 All shortcuts are also listed under **Settings → Keyboard shortcuts…**.

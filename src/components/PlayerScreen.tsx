@@ -3,7 +3,8 @@
 // this window only reports its size back.
 //
 // Its two buttons (full screen, close handout) fade out when the mouse is idle,
-// so players see nothing but the map.
+// so players see nothing but the map. A double-click anywhere else also
+// toggles full screen.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Maximize2, Minimize2, X } from 'lucide-react';
@@ -270,6 +271,10 @@ export function PlayerScreen() {
     <main
       ref={mainRef}
       className={`relative h-full overflow-hidden bg-black ${controlsVisible ? '' : 'cursor-none'}`}
+      // Like a video player; the window's own buttons keep their click
+      onDoubleClick={(event) => {
+        if (!(event.target instanceof Element && event.target.closest('button'))) toggleFullScreen();
+      }}
     >
       {state.mediaUrl && pan ? (
         <div
