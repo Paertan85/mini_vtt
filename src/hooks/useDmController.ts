@@ -15,6 +15,7 @@ import type {
   EffectKind,
   HandoutMeta,
   ImportResult,
+  KillScreen,
   LibrarySnapshot,
   MapEntryMeta,
   MapGrid,
@@ -37,6 +38,7 @@ import { useAreas } from './useAreas';
 import { useLoadedMap } from './useLoadedMap';
 import { useRoomEdits } from './useRoomEdits';
 import { commandFor, type Command } from '../lib/shortcuts';
+import { pickKillPhrase } from '../lib/killScreen';
 import {
   clamp,
   clampZoom,
@@ -168,6 +170,8 @@ export interface DmPlayerScreen {
   activeHandoutId: string | null;
   activeHandoutName: string | null;
   hideHandout: () => void;
+  /** Whether players see the kill screen (shown and hidden with Ctrl+K) */
+  killScreen: boolean;
 }
 
 /** The DM's settings that the toolbar and its menu change; saved as they change. */
@@ -385,6 +389,9 @@ export function useDmController(): DmController {
   const [viewportSize, setViewportSize] = useState<Size | null>(null);
   const [fit16by9, setFit16by9] = useState(false);
   const [blackout, setBlackout] = useState(false);
+  const [killScreen, setKillScreen] = useState<KillScreen | null>(null);
+  // So the next kill screen says something else
+  const lastKillPhraseRef = useRef<string | null>(null);
   const [activeHandout, setActiveHandout] = useState<{ id: string; url: string; rotation: number } | null>(
     null,
   );
@@ -885,10 +892,12 @@ export function useDmController(): DmController {
       handoutUrl: activeHandout?.url ?? null,
       handoutRotation: activeHandout?.rotation ?? 0,
       blackout,
+      killScreen,
       areas: playerAreas,
       grid: playerGrid,
     });
   }, [
+    killScreen,
     api,
     mediaUrl,
     mediaType,
@@ -901,6 +910,17 @@ export function useDmController(): DmController {
     playerAreas,
     playerGrid,
   ]);
+
+  // A new random phrase each time, facing the way portrait handouts are turned
+  const handleToggleKillScreen = () => {
+    if (killScreen) {
+      setKillScreen(null);
+      return;
+    }
+    const text = pickKillPhrase(lastKillPhraseRef.current);
+    lastKillPhraseRef.current = text;
+    setKillScreen({ text, rotation: portraitRotation });
+  };
 
   const handleOpenPlayer = async () => {
     await api?.openPlayerWindow();
@@ -1187,6 +1207,10 @@ export function useDmController(): DmController {
     shapesTool: () => hasMap && showEffectTools && changeTool('shapes'),
     measureTool: () => hasMap && changeTool('measure'),
     blackout: () => setBlackout((value) => !value),
+    // A held Ctrl+K toggles once
+    killScreen: (event) => {
+      if (!event.repeat) handleToggleKillScreen();
+    },
   };
   // Read by the key listener, which is registered once
   const commandsRef = useRef(commands);
@@ -1310,9 +1334,17 @@ export function useDmController(): DmController {
   });
   const activeHandoutId = activeHandout?.id ?? null;
   const activeHandoutName = handouts.find((entry) => entry.id === activeHandoutId)?.name ?? null;
+  const killScreenShown = killScreen !== null;
   const playerScreen = useMemo<DmPlayerScreen>(
-    () => ({ playerOpen, blackout, activeHandoutId, activeHandoutName, ...playerScreenActions }),
-    [playerOpen, blackout, activeHandoutId, activeHandoutName, playerScreenActions],
+    () => ({
+      playerOpen,
+      blackout,
+      activeHandoutId,
+      activeHandoutName,
+      killScreen: killScreenShown,
+      ...playerScreenActions,
+    }),
+    [playerOpen, blackout, activeHandoutId, activeHandoutName, killScreenShown, playerScreenActions],
   );
 
   const settingsActions = useHandlers({

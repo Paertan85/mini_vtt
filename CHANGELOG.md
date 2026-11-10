@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **Ctrl+K** shows a kill screen to the players when an enemy falls: the
+  player screen fades to black and shows a random line in red, such as
+  “How do you want to do this?” or “FINISH IT!”. It is turned the same way
+  as portrait handouts. Press Ctrl+K again to fade back to the map.
+
 - **Ctrl+Shift+B** hides the toolbar and the maps and handouts panel, so
   the map fills the DM window on a small screen such as the Steam Deck's.
   Press it again, or Ctrl+B, to bring them back. The app always starts

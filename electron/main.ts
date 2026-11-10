@@ -12,6 +12,7 @@ import type {
   EffectSnapshot,
   FogSnapshot,
   ImportResult,
+  KillScreen,
   MapGrid,
   MapState,
   MapView,
@@ -23,6 +24,7 @@ import type {
   PlayerGrid,
 } from '../src/types/map';
 import { mediaUrlOf } from '../src/lib/media';
+import { isKillPhrase } from '../src/lib/killScreen';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -235,9 +237,18 @@ function normalizeMapState(value: unknown): MapState | null {
     handoutUrl,
     handoutRotation,
     blackout: state.blackout === true,
+    killScreen: normalizeKillScreen(state.killScreen),
     areas: normalizeDrawnAreas(state.areas),
     grid: normalizePlayerGrid(state.grid),
   };
+}
+
+/** A kill screen with one of the known phrases and a quarter turn, or null. */
+function normalizeKillScreen(value: unknown): KillScreen | null {
+  if (!value || typeof value !== 'object') return null;
+  const { text, rotation } = value as Record<string, unknown>;
+  if (!isKillPhrase(text) || !isFiniteNumber(rotation) || !QUARTER_TURNS.includes(rotation)) return null;
+  return { text, rotation };
 }
 
 /** A grid the player screen can draw, or null: squares at least 4 map pixels wide, like a measured grid. */

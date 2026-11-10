@@ -77,6 +77,37 @@
     height: 4px;
   }
 
+  /*
+    The kill screen on the player screen: black fades in fast, then the red
+    words. Opacity only, so the compositor plays it and nothing runs after.
+  */
+  @keyframes kill-fade {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes kill-fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+
+  .kill-screen {
+    animation: kill-fade 600ms ease-in both;
+  }
+
+  /* As KILL_SCREEN_FADE_OUT_MS in PlayerScreen.tsx */
+  .kill-screen-leaving {
+    animation: kill-fade-out 700ms ease-in-out both;
+  }
+
+  .kill-screen-text {
+    color: #c8161d;
+    text-shadow: 0 0 0.25em rgb(160 0 0 / 0.6);
+    animation: kill-fade 700ms ease-out 450ms both;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,

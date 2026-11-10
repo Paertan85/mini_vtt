@@ -1571,6 +1571,33 @@ app.whenReady().then(async () => {
       (await js(`!document.querySelector('[aria-label="Blackout"]')`, player)) === true,
     );
 
+    // Ctrl+K shows the kill screen with a random phrase, turned like a portrait handout
+    const killScreen = () =>
+      js(
+        `(() => { const el = document.querySelector('[aria-label="Kill screen"]');
+          return el && { text: el.textContent, transform: el.firstElementChild.style.transform }; })()`,
+        player,
+      );
+    await press('k', { ctrlKey: true });
+    const shownKill = await waitFor(killScreen);
+    check(
+      'Ctrl+K shows the kill screen to players',
+      ['How do you want to do this?', 'FINISH IT!'].includes(shownKill?.text) &&
+        shownKill.transform.includes('rotate(270deg)'),
+      JSON.stringify(shownKill),
+    );
+    check(
+      'and the DM window says so',
+      (await js(`document.body.textContent.includes('Players see the kill screen')`)) === true,
+    );
+    await press('k', { ctrlKey: true });
+    check('Ctrl+K hides it again', (await waitFor(async () => (await killScreen()) === null)) === true);
+    await press('k', { ctrlKey: true });
+    const nextKill = await waitFor(killScreen);
+    check('the next one says something else', nextKill && nextKill.text !== shownKill?.text, nextKill?.text);
+    await press('k', { ctrlKey: true });
+    await waitFor(async () => (await killScreen()) === null);
+
     // Zoom out to 150% on Alpha, switch to Beta and back
     for (let i = 0; i < 3; i++) await click('[aria-label="Zoom out"]');
     check('zoom steps down to 150%', (await zoomText()) === '150', `${await zoomText()}%`);

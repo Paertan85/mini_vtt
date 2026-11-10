@@ -34,10 +34,19 @@ export interface MapState {
   handoutRotation: number;
   /** When true the player screen shows nothing but black */
   blackout: boolean;
+  /** Red words on black over everything after a kill, or null */
+  killScreen: KillScreen | null;
   /** Spell areas, drawn under the fog */
   areas: DrawnArea[];
   /** The map's grid, drawn under the fog when the DM shows it to players; null: no grid */
   grid: PlayerGrid | null;
+}
+
+/** The kill screen: one of KILL_PHRASES (src/lib/killScreen.ts), turned like a portrait handout. */
+export interface KillScreen {
+  text: string;
+  /** Clockwise: 0, 90, 180 or 270 */
+  rotation: number;
 }
 
 /** The part of a map's grid the player screen needs to draw it (map natural pixels). */

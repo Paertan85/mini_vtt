@@ -37,7 +37,8 @@ export type Command =
   | 'effectsTool'
   | 'shapesTool'
   | 'measureTool'
-  | 'blackout';
+  | 'blackout'
+  | 'killScreen';
 
 export interface KeyBinding {
   command: Command;
@@ -95,6 +96,7 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
   { command: 'shapesTool', key: 's', label: 'S' },
   { command: 'measureTool', key: 'm', label: 'M' },
   { command: 'blackout', key: 'b', label: 'B' },
+  { command: 'killScreen', key: 'k', ctrl: true, label: 'Ctrl+K' },
 ];
 
 /** The modifier and key fields of a KeyboardEvent. */
@@ -156,6 +158,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       ['Effects tool', [keys('effectsTool')]],
       ['Shapes tool', [keys('shapesTool')]],
       ['Blackout the player screen', [keys('blackout')]],
+      ['Show or hide the kill screen', [keys('killScreen')], 'Red words on black, for a kill'],
       ['Hide or show everything but the map', [keys('toggleInterface')], 'For small screens'],
       ['Undo', [keys('undo')], 'Fog, or effects in the Effects tool'],
       ['Redo', [keys('redo')]],

@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Maximize2, Minimize2, X } from 'lucide-react';
-import type { EffectSnapshot, FogSnapshot, MapState, PlayerGrid, RulerState } from '../types/map';
+import type { EffectSnapshot, FogSnapshot, KillScreen, MapState, PlayerGrid, RulerState } from '../types/map';
 import { mediaUrlOf } from '../lib/media';
 import { drawSnapshot, fillMask, fogMaskSize, loadImage } from '../lib/fog';
 import { EFFECT_OPACITY, showLayer } from '../lib/effects';
@@ -33,6 +33,7 @@ const INITIAL_STATE: MapState = {
   handoutUrl: null,
   handoutRotation: 0,
   blackout: false,
+  killScreen: null,
   areas: [],
   grid: null,
 };
@@ -61,6 +62,10 @@ export function PlayerScreen() {
   const effectsCanvasRef = useRef<HTMLCanvasElement>(null);
   const latestEffectsRef = useRef<string | null>(null);
   const effectsSeqRef = useRef(0);
+  // The kill screen shown, and the one fading out after the DM hid it
+  const killScreenRef = useRef<KillScreen | null>(null);
+  const [leavingKillScreen, setLeavingKillScreen] = useState<KillScreen | null>(null);
+  const endKillScreen = useCallback(() => setLeavingKillScreen(null), []);
 
   // ─── Fog ──────────────────────────────────────────────────────────────────
 
@@ -133,6 +138,10 @@ export function PlayerScreen() {
       latestEffectsRef.current = null;
       void applyEffects();
     }
+    // A hidden kill screen stays while it fades back to the map
+    if (!next.killScreen && killScreenRef.current) setLeavingKillScreen(killScreenRef.current);
+    else if (next.killScreen) setLeavingKillScreen(null);
+    killScreenRef.current = next.killScreen;
     setState(next);
   };
 
@@ -250,9 +259,9 @@ export function PlayerScreen() {
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (state.handoutUrl || state.blackout) video.pause();
+    if (state.handoutUrl || state.blackout || state.killScreen) video.pause();
     else void video.play().catch(() => undefined);
-  }, [state.handoutUrl, state.blackout, state.mediaUrl]);
+  }, [state.handoutUrl, state.blackout, state.killScreen, state.mediaUrl]);
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -362,6 +371,14 @@ export function PlayerScreen() {
 
       {state.blackout && <div className="absolute inset-0 z-20 bg-black" aria-label="Blackout" />}
 
+      {(state.killScreen ?? leavingKillScreen) && (
+        <KillScreenOverlay
+          killScreen={(state.killScreen ?? leavingKillScreen) as KillScreen}
+          leaving={!state.killScreen}
+          onGone={endKillScreen}
+        />
+      )}
+
       <button
         onClick={toggleFullScreen}
         title={keyLabel(isFullScreen ? 'Exit full screen (F11)' : 'Full screen (F11)')}
@@ -371,6 +388,59 @@ export function PlayerScreen() {
         {isFullScreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
       </button>
     </main>
+  );
+}
+
+// ─── Kill screen ──────────────────────────────────────────────────────────────
+
+/** How long the kill screen takes to fade back to the map; as .kill-screen-leaving in index.css */
+const KILL_SCREEN_FADE_OUT_MS = 700;
+
+interface KillScreenProps {
+  killScreen: KillScreen;
+  /** Hidden by the DM: fading back to the map */
+  leaving: boolean;
+  /** The fade back is over */
+  onGone: () => void;
+}
+
+/**
+ * Over everything, the window's buttons too: a fade to black, then the red
+ * words, turned like a portrait handout; when hidden, a fade back to the map.
+ * CSS fades on opacity (index.css), so nothing runs once they have played.
+ * The fade back ends on a timer rather than animationend, which a hidden
+ * window may never fire.
+ */
+function KillScreenOverlay({ killScreen, leaving, onGone }: KillScreenProps) {
+  useEffect(() => {
+    if (!leaving) return;
+    const timer = window.setTimeout(onGone, KILL_SCREEN_FADE_OUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [leaving, onGone]);
+
+  const sideways = killScreen.rotation % 180 !== 0;
+  return (
+    <div
+      aria-label={leaving ? undefined : 'Kill screen'}
+      className={`${leaving ? 'kill-screen-leaving pointer-events-none' : 'kill-screen'} absolute inset-0 z-40 bg-black`}
+    >
+      <div
+        className="absolute left-1/2 top-1/2 flex items-center justify-center"
+        style={{
+          width: sideways ? '100vh' : '100vw',
+          height: sideways ? '100vw' : '100vh',
+          transform: `translate(-50%, -50%) rotate(${killScreen.rotation}deg)`,
+        }}
+      >
+        {/* Keyed, so a new phrase fades in too when shown again mid-fade */}
+        <p
+          key={killScreen.text}
+          className="kill-screen-text px-[6vmin] text-center font-display text-[11vmin] leading-tight font-semibold tracking-wide"
+        >
+          {killScreen.text}
+        </p>
+      </div>
+    </div>
   );
 }
 

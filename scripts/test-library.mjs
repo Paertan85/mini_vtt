@@ -59,6 +59,7 @@ app.whenReady().then(async () => {
   const rectLib = await import('../dist-electron/rect.test.mjs');
   const geometryLib = await import('../dist-electron/geometry.test.mjs');
   const shortcutsLib = await import('../dist-electron/shortcuts.test.mjs');
+  const killLib = await import('../dist-electron/killScreen.test.mjs');
   const fixtures = path.join(tmp, 'fixtures');
   await fs.mkdir(fixtures, { recursive: true });
   const fixture = async (name, bytes) => {
@@ -1079,6 +1080,28 @@ app.whenReady().then(async () => {
       );
     }
 
+    // Kill screen phrases: random, never the same twice in a row, and only known ones pass
+    {
+      const { KILL_PHRASES, isKillPhrase, pickKillPhrase } = killLib;
+      check(
+        'a kill screen phrase is never the one just shown',
+        KILL_PHRASES.every((previous) =>
+          [0, 0.5, 0.999999].every((r) => {
+            const next = pickKillPhrase(previous, () => r);
+            return next !== previous && KILL_PHRASES.includes(next);
+          }),
+        ),
+      );
+      check(
+        'the first kill screen can be any phrase',
+        KILL_PHRASES.every((phrase, i) => pickKillPhrase(null, () => i / KILL_PHRASES.length) === phrase),
+      );
+      check(
+        'only known phrases count',
+        isKillPhrase(KILL_PHRASES[0]) && !isKillPhrase('<b>hi</b>') && !isKillPhrase(null),
+      );
+    }
+
     // Keyboard shortcuts: one table for the key handler and the shortcuts list
     {
       const press = (key, modifiers = {}) =>
@@ -1097,6 +1120,8 @@ app.whenReady().then(async () => {
           press('y', { metaKey: true }) === 'redo' &&
           press('b') === 'blackout' &&
           press('b', { ctrlKey: true }) === 'toggleLibrary' &&
+          press('k', { ctrlKey: true }) === 'killScreen' &&
+          press('k') === null &&
           press('V', { shiftKey: true }) === 'viewTool' &&
           press('?', { shiftKey: true }) === 'showShortcuts' &&
           press('ArrowUp', { shiftKey: true }) === 'nudgeArea',

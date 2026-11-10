@@ -9,6 +9,7 @@ import { PlayerSetupDialog, ShortcutsDialog, WelcomeDialog } from './components/
 import { GridCalibrationBar } from './components/GridCalibrationBar';
 import { useDmController } from './hooks/useDmController';
 import { Button } from './ui/controls';
+import { keyLabel } from './lib/platform';
 import { NotificationHost } from './ui/notify';
 
 export function App() {
@@ -35,22 +36,31 @@ export function App() {
           />
         </div>
 
-        {(playerScreen.blackout || playerScreen.activeHandoutId) && (
+        {playerScreen.killScreen ? (
           <div className="flex h-9 shrink-0 items-center gap-3 border-b border-crimson bg-crimson-deep px-3 text-[13px]">
             <span className="h-2 w-2 rounded-full bg-crimson-bright" aria-hidden="true" />
             <span className="flex-1 text-ink">
-              {playerScreen.blackout
-                ? 'The player screen is blacked out.'
-                : `Players are looking at the handout “${playerScreen.activeHandoutName ?? 'Handout'}”.`}
+              {keyLabel('Players see the kill screen. Ctrl+K hides it.')}
             </span>
-            <Button
-              tone="quiet"
-              className="h-7"
-              onClick={playerScreen.blackout ? playerScreen.toggleBlackout : playerScreen.hideHandout}
-            >
-              {playerScreen.blackout ? 'Show the map' : 'Hide handout'}
-            </Button>
           </div>
+        ) : (
+          (playerScreen.blackout || playerScreen.activeHandoutId) && (
+            <div className="flex h-9 shrink-0 items-center gap-3 border-b border-crimson bg-crimson-deep px-3 text-[13px]">
+              <span className="h-2 w-2 rounded-full bg-crimson-bright" aria-hidden="true" />
+              <span className="flex-1 text-ink">
+                {playerScreen.blackout
+                  ? 'The player screen is blacked out.'
+                  : `Players are looking at the handout “${playerScreen.activeHandoutName ?? 'Handout'}”.`}
+              </span>
+              <Button
+                tone="quiet"
+                className="h-7"
+                onClick={playerScreen.blackout ? playerScreen.toggleBlackout : playerScreen.hideHandout}
+              >
+                {playerScreen.blackout ? 'Show the map' : 'Hide handout'}
+              </Button>
+            </div>
+          )
         )}
 
         {calibration && (
