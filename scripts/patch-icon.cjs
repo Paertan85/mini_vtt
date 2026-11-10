@@ -67,6 +67,9 @@ function resolveRcedit() {
 }
 
 module.exports = async function patchIcon(ctx) {
+  // Only Windows builds have an exe to patch.
+  if (ctx.electronPlatformName !== 'win32') return;
+
   const iconPath = path.join(projectDir, 'build', 'icon.ico');
   if (!fs.existsSync(iconPath)) {
     console.log('  • no build/icon.ico, skipping icon patch');

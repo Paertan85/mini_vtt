@@ -38,6 +38,12 @@ npm run test:app
 Linux without a display, prefix the test commands with `xvfb-run -a` (or run
 `xvfb-run -a npm run check`).
 
+On Linux, VS Code's built-in terminal sets `ELECTRON_RUN_AS_NODE=1`, which
+makes Electron start as plain Node: the tests then fail with "does not provide
+an export named 'app'", and the app doesn't open. Run
+`unset ELECTRON_RUN_AS_NODE` in that terminal first, or use a terminal outside
+VS Code.
+
 For changes that affect memory, `npm run memory` loads every map and shows
 every handout in turn, for several rounds, and prints each process's memory
 after each step (garbage collected first). Memory that keeps rising from round

@@ -124,5 +124,8 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/Paertan85/mini_vtt.git"
+  },
+  "allowScripts": {
+    "esbuild": true
   }
 }

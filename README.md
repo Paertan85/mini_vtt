@@ -46,7 +46,7 @@ Prebuilt Windows, macOS and Linux builds are published on the [Releases](https:/
 
 The macOS build needs macOS 13 (Ventura) or later. It is tested automatically but hasn't been tried on a real Mac yet; reports are welcome.
 
-On Linux, including a Steam Deck in desktop mode, download the `.AppImage`, make it executable (right-click → Properties → Permissions, or `chmod +x`) and open it. It runs from your home folder, so SteamOS updates don't remove it. Touch input on the Deck hasn't been tuned yet; a mouse and keyboard work as on a PC.
+On Linux, including a Steam Deck in desktop mode, download the `.AppImage`, make it executable (right-click → Properties → Permissions, or `chmod +x`) and open it. It runs from your home folder, so SteamOS updates don't remove it. Touch works on the Deck but isn't comfortable to use yet, so connect a keyboard and mouse; they work as on a PC.
 
 ### Build from source
 
