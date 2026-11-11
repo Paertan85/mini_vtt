@@ -77,6 +77,18 @@ export const snapPanToGrid = (pan: Vector, grid: MapGrid, media: Size, orientati
 
 // ─── Player view zoom ────────────────────────────────────────────────────────
 
+/**
+ * A circle as a polygon (map pixels), for filling fog: enough corners that
+ * its edge looks round, about one every 2 px of radius, 32 to 360.
+ */
+export function circleOutline(center: Vector, radius: number): Vector[] {
+  const count = Math.round(clamp(radius / 2, 32, 360));
+  return Array.from({ length: count }, (_, i) => {
+    const angle = (i / count) * Math.PI * 2;
+    return { x: center.x + Math.cos(angle) * radius, y: center.y + Math.sin(angle) * radius };
+  });
+}
+
 export const MIN_ZOOM = 0.1;
 export const MAX_ZOOM = 5;
 export const clampZoom = (zoom: number) => clamp(zoom, MIN_ZOOM, MAX_ZOOM);

@@ -36,6 +36,7 @@ const INITIAL_STATE: MapState = {
   killScreen: null,
   areas: [],
   grid: null,
+  areaGrid: null,
 };
 
 export function PlayerScreen() {
@@ -340,7 +341,7 @@ export function PlayerScreen() {
               className="pointer-events-none absolute inset-0 h-full w-full"
               style={{ opacity: EFFECT_OPACITY }}
             />
-            <DrawnAreas discs={state.areas} media={mediaSize} />
+            <DrawnAreas discs={state.areas} media={mediaSize} squares={state.areaGrid} />
             {state.grid && <MapGridLines grid={state.grid} zoom={state.zoom} />}
             <canvas ref={fogCanvasRef} className="pointer-events-none absolute inset-0 h-full w-full" />
           </div>

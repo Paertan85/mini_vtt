@@ -76,6 +76,12 @@ const FOG_SHAPES: { shape: FogShape; label: string; title: string }[] = [
       'Rectangle (R): drag a rectangle. Left button reveals it, right button covers it; Ctrl snaps it to the grid.',
   },
   {
+    shape: 'circle',
+    label: 'Circle',
+    title:
+      'Circle (C): click to reveal a circle sized in feet, such as a torch’s light; right-click covers. The mouse wheel sizes it in 5 ft steps, or drag out from its centre. Ctrl centres it on a square.',
+  },
+  {
     shape: 'rooms',
     label: 'Rooms',
     title:
@@ -200,9 +206,11 @@ export const Toolbar = memo(function Toolbar({
         </Button>
       </ButtonGroup>
 
-      {/* Only in the tools that paint with it; Shift-painting fog in another tool
-          still uses it, and the wheel with Shift or [ and ] still size it */}
-      {(tool === 'fog' || tool === 'effect') && (
+      {/* Only while something paints with it: the Effects tool, and the Fog
+          tool's brush (not its lasso, rectangle, circle or rooms). Shift-painting
+          fog in another tool still uses it, and the wheel with Shift or [ and ]
+          still size it */}
+      {(tool === 'effect' || (tool === 'fog' && tools.fogShape === 'brush')) && (
         <label
           className="flex items-center gap-2 pl-1 text-[13px] text-muted"
           title="Brush size: mouse wheel in the Fog and Effects tools (or while holding Shift), or [ and ]"
@@ -372,6 +380,12 @@ export const Toolbar = memo(function Toolbar({
               ))}
             </ButtonGroup>
           )}
+          {tool === 'fog' && tools.fogShape === 'circle' && tools.measureNeedsGrid && (
+            <span className="flex items-center gap-2 text-[13px] text-muted">
+              A circle in feet needs this map’s grid.
+              <Button onClick={tools.measureGrid}>Measure grid</Button>
+            </span>
+          )}
           <Menu
             items={[
               { label: 'Reveal entire map', onSelect: tools.revealAll },
@@ -509,6 +523,12 @@ export const Toolbar = memo(function Toolbar({
             label: 'Show effect and spell tools',
             onSelect: settings.toggleEffectTools,
             checked: settings.showEffectTools,
+          },
+          {
+            label: 'Show squares spell areas cover',
+            onSelect: settings.toggleAreaSquares,
+            checked: settings.showAreaSquares,
+            disabled: !settings.showEffectTools,
           },
           {
             label: 'Cover new maps in fog',

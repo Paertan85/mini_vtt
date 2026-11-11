@@ -7,9 +7,10 @@ import { fileURLToPath } from 'node:url';
 import * as library from './library.js';
 import { delayedMapSave } from './delayedSave.js';
 import { centredIn, pickPlayerDisplay, PLAYER_WINDOW } from './playerPlacement.js';
-import { MAX_RULER_POINTS } from '../src/lib/grid';
+import { MAX_RULER_POINTS, isMovementRule } from '../src/lib/grid';
 import { normalizeDrawnAreas } from '../src/lib/areas';
 import type {
+  AreaGrid,
   EffectSnapshot,
   FogSnapshot,
   ImportResult,
@@ -254,6 +255,7 @@ function normalizeMapState(value: unknown): MapState | null {
     killScreen: normalizeKillScreen(state.killScreen),
     areas: normalizeDrawnAreas(state.areas),
     grid: normalizePlayerGrid(state.grid),
+    areaGrid: normalizeAreaGrid(state.areaGrid),
   };
 }
 
@@ -273,6 +275,13 @@ function normalizePlayerGrid(value: unknown): PlayerGrid | null {
   if (!isFiniteNumber(offsetX) || !isFiniteNumber(offsetY)) return null;
   // Within one square, as the DM window keeps them
   return { cell, offsetX: ((offsetX % cell) + cell) % cell, offsetY: ((offsetY % cell) + cell) % cell };
+}
+
+/** A grid to show the spell areas' squares on, with how circles count diagonals, or null. */
+function normalizeAreaGrid(value: unknown): AreaGrid | null {
+  const grid = normalizePlayerGrid(value);
+  const { rule } = (value ?? {}) as Record<string, unknown>;
+  return grid && isMovementRule(rule) ? { ...grid, rule } : null;
 }
 
 ipcMain.handle('player:open', async () => {

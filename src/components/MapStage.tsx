@@ -1,8 +1,10 @@
 // The DM window's map area: the map, its fog, the player frame and the brush.
 //
 // Mouse:  fog tool      left button reveals, right button covers, with the
-//                       brush, a lasso or a rectangle (useFogShapeDrag); in
-//                       Rooms, FogRoomsLayer takes the mouse
+//                       brush, a lasso or a rectangle (useFogShapeDrag), or
+//                       a circle sized in feet (click, or drag out from its
+//                       centre; Ctrl: centred on a square); in Rooms,
+//                       FogRoomsLayer takes the mouse
 //         effects tool  left button paints the chosen effect, right button erases
 //         frame tool    drag the frame to move the player view (Ctrl: its
 //                       corner keeps to the grid, on a map with one)
@@ -13,7 +15,8 @@
 //                       too); players are unaffected
 //         Alt           zooms the player view in 1% steps, in any tool
 //         plain         resizes what you work with: the selected area under
-//                       the pointer (5 ft per notch), else the brush (Fog and
+//                       the pointer (5 ft per notch), else the Fog tool's
+//                       circle (5 ft per notch), else the brush (Fog and
 //                       Effects tools, or while Shift is held), else the player
 //                       view when over the frame (View tool, unless its zoom
 //                       is locked)
@@ -26,9 +29,11 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Lock } from 'lucide-react';
 import type {
+  AreaGrid,
   SpellArea,
   DiagonalRule,
   EffectKind,
+  FogMode,
   FogRoom,
   MapGrid,
   MapPan,
@@ -41,13 +46,15 @@ import type { EffectLayer } from '../hooks/useEffectLayer';
 import { useFogShapeDrag } from '../hooks/useFogShapeDrag';
 import type { RoomEdits } from '../hooks/useRoomEdits';
 import { EFFECT_OPACITY, EFFECT_STYLES } from '../lib/effects';
-import { areaContains, toDrawnAreas } from '../lib/areas';
+import { areaContains, nearestStep, stepSize, toDrawnAreas } from '../lib/areas';
+import { feetToPixels, pixelsToFeet, snapToCell } from '../lib/grid';
 import { rectCorners } from '../lib/rect';
 import { AreaHandles } from './AreaHandles';
 import { DrawnAreas } from './DrawnAreas';
 import { FogRoomsLayer } from './FogRoomsLayer';
 import { MeasureLayer } from './MeasureLayer';
 import {
+  circleOutline,
   mapToOriented,
   orientedSize,
   screenToMapDirection,
@@ -61,8 +68,11 @@ import { FRAME_COLOR_STYLES, type FrameColor } from '../lib/frameColors';
 
 export type Tool = 'view' | 'fog' | 'effect' | 'shapes' | 'measure';
 
-/** How the Fog tool draws: a round brush, a freehand lasso, a rectangle, or (Rooms) rooms to reveal later */
-export type FogShape = 'brush' | 'lasso' | 'rect' | 'rooms';
+/**
+ * How the Fog tool draws: a round brush, a freehand lasso, a rectangle, a
+ * circle sized in feet, or (Rooms) rooms to reveal later
+ */
+export type FogShape = 'brush' | 'lasso' | 'rect' | 'circle' | 'rooms';
 
 export interface MapStageProps {
   mediaUrl: string | null;
@@ -89,6 +99,9 @@ export interface MapStageProps {
   altHeld: boolean;
   brushSize: number;
   onBrushResize: (direction: 1 | -1) => void;
+  /** The Fog tool's circle: its radius in feet, used by a click */
+  fogCircleFt: number;
+  onFogCircleResize: (radiusFt: number) => void;
 
   /** Player frame; hidden while the player window is closed */
   pan: MapPan | null;
@@ -115,6 +128,8 @@ export interface MapStageProps {
   /** A grid drawn over the map, while calibrating */
   gridPreview: MapGrid | null;
   areas: SpellArea[];
+  /** The grid to outline the squares each area covers on; null: not shown */
+  areaGrid: AreaGrid | null;
   selectedAreaId: string | null;
   /** Whether the areas' handles are shown and respond to the mouse */
   areasInteractive: boolean;
@@ -165,6 +180,8 @@ const WHEEL_NOTCH = 100;
 const MIN_WHEEL_TARGET = 24;
 /** DM view zoom range, relative to fitting the whole map */
 const MAX_VIEW_ZOOM = 8;
+/** A press on the Fog tool's circle moved less than this (screen px) is a click, at the circle's size */
+const MIN_CIRCLE_DRAG_PX = 6;
 
 interface ViewZoom {
   zoom: number;
@@ -223,6 +240,10 @@ export function MapStage(props: MapStageProps) {
   const brushWheelRef = useRef(0);
   const playerWheelRef = useRef(0);
   const viewDragRef = useRef<{ start: Point; startView: ViewZoom; pointerId: number } | null>(null);
+  const cursorLabelRef = useRef<HTMLSpanElement>(null);
+  // The Fog tool's circle while the mouse is down: its centre, and the radius
+  // dragged out (null until the mouse has moved far enough to be a drag)
+  const circleDragRef = useRef<{ mode: FogMode; center: Point; radiusFt: number | null } | null>(null);
   const altFrameDragRef = useRef<{ start: Point; startPan: MapPan; pointerId: number } | null>(null);
   const [available, setAvailable] = useState<Size>({ w: 0, h: 0 });
   // DM-only zoom and pan; the player screen never sees it
@@ -268,7 +289,9 @@ export function MapStage(props: MapStageProps) {
   const paintsEffects = tool === 'effect' && !shiftHeld;
   const canPaint = fogDraw !== 'rooms' && (tool === 'fog' || tool === 'effect' || shiftHeld);
   const drawsShape = canPaint && (fogDraw === 'lasso' || fogDraw === 'rect') ? fogDraw : null;
-  const brushShown = canPaint && !drawsShape;
+  // The circle is sized in feet, so it needs the map's grid; without one it does nothing
+  const drawsCircle = canPaint && fogDraw === 'circle' && !!grid;
+  const brushShown = canPaint && !drawsShape && (fogDraw !== 'circle' || drawsCircle);
   const shapes = useFogShapeDrag(fog.fillOutline, grid, displayScale);
 
   /** Client coordinates → map natural pixels, undoing rotation and mirroring. */
@@ -337,8 +360,30 @@ export function MapStage(props: MapStageProps) {
 
   // ─── Painting ──────────────────────────────────────────────────────────────
 
+  // The Fog tool's circle is the brush cursor, sized to its radius and
+  // labelled with it. While it is dragged out it stays on its centre and is
+  // resized directly, without re-rendering.
+  const circleDiameter = (radiusFt: number) =>
+    grid ? Math.max(4, feetToPixels(radiusFt, grid) * 2 * displayScale) : 4;
+  const sizeCursor = (diameter: number, label: string) => {
+    const cursor = cursorRef.current;
+    if (!cursor) return;
+    Object.assign(cursor.style, {
+      width: `${diameter}px`,
+      height: `${diameter}px`,
+      marginLeft: `${-diameter / 2}px`,
+      marginTop: `${-diameter / 2}px`,
+    });
+    if (cursorLabelRef.current) cursorLabelRef.current.textContent = label;
+  };
+  const feetLabel = (radiusFt: number) => `${radiusFt} ft`;
+  useEffect(() => {
+    if (cursorLabelRef.current) cursorLabelRef.current.textContent = feetLabel(props.fogCircleFt);
+  }, [props.fogCircleFt, drawsCircle]);
+
   const handlePointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
     if (!canPaint || (event.button !== 0 && event.button !== 2)) return;
+    if (fogDraw === 'circle' && !drawsCircle) return;
     const point = toMapPoint(event.clientX, event.clientY);
     if (!point) return;
     event.preventDefault();
@@ -346,14 +391,29 @@ export function MapStage(props: MapStageProps) {
     const mode = event.button === 0 ? 'reveal' : 'cover';
     if (paintsEffects) effects.beginStroke(event.button === 0 ? effectKind : null, point, brushSize);
     else if (drawsShape) shapes.begin(drawsShape, mode, point, ctrlHeld(event));
-    else fog.beginStroke(mode, point, brushSize);
+    else if (drawsCircle && grid) {
+      // Ctrl: centred on a square, as a light carried by someone in it
+      const center = ctrlHeld(event) ? snapToCell(point, grid) : point;
+      circleDragRef.current = { mode, center, radiusFt: null };
+      const at = mapToSurface(center);
+      if (cursorRef.current) cursorRef.current.style.transform = `translate(${at.x}px, ${at.y}px)`;
+    } else fog.beginStroke(mode, point, brushSize);
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    if (brushShown) moveCursor(event.clientX, event.clientY);
+    const circle = circleDragRef.current;
+    if (brushShown && !circle) moveCursor(event.clientX, event.clientY);
     if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
     const point = toMapPoint(event.clientX, event.clientY);
-    if (!point || shapes.move(point, ctrlHeld(event))) return;
+    if (!point) return;
+    if (circle && grid) {
+      const pixels = Math.hypot(point.x - circle.center.x, point.y - circle.center.y);
+      if (circle.radiusFt === null && pixels * displayScale < MIN_CIRCLE_DRAG_PX) return;
+      circle.radiusFt = nearestStep(pixelsToFeet(pixels, grid));
+      sizeCursor(circleDiameter(circle.radiusFt), feetLabel(circle.radiusFt));
+      return;
+    }
+    if (shapes.move(point, ctrlHeld(event))) return;
     fog.continueStroke(point);
     effects.continueStroke(point);
   };
@@ -364,6 +424,19 @@ export function MapStage(props: MapStageProps) {
     }
     // A cancelled drag (the window lost the mouse) fills no shape
     const point = event.type === 'pointercancel' ? null : toMapPoint(event.clientX, event.clientY);
+    const circle = circleDragRef.current;
+    circleDragRef.current = null;
+    if (circle) {
+      // A click uses the circle's size; a drag sets it, for the next click too
+      const radiusFt = circle.radiusFt ?? props.fogCircleFt;
+      if (point && grid) {
+        fog.fillOutline(circleOutline(circle.center, feetToPixels(radiusFt, grid)), circle.mode);
+      }
+      if (circle.radiusFt !== null) props.onFogCircleResize(circle.radiusFt);
+      sizeCursor(circleDiameter(radiusFt), feetLabel(radiusFt));
+      moveCursor(event.clientX, event.clientY);
+      return;
+    }
     shapes.end(point, ctrlHeld(event));
     fog.endStroke();
     effects.endStroke();
@@ -464,6 +537,13 @@ export function MapStage(props: MapStageProps) {
           if (notches !== 0) current.onResizeArea(selected.id, notches);
           return;
         }
+      }
+      // The Fog tool's circle: its radius, in 5 ft steps
+      if (current.tool === 'fog' && current.fogShape === 'circle' && current.grid) {
+        event.preventDefault();
+        const notches = notchesFrom(brushWheelRef);
+        if (notches !== 0) current.onFogCircleResize(stepSize(current.fogCircleFt, notches));
+        return;
       }
       // Painting tools (or Shift, which paints fog from any tool): brush size.
       // Shift turns vertical scrolling horizontal in Chromium; wheelPixels reads both axes.
@@ -602,7 +682,9 @@ export function MapStage(props: MapStageProps) {
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
-  const cursorDiameter = Math.max(4, brushSize * 2 * displayScale);
+  const cursorDiameter = drawsCircle
+    ? circleDiameter(props.fogCircleFt)
+    : Math.max(4, brushSize * 2 * displayScale);
   // The same array while the templates are unchanged, so DrawnAreas skips the
   // renders that moving the player frame causes
   const discs = useMemo(() => toDrawnAreas(areas, grid), [areas, grid]);
@@ -698,7 +780,7 @@ export function MapStage(props: MapStageProps) {
               className="pointer-events-none absolute inset-0 h-full w-full"
               style={{ opacity: EFFECT_OPACITY }}
             />
-            <DrawnAreas discs={discs} media={mediaSize} />
+            <DrawnAreas discs={discs} media={mediaSize} squares={props.areaGrid} />
             {gridPreview && previewCell > 1 && (
               <GridLines
                 cell={previewCell}
@@ -856,7 +938,16 @@ export function MapStage(props: MapStageProps) {
               marginLeft: -cursorDiameter / 2,
               marginTop: -cursorDiameter / 2,
             }}
-          />
+          >
+            {/* The circle's radius; its text is set directly, as it changes while dragged out */}
+            {drawsCircle && (
+              <span
+                ref={cursorLabelRef}
+                data-circle-size
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-sm bg-ground/80 px-1 text-[12px] tabular-nums text-ink"
+              />
+            )}
+          </div>
         </div>
       ) : (
         <div className="max-w-xs text-center">

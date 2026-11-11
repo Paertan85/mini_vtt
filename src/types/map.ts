@@ -40,6 +40,8 @@ export interface MapState {
   areas: DrawnArea[];
   /** The map's grid, drawn under the fog when the DM shows it to players; null: no grid */
   grid: PlayerGrid | null;
+  /** The grid the squares each spell area covers are shown on; null: not shown */
+  areaGrid: AreaGrid | null;
 }
 
 /** The kill screen: one of KILL_PHRASES (src/lib/killScreen.ts), turned like a portrait handout. */
@@ -51,6 +53,14 @@ export interface KillScreen {
 
 /** The part of a map's grid the player screen needs to draw it (map natural pixels). */
 export type PlayerGrid = Pick<MapGrid, 'cell' | 'offsetX' | 'offsetY'>;
+
+/**
+ * What both windows need to work out the squares a spell area covers: the
+ * map's grid, and how a circle counts diagonal squares (the Movement setting).
+ */
+export interface AreaGrid extends PlayerGrid {
+  rule: MovementRule;
+}
 
 /** An area template as the player screen draws it: map pixels, already converted from feet. */
 export interface DrawnArea {
@@ -205,6 +215,8 @@ export interface LibrarySettings {
    * revealed: the main process saves them a fog mask that hides nothing.
    */
   fogNewMaps: boolean;
+  /** Whether the grid squares each spell area covers are outlined, in both windows */
+  showAreaSquares: boolean;
 }
 
 /**

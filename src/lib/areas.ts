@@ -7,7 +7,7 @@
 // natural pixels, unrotated; angles are degrees in map space (0 points along
 // +x).
 
-import type { AreaShape, SpellArea, DrawnArea, EffectKind, MapGrid, Point } from '../types/map';
+import type { AreaGrid, AreaShape, SpellArea, DrawnArea, EffectKind, MapGrid, Point } from '../types/map';
 import { EFFECT_KINDS, nearestEffectKind } from './effects';
 import { clamp, screenToMapDirection, type Orientation, type Size } from './geometry';
 import { feetToPixels, pixelsToFeet, snapToCell, snapToCorner } from './grid';
@@ -43,6 +43,10 @@ const finite = (value: unknown): value is number => typeof value === 'number' &&
 
 export const clampRadius = (radiusFt: number) =>
   Math.min(MAX_RADIUS_FT, Math.max(MIN_RADIUS_FT, Math.round(radiusFt)));
+
+/** `feet` rounded to the nearest 5 ft step, at least one step. */
+export const nearestStep = (feet: number) =>
+  clampRadius(Math.max(AREA_STEP_FT, Math.round(feet / AREA_STEP_FT) * AREA_STEP_FT));
 
 /** What `normalizeAreas` changed, so an import can tell the DM. */
 export interface AreaReport {
@@ -182,11 +186,8 @@ export function areaOutline(disc: DrawnArea): Point[] | null {
   return [side({ x, y }, half, 1), side(tip, half, 1), side(tip, half, -1), side({ x, y }, half, -1)];
 }
 
-/** Whether `point` (map pixels) is inside a template, with `margin` pixels to spare. */
-export function areaContains(disc: DrawnArea, point: Point, margin: number): boolean {
-  const outline = areaOutline(disc);
-  if (!outline) return Math.hypot(point.x - disc.x, point.y - disc.y) <= disc.radius + margin;
-  // Inside, or within `margin` of an edge (for thin lines and small shapes)
+/** Whether `point` is inside `outline` (even-odd rule). */
+function insideOutline(outline: readonly Point[], point: Point): boolean {
   let inside = false;
   for (let i = 0, j = outline.length - 1; i < outline.length; j = i++) {
     const a = outline[i];
@@ -195,7 +196,15 @@ export function areaContains(disc: DrawnArea, point: Point, margin: number): boo
       inside = !inside;
     }
   }
-  if (inside) return true;
+  return inside;
+}
+
+/** Whether `point` (map pixels) is inside a template, with `margin` pixels to spare. */
+export function areaContains(disc: DrawnArea, point: Point, margin: number): boolean {
+  const outline = areaOutline(disc);
+  if (!outline) return Math.hypot(point.x - disc.x, point.y - disc.y) <= disc.radius + margin;
+  // Inside, or within `margin` of an edge (for thin lines and small shapes)
+  if (insideOutline(outline, point)) return true;
   return outline.some((a, i) => {
     const b = outline[(i + 1) % outline.length];
     const length = Math.hypot(b.x - a.x, b.y - a.y) || 1;
@@ -205,6 +214,130 @@ export function areaContains(disc: DrawnArea, point: Point, margin: number): boo
     );
     return Math.hypot(point.x - (a.x + t * (b.x - a.x)), point.y - (a.y + t * (b.y - a.y))) <= margin;
   });
+}
+
+// ─── The squares an area covers ───────────────────────────────────────────────
+
+/** A grid square: its column and row, counted from the square at the grid's offset. */
+export interface GridSquare {
+  col: number;
+  row: number;
+}
+
+/**
+ * The most squares an area's bounding box may span for its squares to be
+ * worked out: about a 250 ft circle. A larger area shows none, so a
+ * 500 ft one can't hold up the window.
+ */
+export const MAX_AREA_SQUARES = 10_000;
+/**
+ * Sample points across each side of a square, for whether a shape covers
+ * half of it. An odd count, nudged a little off centre, so a square a shape
+ * covers exactly half of (a 5 ft line along a grid line) goes one way, the
+ * same way every time, never both: the square right of or below the edge.
+ */
+const SQUARE_SAMPLES = 5;
+const SAMPLE_NUDGE = 0.013;
+
+/**
+ * How many squares from a circle's centre each column (or row) is, along one
+ * axis. A centre in the middle half of a square counts from that square, as
+ * an emanation counts from its creature's space: the square itself is 0, its
+ * neighbours 1. A centre near a grid line counts from the line, as a sphere
+ * counts from a grid intersection: the squares on either side are 1.
+ */
+function axisSquares(value: number, offset: number, cell: number) {
+  const at = (value - offset) / cell;
+  const inSquare = at - Math.floor(at);
+  if (inSquare >= 0.25 && inSquare < 0.75) {
+    const square = Math.floor(at);
+    return { first: square, distance: (index: number) => Math.abs(index - square) };
+  }
+  const line = Math.round(at);
+  return { first: line, distance: (index: number) => (index >= line ? index - line + 1 : line - index) };
+}
+
+/**
+ * The grid squares a spell area covers, or null when it spans more than
+ * MAX_AREA_SQUARES. A circle (a sphere or an emanation) covers the squares
+ * within its radius counted as movement is, with diagonals 5, 10, 5 ft under
+ * the 5/10 rule, so it comes out as the familiar stepped shape. A square,
+ * cone or line covers a square when it covers at least half of it, as the
+ * D&D rules have it for areas on a grid (an exact half: see SQUARE_SAMPLES).
+ */
+export function coveredSquares(disc: DrawnArea, grid: AreaGrid): GridSquare[] | null {
+  const { cell, offsetX, offsetY } = grid;
+  if (!(cell > 0) || !(disc.radius > 0)) return [];
+  const squares: GridSquare[] = [];
+  if (disc.shape === 'circle') {
+    const reach = disc.radius / cell;
+    const across = axisSquares(disc.x, offsetX, cell);
+    const down = axisSquares(disc.y, offsetY, cell);
+    const span = Math.ceil(reach) + 1;
+    if ((span * 2 + 1) ** 2 > MAX_AREA_SQUARES) return null;
+    for (let row = down.first - span; row <= down.first + span; row++) {
+      for (let col = across.first - span; col <= across.first + span; col++) {
+        const a = across.distance(col);
+        const b = down.distance(row);
+        const longer = Math.max(a, b);
+        const moved = grid.rule === 'uniform' ? longer : longer + Math.floor(Math.min(a, b) / 2);
+        if (moved <= reach + 1e-9) squares.push({ col, row });
+      }
+    }
+    return squares;
+  }
+  const outline = areaOutline(disc) ?? [];
+  const xs = outline.map((point) => point.x);
+  const ys = outline.map((point) => point.y);
+  const firstCol = Math.floor((Math.min(...xs) - offsetX) / cell);
+  const lastCol = Math.floor((Math.max(...xs) - offsetX) / cell);
+  const firstRow = Math.floor((Math.min(...ys) - offsetY) / cell);
+  const lastRow = Math.floor((Math.max(...ys) - offsetY) / cell);
+  if ((lastCol - firstCol + 1) * (lastRow - firstRow + 1) > MAX_AREA_SQUARES) return null;
+  const half = (SQUARE_SAMPLES * SQUARE_SAMPLES) / 2;
+  const sample = (index: number) => (index + 0.5) / SQUARE_SAMPLES + SAMPLE_NUDGE;
+  for (let row = firstRow; row <= lastRow; row++) {
+    for (let col = firstCol; col <= lastCol; col++) {
+      let inside = 0;
+      for (let i = 0; i < SQUARE_SAMPLES; i++) {
+        for (let j = 0; j < SQUARE_SAMPLES; j++) {
+          const point = {
+            x: offsetX + (col + sample(i)) * cell,
+            y: offsetY + (row + sample(j)) * cell,
+          };
+          if (insideOutline(outline, point)) inside += 1;
+        }
+      }
+      if (inside > half) squares.push({ col, row });
+    }
+  }
+  return squares;
+}
+
+/**
+ * SVG paths (map pixels) for covered squares: `fill`, every square, and
+ * `edge`, only the outline round them, so squares side by side read as one
+ * stepped shape.
+ */
+export function squaresPaths(squares: readonly GridSquare[], grid: AreaGrid): { fill: string; edge: string } {
+  const { cell, offsetX, offsetY } = grid;
+  const covered = new Set(squares.map(({ col, row }) => `${col},${row}`));
+  const has = (col: number, row: number) => covered.has(`${col},${row}`);
+  const round = (value: number) => Math.round(value * 100) / 100;
+  let fill = '';
+  let edge = '';
+  for (const { col, row } of squares) {
+    const left = round(offsetX + col * cell);
+    const top = round(offsetY + row * cell);
+    const right = round(offsetX + (col + 1) * cell);
+    const bottom = round(offsetY + (row + 1) * cell);
+    fill += `M${left} ${top}H${right}V${bottom}H${left}Z`;
+    if (!has(col, row - 1)) edge += `M${left} ${top}H${right}`;
+    if (!has(col, row + 1)) edge += `M${left} ${bottom}H${right}`;
+    if (!has(col - 1, row)) edge += `M${left} ${top}V${bottom}`;
+    if (!has(col + 1, row)) edge += `M${right} ${top}V${bottom}`;
+  }
+  return { fill, edge };
 }
 
 export const newAreaId = () => `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -308,9 +441,7 @@ export function aimArea(area: SpellArea, point: Point, grid: MapGrid, snap: bool
   const angle = angleOf({ x: dx, y: dy });
   const feet = pixelsToFeet(Math.hypot(dx, dy), grid);
   const inSteps = (value: number) =>
-    Math.abs(value - area.radiusFt) < AIM_HOLD_STEPS * AREA_STEP_FT
-      ? area.radiusFt
-      : clampRadius(Math.max(AREA_STEP_FT, Math.round(value / AREA_STEP_FT) * AREA_STEP_FT));
+    Math.abs(value - area.radiusFt) < AIM_HOLD_STEPS * AREA_STEP_FT ? area.radiusFt : nearestStep(value);
   if (area.shape === 'square') {
     const square = Math.round(angle / 90) * 90;
     return {

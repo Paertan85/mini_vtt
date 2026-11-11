@@ -12,6 +12,8 @@ const FOG_HINTS: Record<FogShape, string> = {
   brush: 'Left button reveals, right button covers. Mouse wheel or [ ] sizes the brush.',
   lasso: 'Draw around an area: left button reveals it, right button covers it.',
   rect: 'Drag a rectangle: left button reveals it, right button covers it. Ctrl snaps it to the grid.',
+  circle:
+    'Click to reveal a circle, right-click to cover one. Mouse wheel sizes it, or drag out from its centre. Ctrl centres it on a square.',
   rooms:
     'Drag to mark out a room. Click inside a room to reveal it, right-click to cover it. Ctrl snaps to the grid.',
 };

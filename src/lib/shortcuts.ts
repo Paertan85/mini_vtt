@@ -34,6 +34,7 @@ export type Command =
   | 'fogTool'
   | 'lasso'
   | 'rectangle'
+  | 'fogCircle'
   | 'effectsTool'
   | 'shapesTool'
   | 'measureTool'
@@ -92,6 +93,7 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
   // L for lasso, as in Photoshop
   { command: 'lasso', key: 'l', label: 'L' },
   { command: 'rectangle', key: 'r', label: 'R' },
+  { command: 'fogCircle', key: 'c', label: 'C' },
   { command: 'effectsTool', key: 'e', label: 'E' },
   { command: 'shapesTool', key: 's', label: 'S' },
   { command: 'measureTool', key: 'm', label: 'M' },
@@ -175,6 +177,11 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
         'Rectangle on or off',
         [keys('rectangle')],
         'Drag a rectangle to reveal or cover; Ctrl snaps it to the grid',
+      ],
+      [
+        'Circle on or off',
+        [keys('fogCircle')],
+        'Click to reveal a circle sized in feet; the wheel sizes it in 5 ft steps',
       ],
       ['Brush size', ['Wheel', keys('brushSize')]],
       ['Paint fog from any tool', ['Shift + drag']],

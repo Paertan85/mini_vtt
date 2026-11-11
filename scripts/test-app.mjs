@@ -597,6 +597,16 @@ app.whenReady().then(async () => {
     await press('r');
     await sleep(100);
     check('R again goes back to the brush', (await pressed('Brush')) === 'true');
+    // Circle (C) is sized in feet, so on a map without a grid it asks for one
+    await press('c');
+    await sleep(200);
+    check(
+      'C on a map without a grid: the circle asks for the grid',
+      (await pressed('Circle')) === 'true' &&
+        (await js(`document.body.textContent.includes('A circle in feet needs this map’s grid.')`)) === true,
+    );
+    await press('c');
+    await sleep(100);
 
     // Rooms: marked out ahead of time, then revealed or covered with a click,
     // moved, resized and named
@@ -1102,6 +1112,99 @@ app.whenReady().then(async () => {
       'the player screen draws the circle',
       (await js(`document.querySelectorAll('svg circle').length`, player)) >= 1,
     );
+
+    // The squares a spell area covers are outlined in both windows, until
+    // the settings menu turns them off
+    {
+      const outlines = (target = main) =>
+        js(`document.querySelectorAll('path[data-area-squares]').length`, target);
+      check(
+        'the squares a spell area covers are outlined, for players too',
+        (await outlines()) === 1 && (await waitFor(async () => (await outlines(player)) === 1)) === true,
+      );
+      const clickSquaresItem = () =>
+        js(
+          `[...document.querySelectorAll('[role="menuitemcheckbox"]')].find((b) => b.textContent.endsWith('Show squares spell areas cover')).click()`,
+        );
+      await click('[aria-label="Settings"]');
+      await sleep(200);
+      await clickSquaresItem();
+      check(
+        'the settings menu hides them in both windows',
+        (await waitFor(async () => (await outlines()) === 0 && (await outlines(player)) === 0)) === true,
+      );
+      check('that is saved', (await waitFor(() => readIndex().settings.showAreaSquares === false)) === true);
+      await click('[aria-label="Settings"]');
+      await sleep(200);
+      await clickSquaresItem();
+      check(
+        'and shows them again',
+        (await waitFor(async () => (await outlines()) === 1 && (await outlines(player)) === 1)) === true,
+      );
+    }
+
+    // Circle (C) in the Fog tool: a click reveals a circle sized in feet, a
+    // right-click covers one, the wheel sizes it and a drag sets its size
+    {
+      await press('f');
+      await sleep(200);
+      await press('c');
+      await sleep(300);
+      const circleSize = () => js(`document.querySelector('[data-circle-size]')?.textContent ?? null`);
+      check(
+        'C switches the Fog tool to a 20 ft circle',
+        (await pressed('Circle')) === 'true' && (await circleSize()) === '20 ft',
+        String(await circleSize()),
+      );
+      const fogRect =
+        await js(`(() => { const r = document.querySelector('canvas[aria-label="Fog of war"]').getBoundingClientRect();
+        return { x: r.x, y: r.y, w: r.width, h: r.height }; })()`);
+      const mapWidth = await js(`document.querySelector('main img').naturalWidth`);
+      const grid = alpha().grid;
+      // 20 ft as a share of the map's width
+      const reach = ((20 / grid.feetPerCell) * grid.cell) / mapWidth;
+      const spot = { x: fogRect.x + fogRect.w * 0.3, y: fogRect.y + fogRect.h * 0.3 };
+      mouse('mouseDown', spot.x, spot.y, 'right');
+      mouse('mouseUp', spot.x, spot.y, 'right');
+      await sleep(900);
+      check('a right-click covers a circle', (await fogAlphaAt(0.3, 0.3)) > 0);
+      const playerBeforeCircle = await playerFog();
+      mouse('mouseDown', spot.x, spot.y);
+      mouse('mouseUp', spot.x, spot.y);
+      await sleep(900);
+      check('a click reveals a circle', (await fogAlphaAt(0.3, 0.3)) === 0);
+      check(
+        'as far as its radius, no further',
+        (await fogAlphaAt(0.3 + reach * 0.8, 0.3)) === 0 && (await fogAlphaAt(0.3 + reach * 1.3, 0.3)) > 0,
+        `radius ${(reach * 100).toFixed(1)}% of the map's width`,
+      );
+      check('players see the revealed circle', (await playerFog()) !== playerBeforeCircle);
+      await js(`document.querySelector('canvas[aria-label="Fog of war"]').dispatchEvent(new WheelEvent('wheel',
+        { deltaY: -100, clientX: ${spot.x}, clientY: ${spot.y}, bubbles: true, cancelable: true }))`);
+      await sleep(300);
+      check('one wheel notch grows it by 5 ft', (await circleSize()) === '25 ft', String(await circleSize()));
+      // Dragged out 10 ft from its centre
+      const tenFeet = ((10 / grid.feetPerCell) * grid.cell * fogRect.w) / mapWidth;
+      mouse('mouseDown', spot.x, spot.y);
+      for (let i = 1; i <= 4; i++) {
+        mouse('mouseMove', spot.x + (tenFeet * i) / 4, spot.y);
+        await sleep(20);
+      }
+      check('a drag shows the size it sets', (await circleSize()) === '10 ft', String(await circleSize()));
+      mouse('mouseUp', spot.x + tenFeet, spot.y);
+      await sleep(900);
+      check('and keeps it for the next click', (await circleSize()) === '10 ft', String(await circleSize()));
+      await press('z', { ctrlKey: true });
+      await sleep(900);
+      await press('z', { ctrlKey: true });
+      await sleep(900);
+      check('undo takes circles back, one at a time', (await fogAlphaAt(0.3, 0.3)) > 0);
+      await press('z', { ctrlKey: true });
+      await sleep(900);
+      await press('c');
+      await sleep(200);
+      check('C again goes back to the brush', (await pressed('Brush')) === 'true');
+    }
     await press('e');
     await sleep(200);
     check(

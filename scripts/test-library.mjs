@@ -1119,6 +1119,88 @@ app.whenReady().then(async () => {
       );
     }
 
+    // The squares a spell area covers: circles counted as movement, other shapes by half a square
+    {
+      const { coveredSquares, squaresPaths, MAX_AREA_SQUARES } = areasLib;
+      const grid = { cell: 50, offsetX: 0, offsetY: 0, rule: 'alternate' };
+      const disc = (shape, x, y, feet, extra = {}) => ({
+        x,
+        y,
+        radius: (feet / 5) * 50,
+        kind: 'fire',
+        shape,
+        angle: 0,
+        width: 50,
+        ...extra,
+      });
+      const count = (area, g = grid) => coveredSquares(area, g)?.length ?? null;
+      const has = (area, col, row) => coveredSquares(area, grid).some((s) => s.col === col && s.row === row);
+      // Spirit Guardians from a creature's square: 15 ft, 5-10-5 diagonals
+      const guardians = disc('circle', 125, 125, 15);
+      check(
+        'a 15 ft emanation counts diagonals 5, 10, 5: 37 squares',
+        count(guardians) === 37,
+        String(count(guardians)),
+      );
+      check(
+        'it reaches 3 squares straight out and 2 diagonally, not 3',
+        has(guardians, 5, 2) && has(guardians, 4, 4) && !has(guardians, 5, 5) && !has(guardians, 5, 4),
+      );
+      check(
+        'with every square counted the same, it is a 7 × 7 square',
+        count(guardians, { ...grid, rule: 'uniform' }) === 49,
+      );
+      check('a 5 ft emanation is the square and its 8 neighbours', count(disc('circle', 125, 125, 5)) === 9);
+      // Fireball from a grid intersection: 20 ft
+      check(
+        'a 20 ft sphere from a grid corner covers 44 squares',
+        count(disc('circle', 100, 100, 20)) === 44,
+        String(count(disc('circle', 100, 100, 20))),
+      );
+      check(
+        'a 5 ft sphere from a corner covers the 4 squares round it',
+        count(disc('circle', 100, 100, 5)) === 4,
+      );
+      check(
+        'a 10 ft cube on the grid covers its 4 squares',
+        count(disc('square', 100, 100, 10)) === 4,
+        String(count(disc('square', 100, 100, 10))),
+      );
+      check(
+        'a 30 ft line along a grid line covers one row of 6, not two',
+        count(disc('line', 0, 100, 30)) === 6,
+        String(count(disc('line', 0, 100, 30))),
+      );
+      check(
+        'a 30 ft line through the middle of a row covers that row',
+        count(disc('line', 0, 125, 30)) === 6 && has(disc('line', 0, 125, 30), 0, 2),
+      );
+      const cone = disc('cone', 100, 100, 15);
+      const coneSquares = coveredSquares(cone, grid);
+      check(
+        'a 15 ft cone covers squares only in front of its point, widening',
+        coneSquares.length > 3 && coneSquares.every((s) => s.col >= 2 && s.col <= 4),
+        JSON.stringify(coneSquares),
+      );
+      check('a huge area shows no squares', coveredSquares(disc('circle', 0, 0, 500), grid) === null);
+      check(
+        'the limit leaves room for a 120 ft radius',
+        coveredSquares(disc('circle', 0, 0, 120), grid) !== null && MAX_AREA_SQUARES >= 2500,
+      );
+      const paths = squaresPaths(
+        [
+          { col: 0, row: 0 },
+          { col: 1, row: 0 },
+        ],
+        grid,
+      );
+      check(
+        'two squares side by side are outlined as one shape',
+        paths.edge.split('M').length - 1 === 6 && paths.fill.split('Z').length - 1 === 2,
+        paths.edge,
+      );
+    }
+
     // Player window placement: full screen on a display the DM window isn't on
     {
       const { pickPlayerDisplay, centredIn } = placementLib;

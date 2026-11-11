@@ -8,6 +8,26 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- The squares each spell area covers are outlined in the area's colour,
+  in both windows, so it is plain which minis are caught. A circle (a
+  sphere, or an emanation such as Spirit Guardians) covers the squares
+  within its radius counted as movement is: diagonals 5, 10, 5 ft, or every
+  square the same if **Settings → Movement** says so. Centred in a square,
+  it counts from that square, as an emanation counts from its creature;
+  near a grid line, from the line, as a sphere from a grid corner. A
+  square, cone or line covers a square when it covers at least half of it;
+  a square it covers exactly half of (a 5 ft line along a grid line) goes
+  to the side right of or below it, never both. **Settings → Show squares
+  spell areas cover** turns them off. Areas wider than about 250 ft show
+  no squares.
+
+- **Circle** in the Fog tool (or C): click to reveal a circle sized in
+  feet, such as a torch's light, or right-click to cover one. The ring
+  around the mouse pointer shows its size; the mouse wheel changes it in
+  5 ft steps, or drag out from its centre to set it. Ctrl centres it on a
+  square. It starts at 20 ft, needs the map's grid, and one undo takes it
+  back.
+
 - With a second screen connected, such as the table TV, the player screen
   opens full screen on it, rather than in a window on the laptop's screen
   to be dragged across. With several, it picks the largest, or the one it
@@ -35,6 +55,9 @@ All notable changes to this project are documented here. The format is based on
   hints** turns it off.
 
 ### Changed
+
+- The Brush slider shows only while something paints with the brush: not
+  with the Fog tool's lasso, rectangle, circle or rooms.
 
 - **Fill screen** replaces Fit 16:9. It zooms the player view so the map
   fills the player screen with no black edges, whatever the screen's shape.

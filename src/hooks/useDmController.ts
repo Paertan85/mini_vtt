@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
+  AreaGrid,
   AreaShape,
   EffectKind,
   HandoutMeta,
@@ -55,6 +56,9 @@ import type { FrameColor } from '../lib/frameColors';
 import { DEFAULT_FEET_PER_CELL, gridFromCorners } from '../lib/grid';
 import { MAX_AREAS, toDrawnAreas } from '../lib/areas';
 import { confirmAction, notify, pressedControl, type Anchor } from '../ui/notify';
+
+/** The Fog tool's circle starts at 20 ft, the bright light of a torch. */
+const DEFAULT_FOG_CIRCLE_FT = 20;
 
 export const MIN_BRUSH = 10;
 export const MAX_BRUSH = 600;
@@ -188,6 +192,9 @@ export interface DmSettings {
   toggleEffectTools: () => void;
   showGridToPlayers: boolean;
   toggleGridToPlayers: () => void;
+  /** Whether the squares each spell area covers are outlined, for players too */
+  showAreaSquares: boolean;
+  toggleAreaSquares: () => void;
   /** Whether the line at the bottom of the map says how the current tool works */
   showToolHints: boolean;
   toggleToolHints: () => void;
@@ -349,8 +356,10 @@ export function useDmController(): DmController {
   const { whenIdle: fogIdle } = fog;
   const { whenIdle: effectsIdle } = effects;
   const [effectKind, setEffectKind] = useState<EffectKind>('fire');
-  // Fog tool: brush, freehand lasso, rectangle, or marking out rooms
+  // Fog tool: brush, freehand lasso, rectangle, circle, or marking out rooms
   const [fogShape, setFogShape] = useState<FogShape>('brush');
+  // The Fog tool's circle: the radius a click reveals, in feet (torchlight to darkvision)
+  const [fogCircleFt, setFogCircleFt] = useState(DEFAULT_FOG_CIRCLE_FT);
   // Measure tool: whether the toolbar picked the straight line instead of
   // movement (counted by the movementRule setting)
   const [measureStraight, setMeasureStraight] = useState(false);
@@ -367,6 +376,8 @@ export function useDmController(): DmController {
     // The map's own grid can be drawn on the player screen
     showGridToPlayers,
     showToolHints,
+    // The squares each spell area covers are outlined, in both windows
+    showAreaSquares,
     // Locks the player view zoom: the wheel, the keys and the toolbar leave it alone
     lockZoom: zoomLocked,
     playerScreenDiagonal: screenDiagonal,
@@ -885,6 +896,14 @@ export function useDmController(): DmController {
       showGridToPlayers && grid ? { cell: grid.cell, offsetX: grid.offsetX, offsetY: grid.offsetY } : null,
     [showGridToPlayers, grid],
   );
+  // Both windows outline the areas' squares on this; the same object until it changes
+  const areaGrid = useMemo<AreaGrid | null>(
+    () =>
+      showAreaSquares && grid
+        ? { cell: grid.cell, offsetX: grid.offsetX, offsetY: grid.offsetY, rule: movementRule }
+        : null,
+    [showAreaSquares, grid, movementRule],
+  );
 
   useEffect(() => {
     api?.sendMapState({
@@ -900,6 +919,7 @@ export function useDmController(): DmController {
       killScreen,
       areas: playerAreas,
       grid: playerGrid,
+      areaGrid,
     });
   }, [
     killScreen,
@@ -914,6 +934,7 @@ export function useDmController(): DmController {
     blackout,
     playerAreas,
     playerGrid,
+    areaGrid,
   ]);
 
   // A new random phrase each time, facing the way portrait handouts are turned
@@ -1134,6 +1155,7 @@ export function useDmController(): DmController {
   const handleToggleZoomLock = () => updateSettings({ lockZoom: !zoomLocked });
   const handleToggleGridToPlayers = () => updateSettings({ showGridToPlayers: !showGridToPlayers });
   const handleToggleToolHints = () => updateSettings({ showToolHints: !showToolHints });
+  const handleToggleAreaSquares = () => updateSettings({ showAreaSquares: !showAreaSquares });
   const handleToggleFogNewMaps = () => updateSettings({ fogNewMaps: !fogNewMaps });
 
   const handleMovementRuleChange = (rule: MovementRule) => updateSettings({ diagonalRule: rule });
@@ -1209,6 +1231,7 @@ export function useDmController(): DmController {
     fogTool: () => hasMap && changeTool('fog'),
     lasso: () => toggleFogShape('lasso'),
     rectangle: () => toggleFogShape('rect'),
+    fogCircle: () => toggleFogShape('circle'),
     effectsTool: () => hasMap && showEffectTools && changeTool('effect'),
     shapesTool: () => hasMap && showEffectTools && changeTool('shapes'),
     measureTool: () => hasMap && changeTool('measure'),
@@ -1360,6 +1383,7 @@ export function useDmController(): DmController {
     toggleGridToPlayers: handleToggleGridToPlayers,
     toggleFogNewMaps: handleToggleFogNewMaps,
     toggleToolHints: handleToggleToolHints,
+    toggleAreaSquares: handleToggleAreaSquares,
     setMovementRule: handleMovementRuleChange,
     setShowRulerToPlayers: handleShowRulerToPlayers,
   });
@@ -1370,6 +1394,7 @@ export function useDmController(): DmController {
       showEffectTools,
       showGridToPlayers,
       showToolHints,
+      showAreaSquares,
       fogNewMaps,
       movementRule,
       showRulerToPlayers,
@@ -1381,6 +1406,7 @@ export function useDmController(): DmController {
       showEffectTools,
       showGridToPlayers,
       showToolHints,
+      showAreaSquares,
       fogNewMaps,
       movementRule,
       showRulerToPlayers,
@@ -1472,6 +1498,8 @@ export function useDmController(): DmController {
     altHeld,
     brushSize,
     onBrushResize: resizeBrush,
+    fogCircleFt,
+    onFogCircleResize: setFogCircleFt,
     pan,
     viewportSize,
     zoom,
@@ -1487,6 +1515,7 @@ export function useDmController(): DmController {
     onRulerChange: handleRulerChange,
     gridPreview: calibrationPreview,
     areas,
+    areaGrid,
     selectedAreaId,
     areasInteractive:
       showEffectTools && !calibration && !shiftHeld && (altHeld || tool === 'view' || tool === 'shapes'),
