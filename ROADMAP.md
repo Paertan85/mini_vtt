@@ -52,3 +52,5 @@ Have an idea? Open an [issue](https://github.com/Paertan85/mini_vtt/issues).
 - **Drawing on the player screen.** The ruler with **Show players**, and the Ping idea, cover pointing things out.
 - **Controlling the app from a phone.** It would need a server on the local network, and the app stays offline with nothing running in the background.
 - **PDF handouts.** Showing them relies on Chromium's built-in PDF viewer, which a move to Tauri would lose. Images cover handouts; export a PDF page as an image.
+- **Music and ambient sound for each map.** Not planned.
+- **The fog Circle revealing whole squares**, counted 5-10-5 as an emanation is. It reveals a round area, which fits a light's reach.
