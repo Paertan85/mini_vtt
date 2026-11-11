@@ -8,6 +8,12 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- With a second screen connected, such as the table TV, the player screen
+  opens full screen on it, rather than in a window on the laptop's screen
+  to be dragged across. With several, it picks the largest, or the one it
+  was on when it was last closed. On a single screen it opens in a window
+  as before.
+
 - **Ctrl+K** shows a kill screen to the players when an enemy falls: the
   player screen fades to black and shows a random line in red, such as
   “How do you want to do this?” or “FINISH IT!”. It is turned the same way

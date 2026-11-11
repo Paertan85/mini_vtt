@@ -76,7 +76,7 @@ Without a Mac or Linux machine, run the **CI** workflow by hand on GitHub (Actio
 A welcome screen on first start sums this up; tick **Don’t show on start-up** to skip it, and open it again with the **?** button next to Settings.
 
 1. Click **Add maps…** in the library, or drop image or WebM files onto it. New maps start without fog: cover one with **Whole map → Cover entire map**, or tick **Settings → Cover new maps in fog** to have new maps start fully fogged.
-2. Click **Open player screen** and drag that window onto the table screen. Press F11, double-click it, or use the button in its corner, to go fullscreen.
+2. Click **Open player screen**. With a second screen connected, such as the table TV, it opens full screen there (on the largest one, if there are several, or on the one it was last on). On a single screen it opens in a window: drag it where you want it, and press F11, double-click it, or use the button in its corner, to go fullscreen.
 3. Optionally, open **Settings → Player screen setup…** and enter the screen's diagonal and your grid size to get a true-scale grid in the frame.
 4. With the **View** tool, drag the frame to choose what the players see, and scroll over it to zoom.
 5. Switch to the **Fog** tool and paint to reveal areas as the party explores.

@@ -60,6 +60,7 @@ app.whenReady().then(async () => {
   const geometryLib = await import('../dist-electron/geometry.test.mjs');
   const shortcutsLib = await import('../dist-electron/shortcuts.test.mjs');
   const killLib = await import('../dist-electron/killScreen.test.mjs');
+  const placementLib = await import('../dist-electron/playerPlacement.test.mjs');
   const fixtures = path.join(tmp, 'fixtures');
   await fs.mkdir(fixtures, { recursive: true });
   const fixture = async (name, bytes) => {
@@ -1115,6 +1116,59 @@ app.whenReady().then(async () => {
       check(
         'only known phrases count',
         isKillPhrase(KILL_PHRASES[0]) && !isKillPhrase('<b>hi</b>') && !isKillPhrase(null),
+      );
+    }
+
+    // Player window placement: full screen on a display the DM window isn't on
+    {
+      const { pickPlayerDisplay, centredIn } = placementLib;
+      const display = (id, x, width, height) => ({
+        id,
+        bounds: { x, y: 0, width, height },
+        workArea: { x, y: 0, width, height: height - 40 },
+      });
+      const laptop = display(1, 0, 1920, 1080);
+      const tv = display(2, 1920, 3840, 2160);
+      const monitor = display(3, -1920, 1920, 1080);
+      check(
+        'with one display the player window opens in a window',
+        pickPlayerDisplay([laptop], 1, null) === null,
+      );
+      check(
+        'with one display, the last one used makes no difference',
+        pickPlayerDisplay([laptop], 1, 1) === null,
+      );
+      check(
+        'with a TV beside the laptop it opens on the TV',
+        pickPlayerDisplay([laptop, tv], 1, null) === tv,
+      );
+      check(
+        'with several others it opens on the largest',
+        pickPlayerDisplay([monitor, laptop, tv], 1, null) === tv,
+      );
+      check(
+        'it opens on the display it was last on',
+        pickPlayerDisplay([monitor, laptop, tv], 1, 3) === monitor,
+      );
+      check(
+        'but never on the DM window’s display, nor on one no longer connected',
+        pickPlayerDisplay([laptop, tv], 1, 1) === tv && pickPlayerDisplay([laptop, tv], 1, 3) === tv,
+      );
+      check(
+        'with the DM window gone, any display will do',
+        pickPlayerDisplay([laptop], null, null) === laptop,
+      );
+      const placed = centredIn(tv.workArea);
+      check(
+        'the window is centred on its display',
+        placed.x === 1920 + (3840 - 1024) / 2 && placed.y === (2120 - 768) / 2 && placed.width === 1024,
+        JSON.stringify(placed),
+      );
+      const small = centredIn({ x: 0, y: 0, width: 800, height: 600 });
+      check(
+        'and shrunk to fit a small one',
+        small.x === 0 && small.y === 0 && small.width === 800 && small.height === 600,
+        JSON.stringify(small),
       );
     }
 

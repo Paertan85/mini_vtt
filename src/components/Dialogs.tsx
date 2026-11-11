@@ -296,8 +296,9 @@ export function WelcomeDialog({
           Settings to have them start fully fogged.
         </li>
         <li>
-          Click <span className="text-ink">Open player screen</span>, drag that window onto the table screen
-          and press <Kbd>{keyLabel('F11')}</Kbd> for full screen.
+          Click <span className="text-ink">Open player screen</span>. With the table screen connected, it
+          opens full screen there; on a single screen, drag the window where you want it and press{' '}
+          <Kbd>{keyLabel('F11')}</Kbd> for full screen.
         </li>
         <li>Drag the frame to choose what the players see, and paint with the Fog tool to reveal the map.</li>
       </ul>

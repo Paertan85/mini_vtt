@@ -14,7 +14,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "npm run test:build && electron scripts/test-library.mjs",
-    "test:build": "esbuild electron/library.ts --bundle --platform=node --format=esm --packages=external --outfile=dist-electron/library.test.mjs --log-level=warning && esbuild src/lib/grid.ts src/lib/areas.ts src/lib/rooms.ts src/lib/rect.ts src/lib/geometry.ts src/lib/shortcuts.ts src/lib/killScreen.ts src/lib/video.ts electron/delayedSave.ts --bundle --platform=node --format=esm --outdir=dist-electron --entry-names=[name].test --out-extension:.js=.mjs --log-level=warning",
+    "test:build": "esbuild electron/library.ts --bundle --platform=node --format=esm --packages=external --outfile=dist-electron/library.test.mjs --log-level=warning && esbuild src/lib/grid.ts src/lib/areas.ts src/lib/rooms.ts src/lib/rect.ts src/lib/geometry.ts src/lib/shortcuts.ts src/lib/killScreen.ts src/lib/video.ts electron/delayedSave.ts electron/playerPlacement.ts --bundle --platform=node --format=esm --outdir=dist-electron --entry-names=[name].test --out-extension:.js=.mjs --log-level=warning",
     "test:app": "vite build && electron scripts/test-app.mjs",
     "memory": "vite build && electron scripts/memory-report.mjs",
     "dist:dir": "npm run build && electron-builder --win --dir",

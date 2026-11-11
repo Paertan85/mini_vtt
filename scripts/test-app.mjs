@@ -324,6 +324,25 @@ app.whenReady().then(async () => {
     await sleep(800);
     const player = BrowserWindow.getAllWindows().find((w) => w !== main);
     check('reopening reuses the player window', BrowserWindow.getAllWindows().length === 2);
+    // With a second display it opens full screen there; on one screen, in a window
+    {
+      const dmDisplay = displays.getDisplayMatching(main.getBounds()).id;
+      const playerDisplay = displays.getDisplayMatching(player.getBounds()).id;
+      const another = displays.getAllDisplays().length > 1;
+      check(
+        another
+          ? 'the player screen opens full screen on a display the DM window isn’t on'
+          : 'on a single display the player screen opens in a window',
+        another ? player.isFullScreen() && playerDisplay !== dmDisplay : !player.isFullScreen(),
+        `${displays.getAllDisplays().length} display(s), full screen: ${player.isFullScreen()}`,
+      );
+      // The rest of the test expects a player window in a window
+      if (player.isFullScreen()) {
+        player.setFullScreen(false);
+        await waitFor(() => !player.isFullScreen());
+        await sleep(600);
+      }
+    }
     check(
       'the status shows the player screen is live',
       (await js(`${playerButton}.textContent`)).includes('live'),

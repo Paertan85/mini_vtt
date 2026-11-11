@@ -6,6 +6,7 @@ import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import * as library from './library.js';
 import { delayedMapSave } from './delayedSave.js';
+import { centredIn, pickPlayerDisplay, PLAYER_WINDOW } from './playerPlacement.js';
 import { MAX_RULER_POINTS } from '../src/lib/grid';
 import { normalizeDrawnAreas } from '../src/lib/areas';
 import type {
@@ -71,6 +72,9 @@ const HANDOUT_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'];
 
 let dmWindow: BrowserWindow | null = null;
 let playerWindow: BrowserWindow | null = null;
+// The display the player window was on when it last closed, so it opens there
+// again in this session (see openPlayerWindow)
+let lastPlayerDisplayId: number | null = null;
 
 // Everything the player screen shows, so a player window that opens or
 // reloads later starts in sync (see "Player window and relayed messages")
@@ -157,10 +161,17 @@ function openPlayerWindow() {
     return;
   }
 
+  // With a second display (a TV beside the laptop), the player screen opens
+  // full screen there; on a single screen it opens in a window, as before
+  const target = pickPlayerDisplay(
+    screen.getAllDisplays(),
+    isOpen(dmWindow) ? screen.getDisplayMatching(dmWindow.getBounds()).id : null,
+    lastPlayerDisplayId,
+  );
   const created = new BrowserWindow({
     title: 'Mini VTT — Player Screen',
-    width: 1024,
-    height: 768,
+    ...(target ? centredIn(target.workArea) : PLAYER_WINDOW),
+    fullscreen: !!target,
     minWidth: 480,
     minHeight: 360,
     icon: windowIcon,
@@ -170,6 +181,9 @@ function openPlayerWindow() {
   playerWindow = created;
   hideMenuBar(created);
   lockDownNavigation(created);
+  created.on('close', () => {
+    lastPlayerDisplayId = screen.getDisplayMatching(created.getBounds()).id;
+  });
   created.on('closed', () => {
     if (playerWindow === created) playerWindow = null;
     sendToDm('player:closed');
