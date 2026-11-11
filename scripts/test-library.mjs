@@ -10,7 +10,7 @@
 import { app, nativeImage } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import os from 'node:os';
+import { scratchDir } from './scratch-dir.mjs';
 import yauzl from 'yauzl';
 import yazl from 'yazl';
 import Ajv2020 from 'ajv/dist/2020.js';
@@ -48,7 +48,7 @@ function makePng({ width = 64, height = 64, rgb = [0, 0, 0], leftHalfOnly = fals
 }
 
 app.whenReady().then(async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'minivtt-test-'));
+  const tmp = scratchDir('test');
   app.setPath('userData', tmp);
   const lib = await import('../dist-electron/library.test.mjs');
   const gridLib = await import('../dist-electron/grid.test.mjs');
@@ -2017,9 +2017,5 @@ app.whenReady().then(async () => {
 
   const failed = results.filter((r) => !r.pass);
   console.log(`\n${results.length - failed.length}/${results.length} passed`);
-  // Best effort, so a locked file can never keep the process (and Electron) alive
-  await fs.rm(tmp, { recursive: true, force: true, maxRetries: 3 }).catch((err) => {
-    console.warn(`Couldn’t remove ${tmp}: ${err.code ?? err}`);
-  });
   app.exit(failed.length ? 1 : 0);
 });

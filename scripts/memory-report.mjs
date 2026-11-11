@@ -21,7 +21,7 @@
 import { app, BrowserWindow, protocol, screen } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
+import { scratchDir } from './scratch-dir.mjs';
 import zlib from 'node:zlib';
 
 // ─── Options ──────────────────────────────────────────────────────────────────
@@ -105,7 +105,7 @@ function makePng(width, height, value) {
   ]);
 }
 
-const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'minivtt-memory-'));
+const scratch = scratchDir('memory');
 app.setPath('userData', path.join(scratch, 'userData'));
 
 // By extension only: a damaged or misnamed file is still imported, to see how it is handled
@@ -147,14 +147,8 @@ app.whenReady().then(async () => {
   } catch (err) {
     console.error(err);
   }
-  // Always quit, even when the scratch folder is still locked by the windows
+  // The scratch folder is deleted once the app has quit
   for (const window of BrowserWindow.getAllWindows()) window.destroy();
-  await sleep(500);
-  try {
-    fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
-  } catch {
-    console.log(`Couldn’t delete the scratch library; delete it by hand: ${scratch}`);
-  }
   app.exit(0);
 });
 

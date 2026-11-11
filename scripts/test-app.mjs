@@ -11,7 +11,7 @@ import { app, BrowserWindow, dialog, ipcMain, net } from 'electron';
 import '../dist-electron/main.js'; // must load before `ready` (registers the media protocol)
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
+import { scratchDir } from './scratch-dir.mjs';
 import zlib from 'node:zlib';
 import crypto from 'node:crypto';
 
@@ -98,7 +98,7 @@ function makeBmp(width, height) {
 
 // ─── Seed a library: map A was last used at 250% with a custom pan ───────────
 
-const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'minivtt-app-test-'));
+const userData = scratchDir('app-test');
 app.setPath('userData', userData);
 const libraryDir = path.join(userData, 'library');
 const readIndex = () => JSON.parse(fs.readFileSync(path.join(libraryDir, 'index.json'), 'utf8'));
@@ -1926,12 +1926,5 @@ app.whenReady().then(async () => {
 
   const passed = results.filter(Boolean).length;
   console.log(`\n${passed}/${results.length} passed`);
-  // Best effort: on Windows the GPU process can still hold its cache files here,
-  // and a throw at this point would skip app.exit and leave the windows open
-  try {
-    fs.rmSync(userData, { recursive: true, force: true, maxRetries: 3 });
-  } catch (err) {
-    console.warn(`Couldn’t remove ${userData}: ${err.code ?? err}`);
-  }
   app.exit(passed === results.length ? 0 : 1);
 });
