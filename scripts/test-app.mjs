@@ -374,12 +374,17 @@ app.whenReady().then(async () => {
       (await mapWidth()) > widthWithPanel,
       `${widthWithPanel} → ${await mapWidth()}`,
     );
-    check('hiding the panel is remembered', readIndex().settings.showLibrary === false);
+    // Saved to disk a moment later; a slow machine can take longer than the pause above
+    check(
+      'hiding the panel is remembered',
+      (await waitFor(() => readIndex().settings.showLibrary === false)) === true,
+    );
     await press('b', { ctrlKey: true });
     await sleep(600);
     check(
       'Ctrl+B shows the panel again',
-      (await panelShown()) === true && readIndex().settings.showLibrary === true,
+      (await panelShown()) === true &&
+        (await waitFor(() => readIndex().settings.showLibrary === true)) === true,
     );
 
     // Ctrl+Shift+B hides the toolbar too, for small screens, without saving it
@@ -1558,7 +1563,7 @@ app.whenReady().then(async () => {
       'the settings menu makes every square count the same: 15 ft',
       (await distance()) === `${3 * feetPerCell} ft`,
     );
-    check('that is saved', readIndex().settings.diagonalRule === 'uniform');
+    check('that is saved', (await waitFor(() => readIndex().settings.diagonalRule === 'uniform')) === true);
     // The map's measured grid on the player screen, from the settings menu
     const playerGridCell = () =>
       js(`document.querySelector('[aria-label="Grid"] pattern')?.getAttribute('width') ?? null`, player);
@@ -1910,12 +1915,12 @@ app.whenReady().then(async () => {
     await sleep(600);
     check(
       'player screen setup saves how new portrait maps and handouts are turned',
-      readIndex().settings.portraitRotation === 90,
+      (await waitFor(() => readIndex().settings.portraitRotation === 90)) === true,
       JSON.stringify(readIndex().settings),
     );
     check(
       'and the colour of the player view frame',
-      readIndex().settings.frameColor === 'magenta' &&
+      (await waitFor(() => readIndex().settings.frameColor === 'magenta')) === true &&
         (await js(`document.querySelector('[aria-label="Player view"]')?.style.borderColor`)) ===
           'rgb(222, 76, 200)',
       await js(`document.querySelector('[aria-label="Player view"]')?.style.borderColor`),
@@ -1977,7 +1982,10 @@ app.whenReady().then(async () => {
       'removing the loaded map deletes it',
       !readIndex().maps.some((m) => m.id === 'm_alpha') && !fs.existsSync(path.join(libraryDir, 'm_alpha')),
     );
-    check('and loads the next one', readIndex().settings.currentMapId === 'm_beta');
+    check(
+      'and loads the next one',
+      (await waitFor(() => readIndex().settings.currentMapId === 'm_beta')) === true,
+    );
 
     // Add maps…: a new map starts without fog, or fully fogged with the setting
     // on. The file dialog answers with a plain grey map, like the seeded ones.
