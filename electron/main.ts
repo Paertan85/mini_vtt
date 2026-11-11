@@ -172,7 +172,9 @@ function openPlayerWindow() {
   const created = new BrowserWindow({
     title: 'Mini VTT — Player Screen',
     ...(target ? centredIn(target.workArea) : PLAYER_WINDOW),
-    fullscreen: !!target,
+    // Only ever set to true: on macOS an explicit false makes the window
+    // unable to go full screen at all (F11, double-click, the corner button)
+    ...(target ? { fullscreen: true } : {}),
     minWidth: 480,
     minHeight: 360,
     icon: windowIcon,
