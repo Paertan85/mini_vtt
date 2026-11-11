@@ -81,6 +81,9 @@ export interface IndexShape {
   handouts: HandoutMeta[];
 }
 
+/** A damaged index is copied to `index.json.corrupt-<time>` before anything replaces it. */
+export const CORRUPT_INDEX_SUFFIX = '.corrupt-';
+
 /** Tries after the first at reading an index another program holds (0.1 + 0.2 + 0.3 s). */
 const INDEX_READ_RETRIES = 3;
 
@@ -130,9 +133,17 @@ async function readIndex(): Promise<IndexShape> {
     };
   } catch (err) {
     // Unparseable index: keep a copy before the next save replaces it, so the
-    // library can be recovered by hand instead of being silently lost
-    const backup = `${INDEX_FILE()}.corrupt-${Date.now()}`;
-    await fs.copyFile(INDEX_FILE(), backup).catch(() => undefined);
+    // library can be recovered by hand instead of being silently lost. While
+    // the copy is there, removeLeftovers deletes no unlisted folder: they hold
+    // the maps the damaged index listed. Without a copy nothing would keep
+    // them, so starting empty is then an error instead.
+    const backup = `${INDEX_FILE()}${CORRUPT_INDEX_SUFFIX}${Date.now()}`;
+    try {
+      await fs.copyFile(INDEX_FILE(), backup);
+    } catch (copyErr) {
+      console.error('Library index is unreadable and couldn’t be backed up:', copyErr);
+      throw err;
+    }
     console.error(`Library index is unreadable; backed up to ${backup}:`, err);
     return { settings: { ...DEFAULT_SETTINGS }, maps: [], handouts: [] };
   }

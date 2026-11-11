@@ -17,6 +17,7 @@ import { normalizeRooms } from '../src/lib/rooms';
 import { mediaUrlOf } from '../src/lib/media';
 import { cleanSettingsPatch } from '../src/lib/settings';
 import {
+  CORRUPT_INDEX_SUFFIX,
   HANDOUT_ID_PREFIX,
   INDEX_FILE,
   LIBRARY_DIR,
@@ -183,13 +184,17 @@ async function setAside(dir: string): Promise<{ moved: string | null } | null> {
  * versions before 1.2, which unlisted a map before deleting its folder, or an
  * import cut short by a crash). Unlisted folders are only deleted when the
  * index was read successfully and they haven't changed for a while, so a
- * damaged index or an import still copying never loses anything.
+ * damaged index or an import still copying never loses anything. Nor does
+ * one damaged earlier: while its backup is in the library folder, the index
+ * saved since may not list the maps it did, so no unlisted folder is deleted.
  */
 export async function removeLeftovers(): Promise<void> {
   let listed: Set<string> | null = null;
   try {
     const parsed = JSON.parse(await fs.readFile(INDEX_FILE(), 'utf8')) as Partial<IndexShape>;
-    if (Array.isArray(parsed.maps) && Array.isArray(parsed.handouts)) {
+    const backupName = `${path.basename(INDEX_FILE())}${CORRUPT_INDEX_SUFFIX}`;
+    const damagedBefore = (await fs.readdir(LIBRARY_DIR())).some((name) => name.startsWith(backupName));
+    if (!damagedBefore && Array.isArray(parsed.maps) && Array.isArray(parsed.handouts)) {
       listed = new Set([...parsed.maps, ...parsed.handouts].map((entry) => entry?.id));
     }
   } catch {

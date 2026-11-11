@@ -1986,6 +1986,17 @@ app.whenReady().then(async () => {
       f.startsWith('index.json.corrupt-'),
     );
     check('the corrupt index is backed up, not discarded', backups.length === 1, backups.join(', '));
+    // The next save writes a valid index listing none of the old maps; their
+    // folders must still survive the next start's clean-up
+    await lib.saveSettings({ gridSize: 10 });
+    await lib.removeLeftovers();
+    check('after a corrupt index, saving and restarting keeps the folders it listed', await exists(keptDir));
+    // The save read the damaged index too, and backed it up again
+    for (const name of await fs.readdir(path.join(tmp, 'library'))) {
+      if (name.startsWith('index.json.corrupt-')) await fs.rm(path.join(tmp, 'library', name));
+    }
+    await lib.removeLeftovers();
+    check('without the backup, an unlisted folder is deleted again', !(await exists(keptDir)));
 
     // ── An index that is there but can't be read ─────────────────────────────
     // Not an empty library: a save would write that, and removeLeftovers

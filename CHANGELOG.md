@@ -72,6 +72,13 @@ All notable changes to this project are documented here. The format is based on
   moment, and if it still can't read the list it says so and changes
   nothing.
 
+- A damaged list of maps (cut short when the battery dies, say) could
+  still lose the library: Mini VTT started with an empty one as meant,
+  but once that was saved, the next start deleted every map's folder as
+  left over. While the backup of the damaged list is in the library
+  folder, no map's folder is deleted that way, so the maps can be
+  recovered from it.
+
 - Painting fog or effects right after pressing undo could leave undo out
   of step with the map: the undo was half done (players briefly saw it),
   and the next undo went to the wrong step. An undo that hasn't finished
