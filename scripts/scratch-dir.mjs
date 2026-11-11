@@ -13,14 +13,17 @@ const PREFIX = 'minivtt-';
 /** Older than this, a scratch folder is left over (no run takes this long) */
 const STALE_MS = 60 * 60 * 1000;
 
-/** The helper: wait (up to 2 minutes) for the process to end, then delete the folder. */
+/**
+ * The helper: wait for the process to end, however long it runs (a memory
+ * report takes minutes), then delete the folder, retrying for a few seconds
+ * while the app's last processes let go of its files.
+ */
 const HELPER = `
 const fs = require('node:fs');
 const [pid, dir] = process.argv.slice(1);
 const alive = () => { try { process.kill(Number(pid), 0); return true; } catch { return false; } };
-const until = Date.now() + 120000;
 const wait = () => {
-  if (alive() && Date.now() < until) return setTimeout(wait, 250);
+  if (alive()) return setTimeout(wait, 250);
   try { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); } catch {}
 };
 wait();
