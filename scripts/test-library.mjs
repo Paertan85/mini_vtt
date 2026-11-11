@@ -1151,11 +1151,19 @@ app.whenReady().then(async () => {
         count(guardians, { ...grid, rule: 'uniform' }) === 49,
       );
       check('a 5 ft emanation is the square and its 8 neighbours', count(disc('circle', 125, 125, 5)) === 9);
-      // Fireball from a grid intersection: 20 ft
+      // Fireball from a grid intersection: 20 ft, every square at least half covered
       check(
-        'a 20 ft sphere from a grid corner covers 44 squares',
-        count(disc('circle', 100, 100, 20)) === 44,
+        'a 20 ft sphere from a grid corner covers the 52 squares it covers at least half of',
+        count(disc('circle', 100, 100, 20)) === 52,
         String(count(disc('circle', 100, 100, 20))),
+      );
+      check(
+        'a sphere counts a square two thirds covered, not one a sixth covered',
+        has(disc('circle', 100, 100, 20), 5, 3) && !has(disc('circle', 100, 100, 20), 5, 4),
+      );
+      check(
+        'a sphere is the same under either Movement rule',
+        count(disc('circle', 100, 100, 20), { ...grid, rule: 'uniform' }) === 52,
       );
       check(
         'a 5 ft sphere from a corner covers the 4 squares round it',
@@ -1167,8 +1175,8 @@ app.whenReady().then(async () => {
         String(count(disc('square', 100, 100, 10))),
       );
       check(
-        'a 30 ft line along a grid line covers one row of 6, not two',
-        count(disc('line', 0, 100, 30)) === 6,
+        'a 30 ft line along a grid line covers half of the rows either side: both count',
+        count(disc('line', 0, 100, 30)) === 12,
         String(count(disc('line', 0, 100, 30))),
       );
       check(
@@ -1178,8 +1186,9 @@ app.whenReady().then(async () => {
       const cone = disc('cone', 100, 100, 15);
       const coneSquares = coveredSquares(cone, grid);
       check(
-        'a 15 ft cone covers squares only in front of its point, widening',
-        coneSquares.length > 3 && coneSquares.every((s) => s.col >= 2 && s.col <= 4),
+        'a 15 ft cone from a grid corner covers the 4 squares it covers at least half of',
+        coneSquares.length === 4 &&
+          coneSquares.every((s) => s.col >= 3 && s.col <= 4 && s.row >= 1 && s.row <= 2),
         JSON.stringify(coneSquares),
       );
       check('a huge area shows no squares', coveredSquares(disc('circle', 0, 0, 500), grid) === null);

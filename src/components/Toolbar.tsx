@@ -294,6 +294,14 @@ export const Toolbar = memo(function Toolbar({
               </Button>
             ))}
           </ButtonGroup>
+          <Button
+            tone={settings.showAreaSquares ? 'on' : 'default'}
+            aria-pressed={settings.showAreaSquares}
+            onClick={settings.toggleAreaSquares}
+            title="Squares: outline the grid squares each spell area covers, on the player screen too. A square counts when at least half of it is covered; a circle centred in a square is an emanation, counted out from that square as movement is."
+          >
+            Squares
+          </Button>
           <Popover
             open={shapeNote !== null && shapesNeed !== null}
             onClose={closeShapeNote}
@@ -523,12 +531,6 @@ export const Toolbar = memo(function Toolbar({
             label: 'Show effect and spell tools',
             onSelect: settings.toggleEffectTools,
             checked: settings.showEffectTools,
-          },
-          {
-            label: 'Show squares spell areas cover',
-            onSelect: settings.toggleAreaSquares,
-            checked: settings.showAreaSquares,
-            disabled: !settings.showEffectTools,
           },
           {
             label: 'Cover new maps in fog',

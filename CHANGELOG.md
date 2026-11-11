@@ -8,18 +8,16 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
-- The squares each spell area covers are outlined in the area's colour,
-  in both windows, so it is plain which minis are caught. A circle (a
-  sphere, or an emanation such as Spirit Guardians) covers the squares
-  within its radius counted as movement is: diagonals 5, 10, 5 ft, or every
-  square the same if **Settings → Movement** says so. Centred in a square,
-  it counts from that square, as an emanation counts from its creature;
-  near a grid line, from the line, as a sphere from a grid corner. A
-  square, cone or line covers a square when it covers at least half of it;
-  a square it covers exactly half of (a 5 ft line along a grid line) goes
-  to the side right of or below it, never both. **Settings → Show squares
-  spell areas cover** turns them off. Areas wider than about 250 ft show
-  no squares.
+- **Squares** in the Spells tool outlines the squares each spell area
+  covers, in the area's colour and on the player screen too, so it is plain
+  which minis are caught. It starts off. As in the 2024 Dungeon Master's
+  Guide, an area covers a square when it covers at least half of it: a
+  sphere (a circle centred on a grid line or intersection), a square, a
+  cone or a line. A circle centred in a square is an emanation, such as
+  Spirit Guardians, from a creature in that square: it covers the squares
+  within its radius counted as movement is, diagonals 5, 10, 5 ft, or
+  every square the same if **Settings → Movement** says so. Areas wider
+  than about 250 ft show no squares.
 
 - **Circle** in the Fog tool (or C): click to reveal a circle sized in
   feet, such as a torch's light, or right-click to cover one. The ring

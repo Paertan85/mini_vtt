@@ -215,7 +215,7 @@ export interface LibrarySettings {
    * revealed: the main process saves them a fog mask that hides nothing.
    */
   fogNewMaps: boolean;
-  /** Whether the grid squares each spell area covers are outlined, in both windows */
+  /** Whether the grid squares each spell area covers are outlined, in both windows (the Spells tool's Squares) */
   showAreaSquares: boolean;
 }
 

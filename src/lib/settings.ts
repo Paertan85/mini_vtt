@@ -62,7 +62,7 @@ const RULES: { [K in keyof SettingsPatch]-?: Rule<LibrarySettings[K]> } = {
   lockZoom: { default: false, parse: boolean },
   frameColor: { default: DEFAULT_FRAME_COLOR, parse: (value) => (isFrameColor(value) ? value : undefined) },
   fogNewMaps: { default: false, parse: boolean },
-  showAreaSquares: { default: true, parse: boolean },
+  showAreaSquares: { default: false, parse: boolean },
 };
 
 const KEYS = Object.keys(RULES) as (keyof SettingsPatch)[];

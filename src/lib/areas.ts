@@ -232,53 +232,49 @@ export interface GridSquare {
 export const MAX_AREA_SQUARES = 10_000;
 /**
  * Sample points across each side of a square, for whether a shape covers
- * half of it. An odd count, nudged a little off centre, so a square a shape
- * covers exactly half of (a 5 ft line along a grid line) goes one way, the
- * same way every time, never both: the square right of or below the edge.
+ * half of it. An even count, so none lies on a square's middle: a shape
+ * covering exactly half of a square (a 5 ft line along a grid line) is
+ * counted as covering it, as "at least half" says.
  */
-const SQUARE_SAMPLES = 5;
-const SAMPLE_NUDGE = 0.013;
+const SQUARE_SAMPLES = 8;
 
-/**
- * How many squares from a circle's centre each column (or row) is, along one
- * axis. A centre in the middle half of a square counts from that square, as
- * an emanation counts from its creature's space: the square itself is 0, its
- * neighbours 1. A centre near a grid line counts from the line, as a sphere
- * counts from a grid intersection: the squares on either side are 1.
- */
-function axisSquares(value: number, offset: number, cell: number) {
-  const at = (value - offset) / cell;
-  const inSquare = at - Math.floor(at);
-  if (inSquare >= 0.25 && inSquare < 0.75) {
-    const square = Math.floor(at);
-    return { first: square, distance: (index: number) => Math.abs(index - square) };
-  }
-  const line = Math.round(at);
-  return { first: line, distance: (index: number) => (index >= line ? index - line + 1 : line - index) };
+/** Whether a circle is centred in the middle of a square, as an emanation from a creature in it, rather than on a grid line. */
+function centredInSquare(disc: DrawnArea, grid: AreaGrid): boolean {
+  const inSquare = (value: number, offset: number) => {
+    const at = (value - offset) / grid.cell;
+    const fraction = at - Math.floor(at);
+    return fraction >= 0.25 && fraction < 0.75;
+  };
+  return inSquare(disc.x, grid.offsetX) && inSquare(disc.y, grid.offsetY);
 }
 
 /**
  * The grid squares a spell area covers, or null when it spans more than
- * MAX_AREA_SQUARES. A circle (a sphere or an emanation) covers the squares
- * within its radius counted as movement is, with diagonals 5, 10, 5 ft under
- * the 5/10 rule, so it comes out as the familiar stepped shape. A square,
- * cone or line covers a square when it covers at least half of it, as the
- * D&D rules have it for areas on a grid (an exact half: see SQUARE_SAMPLES).
+ * MAX_AREA_SQUARES. As the 2024 Dungeon Master's Guide has it, an area
+ * covers a square when it covers at least half of it; that goes for
+ * spheres (a circle centred on a grid line or intersection, its point of
+ * origin), squares, cones and lines.
+ *
+ * A circle centred in a square is an emanation (Spirit Guardians) from a
+ * creature in that square. It reaches out from the creature's square, so it
+ * covers the squares within its radius counted as movement is: diagonals 5,
+ * 10, 5 ft under the 5/10 rule, every square the same under the other, which
+ * makes it a square. The creature's own square is included.
  */
 export function coveredSquares(disc: DrawnArea, grid: AreaGrid): GridSquare[] | null {
   const { cell, offsetX, offsetY } = grid;
   if (!(cell > 0) || !(disc.radius > 0)) return [];
   const squares: GridSquare[] = [];
-  if (disc.shape === 'circle') {
+  if (disc.shape === 'circle' && centredInSquare(disc, grid)) {
     const reach = disc.radius / cell;
-    const across = axisSquares(disc.x, offsetX, cell);
-    const down = axisSquares(disc.y, offsetY, cell);
-    const span = Math.ceil(reach) + 1;
+    const col0 = Math.floor((disc.x - offsetX) / cell);
+    const row0 = Math.floor((disc.y - offsetY) / cell);
+    const span = Math.ceil(reach);
     if ((span * 2 + 1) ** 2 > MAX_AREA_SQUARES) return null;
-    for (let row = down.first - span; row <= down.first + span; row++) {
-      for (let col = across.first - span; col <= across.first + span; col++) {
-        const a = across.distance(col);
-        const b = down.distance(row);
+    for (let row = row0 - span; row <= row0 + span; row++) {
+      for (let col = col0 - span; col <= col0 + span; col++) {
+        const a = Math.abs(col - col0);
+        const b = Math.abs(row - row0);
         const longer = Math.max(a, b);
         const moved = grid.rule === 'uniform' ? longer : longer + Math.floor(Math.min(a, b) / 2);
         if (moved <= reach + 1e-9) squares.push({ col, row });
@@ -286,29 +282,34 @@ export function coveredSquares(disc: DrawnArea, grid: AreaGrid): GridSquare[] | 
     }
     return squares;
   }
-  const outline = areaOutline(disc) ?? [];
-  const xs = outline.map((point) => point.x);
-  const ys = outline.map((point) => point.y);
+  const outline = areaOutline(disc);
+  const inside: (point: Point) => boolean = outline
+    ? (point) => insideOutline(outline, point)
+    : (point) => Math.hypot(point.x - disc.x, point.y - disc.y) <= disc.radius;
+  const corners = outline ?? [
+    { x: disc.x - disc.radius, y: disc.y - disc.radius },
+    { x: disc.x + disc.radius, y: disc.y + disc.radius },
+  ];
+  const xs = corners.map((point) => point.x);
+  const ys = corners.map((point) => point.y);
   const firstCol = Math.floor((Math.min(...xs) - offsetX) / cell);
   const lastCol = Math.floor((Math.max(...xs) - offsetX) / cell);
   const firstRow = Math.floor((Math.min(...ys) - offsetY) / cell);
   const lastRow = Math.floor((Math.max(...ys) - offsetY) / cell);
   if ((lastCol - firstCol + 1) * (lastRow - firstRow + 1) > MAX_AREA_SQUARES) return null;
   const half = (SQUARE_SAMPLES * SQUARE_SAMPLES) / 2;
-  const sample = (index: number) => (index + 0.5) / SQUARE_SAMPLES + SAMPLE_NUDGE;
+  const sample = (index: number) => (index + 0.5) / SQUARE_SAMPLES;
   for (let row = firstRow; row <= lastRow; row++) {
     for (let col = firstCol; col <= lastCol; col++) {
-      let inside = 0;
+      let covered = 0;
       for (let i = 0; i < SQUARE_SAMPLES; i++) {
         for (let j = 0; j < SQUARE_SAMPLES; j++) {
-          const point = {
-            x: offsetX + (col + sample(i)) * cell,
-            y: offsetY + (row + sample(j)) * cell,
-          };
-          if (insideOutline(outline, point)) inside += 1;
+          if (inside({ x: offsetX + (col + sample(i)) * cell, y: offsetY + (row + sample(j)) * cell })) {
+            covered += 1;
+          }
         }
       }
-      if (inside > half) squares.push({ col, row });
+      if (covered >= half) squares.push({ col, row });
     }
   }
   return squares;

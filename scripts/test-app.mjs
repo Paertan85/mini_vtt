@@ -1113,33 +1113,33 @@ app.whenReady().then(async () => {
       (await js(`document.querySelectorAll('svg circle').length`, player)) >= 1,
     );
 
-    // The squares a spell area covers are outlined in both windows, until
-    // the settings menu turns them off
+    // The squares a spell area covers: off until the Spells tool's Squares
+    // turns them on, then outlined in both windows
     {
       const outlines = (target = main) =>
         js(`document.querySelectorAll('path[data-area-squares]').length`, target);
-      check(
-        'the squares a spell area covers are outlined, for players too',
-        (await outlines()) === 1 && (await waitFor(async () => (await outlines(player)) === 1)) === true,
-      );
-      const clickSquaresItem = () =>
-        js(
-          `[...document.querySelectorAll('[role="menuitemcheckbox"]')].find((b) => b.textContent.endsWith('Show squares spell areas cover')).click()`,
-        );
-      await click('[aria-label="Settings"]');
+      await press('s');
       await sleep(200);
-      await clickSquaresItem();
       check(
-        'the settings menu hides them in both windows',
-        (await waitFor(async () => (await outlines()) === 0 && (await outlines(player)) === 0)) === true,
+        'spell areas show no squares to start with',
+        (await outlines()) === 0 && (await outlines(player)) === 0 && !readIndex().settings.showAreaSquares,
       );
-      check('that is saved', (await waitFor(() => readIndex().settings.showAreaSquares === false)) === true);
-      await click('[aria-label="Settings"]');
-      await sleep(200);
-      await clickSquaresItem();
+      await clickText('Squares');
       check(
-        'and shows them again',
+        'Squares in the Spells tool outlines the squares an area covers, for players too',
         (await waitFor(async () => (await outlines()) === 1 && (await outlines(player)) === 1)) === true,
+      );
+      check('that is saved', (await waitFor(() => readIndex().settings.showAreaSquares === true)) === true);
+      check(
+        'the settings menu no longer has it',
+        (await js(
+          `[...document.querySelectorAll('[role="menuitemcheckbox"]')].some((b) => b.textContent.includes('squares'))`,
+        )) === false,
+      );
+      await clickText('Squares');
+      check(
+        'a second click hides them in both windows',
+        (await waitFor(async () => (await outlines()) === 0 && (await outlines(player)) === 0)) === true,
       );
     }
 
