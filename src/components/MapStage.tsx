@@ -20,7 +20,7 @@
 //
 // Panning a zoomed DM view: middle-button drag. Alt + drag on the player
 // frame moves it from any tool, zoomed in or not (Ctrl too: on the grid).
-// Circles (View and Shapes tools): drag the centre dot to move (Ctrl: snap
+// Circles (View and Spells tools): drag the centre dot to move (Ctrl: snap
 // to square centres).
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
@@ -474,7 +474,7 @@ export function MapStage(props: MapStageProps) {
         return;
       }
       // View tool, pointer over the player frame: the player view zoom. Not in
-      // the Shapes tool, where a wheel that just misses a shape would zoom it.
+      // the Spells tool, where a wheel that just misses a shape would zoom it.
       const { pan: framePan, viewportSize: viewport, zoom: playerZoom } = current;
       if (current.tool === 'view' && !current.zoomLocked && framePan && viewport && surface) {
         const { displayScale: scale } = geometry.current;

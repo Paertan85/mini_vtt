@@ -60,7 +60,7 @@ export const MapLibraryPanel = memo(function MapLibraryPanel({
               }`}
             >
               {name === 'maps' ? 'Maps' : 'Handouts'}
-              <span className="tabular-nums text-faint">{count}</span>
+              <span className="tabular-nums text-muted">{count}</span>
             </button>
           );
         })}
@@ -167,10 +167,9 @@ function MapList({ library, playerScreen }: ListProps) {
         ];
         const details: Detail[] = [
           map.mediaType === 'video' ? 'Video' : null,
-          // Red: spell areas, measuring and True scale need it
-          map.grid
-            ? `Grid ${gridSquares(map.grid, map.width, map.height) ?? 'set'}`
-            : { text: 'Grid not set', warn: true as const },
+          // Plain like the other facts: a map without a grid isn't an error, and
+          // what needs a grid says so when it is used
+          map.grid ? `Grid ${gridSquares(map.grid, map.width, map.height) ?? 'set'}` : 'Grid not set',
           map.rotation ? `Rotated ${map.rotation}°` : null,
           map.mirrorHorizontal || map.mirrorVertical ? 'Mirrored' : null,
         ].filter((detail) => detail !== null);
@@ -278,8 +277,8 @@ function HandoutList({ library, playerScreen }: ListProps) {
 
 // ─── Shared pieces ────────────────────────────────────────────────────────────
 
-/** A short fact under a card's name; a warning one is red. */
-type Detail = string | { text: string; warn: true };
+/** A short fact under a card's name. */
+type Detail = string;
 
 interface CardProps {
   name: string;
@@ -312,14 +311,7 @@ function Card(props: CardProps) {
         onDoubleClick={props.onDoubleClick}
         // The name shows on the card; the tooltip tells the rest
         aria-label={props.name}
-        title={
-          [
-            props.details.map((detail) => (typeof detail === 'string' ? detail : detail.text)).join(', '),
-            props.hint,
-          ]
-            .filter(Boolean)
-            .join(' · ') || undefined
-        }
+        title={[props.details.join(', '), props.hint].filter(Boolean).join(' · ') || undefined}
         className="flex min-w-0 flex-1 items-center gap-2.5 text-left outline-hidden"
       >
         {props.thumb}
@@ -330,7 +322,8 @@ function Card(props: CardProps) {
             <span className="truncate text-[13px] font-medium text-ink">{props.name}</span>
           )}
           {(props.live || props.details.length > 0) && (
-            <span className="truncate text-xs text-faint">
+            // Up to two lines, so the facts aren't cut off while there is room for them
+            <span className="line-clamp-2 text-xs text-muted">
               {/* Gold, like the border of the selected card */}
               {props.live && (
                 <span className={`font-medium ${props.blackout ? 'text-crimson-bright' : 'text-gold'}`}>
@@ -341,11 +334,7 @@ function Card(props: CardProps) {
               {props.details.map((detail, index) => (
                 <React.Fragment key={index}>
                   {index > 0 && ', '}
-                  {typeof detail === 'string' ? (
-                    detail
-                  ) : (
-                    <span className="text-crimson-text">{detail.text}</span>
-                  )}
+                  {detail}
                 </React.Fragment>
               ))}
             </span>

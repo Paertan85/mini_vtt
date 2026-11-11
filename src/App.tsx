@@ -1,12 +1,13 @@
 // The DM window's layout: the library panel, the toolbar, the banner while
 // players see something other than the map, the grid measuring bar, the map
-// area and the dialogs. What they show and do comes from useDmController.
+// area with the current tool's hint, and the dialogs. What they show and do comes from useDmController.
 
 import { MapLibraryPanel } from './components/MapLibraryPanel';
 import { MapStage } from './components/MapStage';
 import { Toolbar } from './components/Toolbar';
 import { PlayerSetupDialog, ShortcutsDialog, WelcomeDialog } from './components/Dialogs';
 import { GridCalibrationBar } from './components/GridCalibrationBar';
+import { ToolHint } from './components/ToolHint';
 import { useDmController } from './hooks/useDmController';
 import { Button } from './ui/controls';
 import { keyLabel } from './lib/platform';
@@ -75,7 +76,12 @@ export function App() {
           />
         )}
 
-        <MapStage {...dm.stage} />
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          <MapStage {...dm.stage} />
+          {dm.tools.hasMap && dm.settings.showToolHints && !dm.settings.interfaceHidden && !calibration && (
+            <ToolHint tool={dm.tools.tool} fogShape={dm.tools.fogShape} />
+          )}
+        </div>
       </div>
 
       {dialogs.open === 'setup' && (

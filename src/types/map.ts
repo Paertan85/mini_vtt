@@ -177,8 +177,10 @@ export interface LibrarySettings {
   gridSize: number;
   /** Custom map order; maps not listed are shown newest first above it */
   mapOrder?: string[];
-  /** Whether the Effects and Shapes tools and the spell areas are offered */
+  /** Whether the Effects and Spells tools and the spell areas are offered */
   showEffectTools: boolean;
+  /** Whether a line at the bottom of the map says how the current tool works */
+  showToolHints: boolean;
   /** Whether the welcome screen opens on start-up */
   showWelcome: boolean;
   /** Whether the map and handout library panel is shown */

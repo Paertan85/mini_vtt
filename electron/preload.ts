@@ -89,8 +89,9 @@ const api = {
   /** Opens the player window, or focuses it if it is already open. */
   openPlayerWindow: (): Promise<boolean> => ipcRenderer.invoke('player:open'),
   onPlayerWindowClosed: (callback: () => void) => subscribe('player:closed', callback),
-  resizePlayerWindow: (width: number, height: number): Promise<{ width: number; height: number } | null> =>
-    ipcRenderer.invoke('player:resize', width, height),
+  /** Fill screen: gives a player window that isn't full screen its screen's shape; returns its size. */
+  matchPlayerWindowToScreen: (): Promise<{ width: number; height: number } | null> =>
+    ipcRenderer.invoke('player:matchScreen'),
   /** DM window → player window: the full render state. */
   sendMapState: (state: MapState): void => ipcRenderer.send('player:state', state),
   onMapState: (callback: (state: MapState) => void) => subscribe('player:state', callback),

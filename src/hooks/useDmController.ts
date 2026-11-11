@@ -109,7 +109,7 @@ export interface DmTools {
   /** Whether a map is loaded; every tool but View needs one */
   hasMap: boolean;
   tool: Tool;
-  /** Leaving the View and Shapes tools drops the selected spell area */
+  /** Leaving the View and Spells tools drops the selected spell area */
   setTool: (tool: Tool) => void;
   brushSize: number;
   setBrushSize: (size: number) => void;
@@ -118,7 +118,7 @@ export interface DmTools {
   setFogShape: (shape: FogShape) => void;
   /** The colour painted, and given to new shapes */
   effectKind: EffectKind;
-  /** In the Shapes tool, the selected shape takes the colour too */
+  /** In the Spells tool, the selected shape takes the colour too */
   setEffectKind: (kind: EffectKind) => void;
   /** Undo and redo apply to the layer of the active tool: effects in the Effects tool, otherwise fog */
   canUndo: boolean;
@@ -150,8 +150,9 @@ export interface DmPlayerView {
   /** Locked, the zoom is left alone by the wheel, the keys and the zoom controls */
   zoomLocked: boolean;
   toggleZoomLock: () => void;
-  fit16by9: boolean;
-  toggleFit16by9: () => void;
+  /** Fill screen: the map fills the player screen with no black edges, and the frame stays on the map */
+  fillScreen: boolean;
+  toggleFillScreen: () => void;
   /** Whether the zoom is true scale: the map's squares the size set in Player screen setup */
   atTrueScale: boolean;
   trueScaleNeeds: TrueScaleNeed | null;
@@ -183,10 +184,13 @@ export interface DmSettings {
   interfaceHidden: boolean;
   toggleInterface: () => void;
   showEffectTools: boolean;
-  /** Hiding them also leaves the Effects and Shapes tools */
+  /** Hiding them also leaves the Effects and Spells tools */
   toggleEffectTools: () => void;
   showGridToPlayers: boolean;
   toggleGridToPlayers: () => void;
+  /** Whether the line at the bottom of the map says how the current tool works */
+  showToolHints: boolean;
+  toggleToolHints: () => void;
   /** Whether maps start fully fogged when they are added */
   fogNewMaps: boolean;
   toggleFogNewMaps: () => void;
@@ -362,6 +366,7 @@ export function useDmController(): DmController {
     showRulerToPlayers,
     // The map's own grid can be drawn on the player screen
     showGridToPlayers,
+    showToolHints,
     // Locks the player view zoom: the wheel, the keys and the toolbar leave it alone
     lockZoom: zoomLocked,
     playerScreenDiagonal: screenDiagonal,
@@ -387,7 +392,7 @@ export function useDmController(): DmController {
   // ─── Player screen ──────────────────────────────────────────────────────────
   const [playerOpen, setPlayerOpen] = useState(false);
   const [viewportSize, setViewportSize] = useState<Size | null>(null);
-  const [fit16by9, setFit16by9] = useState(false);
+  const [fillScreen, setFillScreen] = useState(false);
   const [blackout, setBlackout] = useState(false);
   const [killScreen, setKillScreen] = useState<KillScreen | null>(null);
   // So the next kill screen says something else
@@ -453,14 +458,14 @@ export function useDmController(): DmController {
 
   const constrainPan = useCallback(
     (next: MapPan): MapPan => {
-      if (!fit16by9 || !mediaSize || !frameSize) return next;
+      if (!fillScreen || !mediaSize || !frameSize) return next;
       const map = orientedSize(mediaSize, rotation);
       return {
         x: clamp(next.x, 0, Math.max(0, map.w - frameSize.w)),
         y: clamp(next.y, 0, Math.max(0, map.h - frameSize.h)),
       };
     },
-    [fit16by9, mediaSize, frameSize?.w, frameSize?.h, rotation], // eslint-disable-line react-hooks/exhaustive-deps
+    [fillScreen, mediaSize, frameSize?.w, frameSize?.h, rotation], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // Keep the frame centred on the same spot when the zoom, viewport or map changes
@@ -865,7 +870,7 @@ export function useDmController(): DmController {
       api?.onPlayerWindowClosed(() => {
         setPlayerOpen(false);
         setViewportSize(null);
-        setFit16by9(false);
+        setFillScreen(false);
       }),
     [api],
   );
@@ -927,14 +932,14 @@ export function useDmController(): DmController {
     setPlayerOpen(true);
   };
 
-  const handleToggleFit16by9 = async () => {
-    if (fit16by9) {
-      setFit16by9(false);
+  const handleToggleFillScreen = async () => {
+    if (fillScreen) {
+      setFillScreen(false);
       return;
     }
     if (!mediaSize || !viewportSize) return;
-    const width = Math.max(640, viewportSize.w);
-    const resized = await api?.resizePlayerWindow(width, Math.round((width * 9) / 16));
+    // The player window takes its screen's shape, unless it is full screen already
+    const resized = await api?.matchPlayerWindowToScreen();
     if (!resized) return;
     const map = orientedSize(mediaSize, rotation);
     const fitZoom = clampZoom(Math.max(resized.width / map.w, resized.height / map.h));
@@ -942,7 +947,7 @@ export function useDmController(): DmController {
     setViewportSize({ w: resized.width, h: resized.height });
     setZoom(fitZoom);
     applyPan({ x: Math.max(0, (map.w - frame.w) / 2), y: Math.max(0, (map.h - frame.h) / 2) }, frame);
-    setFit16by9(true);
+    setFillScreen(true);
   };
 
   // True scale: the player view zoom at which the map's own squares come out
@@ -1097,13 +1102,13 @@ export function useDmController(): DmController {
     spellAreas.add(shape, view?.placeInView(center) ?? center, effectKind, view?.displayScale ?? 1);
   };
 
-  // The colour picked in the Shapes tool also goes to the selected shape
+  // The colour picked in the Spells tool also goes to the selected shape
   const handleEffectKindChange = (kind: EffectKind) => {
     setEffectKind(kind);
     if (tool === 'shapes' && selectedAreaId) spellAreas.recolor(selectedAreaId, kind);
   };
 
-  // Areas can only be edited in the View and Shapes tools: leaving them
+  // Areas can only be edited in the View and Spells tools: leaving them
   // drops the selection, so Delete can't remove an area that isn't shown
   const changeTool = useCallback(
     (next: Tool) => {
@@ -1128,6 +1133,7 @@ export function useDmController(): DmController {
 
   const handleToggleZoomLock = () => updateSettings({ lockZoom: !zoomLocked });
   const handleToggleGridToPlayers = () => updateSettings({ showGridToPlayers: !showGridToPlayers });
+  const handleToggleToolHints = () => updateSettings({ showToolHints: !showToolHints });
   const handleToggleFogNewMaps = () => updateSettings({ fogNewMaps: !fogNewMaps });
 
   const handleMovementRuleChange = (rule: MovementRule) => updateSettings({ diagonalRule: rule });
@@ -1319,12 +1325,12 @@ export function useDmController(): DmController {
   const playerViewActions = useHandlers({
     setZoom: (next: number) => setZoom(clampZoom(next)),
     toggleZoomLock: handleToggleZoomLock,
-    toggleFit16by9: handleToggleFit16by9,
+    toggleFillScreen: handleToggleFillScreen,
     trueScale: handleTrueScale,
   });
   const playerView = useMemo<DmPlayerView>(
-    () => ({ zoom, zoomLocked, fit16by9, atTrueScale, trueScaleNeeds, ...playerViewActions }),
-    [zoom, zoomLocked, fit16by9, atTrueScale, trueScaleNeeds, playerViewActions],
+    () => ({ zoom, zoomLocked, fillScreen, atTrueScale, trueScaleNeeds, ...playerViewActions }),
+    [zoom, zoomLocked, fillScreen, atTrueScale, trueScaleNeeds, playerViewActions],
   );
 
   const playerScreenActions = useHandlers({
@@ -1353,6 +1359,7 @@ export function useDmController(): DmController {
     toggleEffectTools: handleToggleEffectTools,
     toggleGridToPlayers: handleToggleGridToPlayers,
     toggleFogNewMaps: handleToggleFogNewMaps,
+    toggleToolHints: handleToggleToolHints,
     setMovementRule: handleMovementRuleChange,
     setShowRulerToPlayers: handleShowRulerToPlayers,
   });
@@ -1362,6 +1369,7 @@ export function useDmController(): DmController {
       interfaceHidden,
       showEffectTools,
       showGridToPlayers,
+      showToolHints,
       fogNewMaps,
       movementRule,
       showRulerToPlayers,
@@ -1372,6 +1380,7 @@ export function useDmController(): DmController {
       interfaceHidden,
       showEffectTools,
       showGridToPlayers,
+      showToolHints,
       fogNewMaps,
       movementRule,
       showRulerToPlayers,

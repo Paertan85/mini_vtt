@@ -7,7 +7,7 @@
 //
 // Uses a scratch userData directory, so your real library is untouched.
 
-import { app, BrowserWindow, dialog, ipcMain, net } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, net, screen as displays } from 'electron';
 import '../dist-electron/main.js'; // must load before `ready` (registers the media protocol)
 import fs from 'node:fs';
 import path from 'node:path';
@@ -162,7 +162,7 @@ app.whenReady().then(async () => {
     js(
       `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === ${JSON.stringify(text)}).click()`,
     );
-  // The Shapes tool's buttons, one per shape
+  // The Spells tool's buttons, one per spell area shape
   const addArea = (label) => clickText(label);
   const playerButton = `[...document.querySelectorAll('button')].find((b) => /^(Open|Bring) the player window/.test(b.title))`;
   const press = (key, init = {}) =>
@@ -747,7 +747,7 @@ app.whenReady().then(async () => {
     // Snapshots are encoded in the background: an undo pressed while the last
     // change is still encoding must undo that change, not the one before
     const fogBeforeCover = fogHash();
-    await clickText('Fill');
+    await clickText('Whole map');
     await sleep(200);
     await js(`(() => {
       [...document.querySelectorAll('[role="menu"] button')].find((b) => b.textContent.trim() === 'Cover entire map').click();
@@ -1017,7 +1017,7 @@ app.whenReady().then(async () => {
     await press('s');
     await sleep(100);
     check(
-      'the Shapes tool keeps the mouse pointer over the map',
+      'the Spells tool keeps the mouse pointer over the map',
       (await js(
         `document.querySelector('canvas[aria-label="Fog of war"]').classList.contains('cursor-none')`,
       )) === false,
@@ -1029,7 +1029,7 @@ app.whenReady().then(async () => {
     await addArea('Circle');
     await sleep(200);
     const shapeNote = await js(`(() => {
-      const note = document.querySelector('[role="dialog"][aria-label="Add a shape"]');
+      const note = document.querySelector('[role="dialog"][aria-label="Add a spell area"]');
       const button = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Circle');
       if (!note) return null;
       const n = note.getBoundingClientRect(), b = button.getBoundingClientRect();
@@ -1098,7 +1098,7 @@ app.whenReady().then(async () => {
     await clickText('Poison');
     await sleep(900);
     check(
-      'a colour picked in the Shapes tool recolours the selected shape',
+      'a colour picked in the Spells tool recolours the selected shape',
       alpha().circles[0]?.kind === 'poison',
       JSON.stringify(alpha().circles[0]),
     );
@@ -1904,6 +1904,33 @@ app.whenReady().then(async () => {
       );
     } finally {
       dialog.showOpenDialog = showOpenDialog;
+    }
+
+    // Fill screen: a player window that isn't full screen takes the shape of
+    // the screen it is on, whatever that is, not always 16:9
+    {
+      if (player.isFullScreen()) player.setFullScreen(false);
+      if (player.isMaximized()) player.unmaximize();
+      player.setContentSize(800, 800);
+      await sleep(400);
+      const shape = displays.getDisplayMatching(player.getBounds()).size;
+      const fillPressed = () =>
+        js(
+          `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Fill screen').getAttribute('aria-pressed')`,
+        );
+      await clickText('Fill screen');
+      await waitFor(async () => (await fillPressed()) === 'true');
+      const [width, height] = player.getContentSize();
+      check(
+        'Fill screen gives a player window in a window its screen’s shape',
+        Math.abs(width / height - shape.width / shape.height) < 0.02,
+        `${width}×${height} on a ${shape.width}×${shape.height} screen`,
+      );
+      await clickText('Fill screen');
+      check(
+        'and a second click turns it off',
+        (await waitFor(async () => (await fillPressed()) === 'false')) === true,
+      );
     }
 
     await js(`location.href = 'file:///'`).catch(() => {});

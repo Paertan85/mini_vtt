@@ -83,7 +83,7 @@ export function Menu({ items, align = 'left', trigger }: MenuProps) {
                   {item.checked ? '✓' : ''}
                 </span>
                 <span className="flex-1">{item.label}</span>
-                {item.hint && <span className="text-[11px] text-faint">{item.hint}</span>}
+                {item.hint && <span className="text-xs text-muted">{item.hint}</span>}
               </button>
             </React.Fragment>
           ))}

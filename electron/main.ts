@@ -266,13 +266,28 @@ ipcMain.handle('player:open', async () => {
   return true;
 });
 
-ipcMain.handle('player:resize', async (_event, requestedWidth: number, requestedHeight: number) => {
-  if (!isOpen(playerWindow) || !Number.isFinite(requestedWidth) || !Number.isFinite(requestedHeight))
-    return null;
-  playerWindow.setContentSize(
-    Math.max(480, Math.round(requestedWidth)),
-    Math.max(360, Math.round(requestedHeight)),
-  );
+// Fill screen: a player window in a window takes the shape of the screen it is
+// on (16:9, 16:10, 4:3, ultrawide), as large as its width allows within the
+// screen's work area; one that is full screen or maximised keeps its size,
+// which already is the screen's. Returns the size the map is then fitted to.
+ipcMain.handle('player:matchScreen', async () => {
+  if (!isOpen(playerWindow)) return null;
+  if (!playerWindow.isFullScreen() && !playerWindow.isMaximized()) {
+    const display = screen.getDisplayMatching(playerWindow.getBounds());
+    const aspect = display.size.width / display.size.height;
+    const [contentWidth, contentHeight] = playerWindow.getContentSize();
+    const bounds = playerWindow.getBounds();
+    // The title bar and borders around the content
+    const frameWidth = bounds.width - contentWidth;
+    const frameHeight = bounds.height - contentHeight;
+    let width = Math.min(contentWidth, display.workArea.width - frameWidth);
+    let height = Math.round(width / aspect);
+    if (height > display.workArea.height - frameHeight) {
+      height = display.workArea.height - frameHeight;
+      width = Math.round(height * aspect);
+    }
+    playerWindow.setContentSize(Math.max(480, width), Math.max(360, height));
+  }
   const [width, height] = playerWindow.getContentSize();
   return { width, height };
 });

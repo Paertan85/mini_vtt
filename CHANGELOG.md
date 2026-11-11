@@ -24,7 +24,39 @@ All notable changes to this project are documented here. The format is based on
 - Dragging a square's handle towards or away from its centre now sizes it
   in 5 ft steps, as with cones and lines, as well as turning it.
 
+- A line at the bottom of the map says how the current tool works, such as
+  which mouse button reveals and which covers. **Settings → Show tool
+  hints** turns it off.
+
 ### Changed
+
+- **Fill screen** replaces Fit 16:9. It zooms the player view so the map
+  fills the player screen with no black edges, whatever the screen's shape.
+  A player window that is full screen keeps its size; one that isn't takes
+  the shape of the screen it is on (16:9, 16:10, 4:3 or ultrawide) instead
+  of always 16:9.
+
+- The toolbar and panels follow Microsoft's guidelines for Windows UI text
+  and layout, and NN/g's advice on modes:
+  - Solid gold now marks only the current tool. Options and toggles that
+    are on (Movement, Show players, the zoom lock, True scale, the fog
+    shapes, the effect colours) get a gold outline instead, so the tool
+    you are in stands out.
+  - The Settings menu holds only settings. Keyboard shortcuts, Export and
+    Import project, Open library folder, Full screen, Reload, Developer
+    tools and Quit moved to a new menu (☰) next to it.
+  - The Shapes tool is called Spells, as the spell areas it places are
+    everywhere else. Fill is called Whole map, and the player view's Zoom
+    is called Player zoom, as your own view zooms too.
+  - The Brush slider shows only in the Fog and Effects tools.
+  - The player screen button says Player screen while it is open, with
+    the red dot showing that it is live, instead of a status as its label.
+  - Tooltips follow one pattern ("Fog (F): …") and name the mouse buttons
+    the same way everywhere.
+  - Faint text (grid sizes under the maps, menu shortcuts, notes in the
+    shortcuts list) is brighter, to meet WCAG AA contrast. "Grid not set"
+    under a map is no longer red, as it isn't an error, and a map's
+    details take up to two lines instead of being cut off.
 
 - Aiming a cone, line or square is less jumpy: its size holds until the
   handle is 4 ft past it, rather than flipping back and forth at the

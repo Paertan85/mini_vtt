@@ -137,7 +137,7 @@ export function PlayerSetupDialog({
             {PORTRAIT_CHOICES.map((choice) => (
               <Button
                 key={choice.rotation}
-                tone={rotation === choice.rotation ? 'active' : 'default'}
+                tone={rotation === choice.rotation ? 'on' : 'default'}
                 aria-pressed={rotation === choice.rotation}
                 onClick={() => setRotation(choice.rotation)}
               >
@@ -189,7 +189,7 @@ function Way({ way }: { way: string }) {
     <span className="flex items-center gap-1 whitespace-nowrap">
       {parts.map((part, index) => (
         <span key={part} className="flex items-center gap-1">
-          {index > 0 && <span className="text-faint">+</span>}
+          {index > 0 && <span className="text-muted">+</span>}
           {MOUSE_ACTION.test(part) ? <span className="text-muted">{part}</span> : <Kbd>{keyLabel(part)}</Kbd>}
         </span>
       ))}
@@ -210,21 +210,21 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
             <h3 className="border-b border-line pb-1 font-display text-[13px] font-semibold tracking-wide text-ink">
               {group.title}
             </h3>
-            {group.note && <p className="mt-1 text-xs text-faint">{group.note}</p>}
+            {group.note && <p className="mt-1 text-xs text-muted">{group.note}</p>}
             <dl className="mt-1.5 flex flex-col gap-0.5 text-[13px]">
               {group.shortcuts.map(([action, ways, note]) => (
                 <div key={action} className="flex items-start justify-between gap-3">
                   <dt className="leading-6 text-ink">
                     {action}
                     {note && (
-                      <span className="-mt-0.5 block text-xs leading-4 text-faint">{keyLabel(note)}</span>
+                      <span className="-mt-0.5 block text-xs leading-4 text-muted">{keyLabel(note)}</span>
                     )}
                   </dt>
                   {/* A fixed height and line height, so rows with key caps are as tall as the rest */}
                   <dd className="flex h-6 shrink-0 items-center justify-end gap-x-1.5 leading-4">
                     {ways.flatMap(waysOf).map((way, index) => (
                       <span key={way} className="flex items-center gap-1.5">
-                        {index > 0 && <span className="text-faint">or</span>}
+                        {index > 0 && <span className="text-muted">or</span>}
                         <Way way={way} />
                       </span>
                     ))}
@@ -323,7 +323,7 @@ export function WelcomeDialog({
         </li>
       </ul>
 
-      <p className="mt-4 text-xs leading-relaxed text-faint">
+      <p className="mt-4 text-xs leading-relaxed text-muted">
         The ? button next to Settings brings this back.
       </p>
     </Dialog>

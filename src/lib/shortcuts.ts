@@ -156,7 +156,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       ['View tool', [keys('viewTool')]],
       ['Fog tool', [keys('fogTool')]],
       ['Effects tool', [keys('effectsTool')]],
-      ['Shapes tool', [keys('shapesTool')]],
+      ['Spells tool', [keys('shapesTool')]],
       ['Blackout the player screen', [keys('blackout')]],
       ['Show or hide the kill screen', [keys('killScreen')], 'Red words on black, for a kill'],
       ['Hide or show everything but the map', [keys('toggleInterface')], 'For small screens'],

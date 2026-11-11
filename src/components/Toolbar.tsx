@@ -1,10 +1,14 @@
 // The DM window's toolbar, in three groups:
-//   left    tools (view / fog / effects / shapes / measure), brush size,
-//           undo and redo, and the active tool's options: the fog menu, the
-//           effect colours and Clear, the colours and the shapes to add, or
-//           how the Measure tool counts diagonals
-//   centre  player view zoom and 16:9 fit
-//   right   player screen status, blackout, the welcome screen and the settings menu
+//   left    tools (view / fog / effects / spells / measure), brush size (fog
+//           and effects), undo and redo, and the active tool's options: the
+//           whole-map menu, the effect colours and Clear, the colours and the
+//           spell areas to add, or how the Measure tool counts diagonals
+//   centre  player view zoom, Fill screen and True scale
+//   right   player screen, blackout, the welcome screen, settings and the menu
+//
+// Solid gold marks the current tool; options and toggles that are on get a
+// gold outline (tone "on"), so the tool stands out (NN/g, "Modes in user
+// interfaces"). Tooltips read "Name (key): what it does."
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -12,6 +16,7 @@ import {
   CircleHelp,
   Lock,
   LockOpen,
+  Menu as MenuIcon,
   Minus,
   PanelLeftClose,
   PanelLeftOpen,
@@ -54,23 +59,27 @@ interface ToolbarProps {
 
 /** The Fog tool's ways of drawing, as the toolbar offers them. */
 const FOG_SHAPES: { shape: FogShape; label: string; title: string }[] = [
-  { shape: 'brush', label: 'Brush', title: 'Paint fog with a round brush' },
+  {
+    shape: 'brush',
+    label: 'Brush',
+    title: 'Brush: paint fog with a round brush. Left button reveals, right button covers.',
+  },
   {
     shape: 'lasso',
     label: 'Lasso',
-    title: 'Lasso: draw around an area to reveal it all at once; Right Mouse button covers it (L switches)',
+    title: 'Lasso (L): draw around an area. Left button reveals it all at once, right button covers it.',
   },
   {
     shape: 'rect',
     label: 'Rectangle',
     title:
-      'Rectangle: drag to reveal a rectangle; Right Mouse button covers it. Ctrl snaps it to the grid (R switches)',
+      'Rectangle (R): drag a rectangle. Left button reveals it, right button covers it; Ctrl snaps it to the grid.',
   },
   {
     shape: 'rooms',
     label: 'Rooms',
     title:
-      'Rooms: drag to mark out a room ahead of time, then reveal or cover it with one click. Only you see the rooms. Ctrl snaps to the grid',
+      'Rooms: mark out rooms ahead of time, then reveal or cover each with one click. Only you see them; Ctrl snaps to the grid.',
   },
 ];
 
@@ -145,7 +154,7 @@ export const Toolbar = memo(function Toolbar({
           tone={tool === 'view' ? 'active' : 'default'}
           aria-pressed={tool === 'view'}
           onClick={() => tools.setTool('view')}
-          title="View: drag the frame to move the player view (V). Hold Alt to move it while painting."
+          title="View (V): drag the frame to move the player view, and scroll over it to zoom. Hold Alt to move it while painting."
         >
           View
         </Button>
@@ -154,7 +163,7 @@ export const Toolbar = memo(function Toolbar({
           aria-pressed={tool === 'fog'}
           onClick={() => tools.setTool('fog')}
           disabled={!hasMap}
-          title="Paint fog (F): Left Mouse button reveals, Right mouse button covers"
+          title="Fog (F): paint fog of war. Left button reveals, right button covers."
         >
           Fog
         </Button>
@@ -165,7 +174,7 @@ export const Toolbar = memo(function Toolbar({
               aria-pressed={tool === 'effect'}
               onClick={() => tools.setTool('effect')}
               disabled={!hasMap}
-              title="Paint effects such as fire or poison (E): Left Mouse button paints, Right mouse button erases"
+              title="Effects (E): paint fire, poison or magic. Left button paints, right button erases."
             >
               Effects
             </Button>
@@ -174,9 +183,9 @@ export const Toolbar = memo(function Toolbar({
               aria-pressed={tool === 'shapes'}
               onClick={() => tools.setTool('shapes')}
               disabled={!hasMap}
-              title="Place spell areas sized in feet: circles, squares, cones and lines (S)"
+              title="Spells (S): place spell areas sized in feet: circles, squares, cones and lines."
             >
-              Shapes
+              Spells
             </Button>
           </>
         )}
@@ -185,29 +194,33 @@ export const Toolbar = memo(function Toolbar({
           aria-pressed={tool === 'measure'}
           onClick={() => tools.setTool('measure')}
           disabled={!hasMap}
-          title="Measure (M): drag on the map to see the distance in feet, or click point by point to measure a path round corners (double-click or Enter finishes it)."
+          title="Measure (M): drag to see the distance in feet, or click point by point for a path round corners. Double-click or Enter finishes it."
         >
           Measure
         </Button>
       </ButtonGroup>
 
-      <label
-        className="flex items-center gap-2 pl-1 text-[13px] text-muted"
-        title="Brush size: mouse wheel in the Fog and Effects tools (or while holding Shift), or [ and ]"
-      >
-        Brush
-        <input
-          type="range"
-          min={MIN_BRUSH}
-          max={MAX_BRUSH}
-          step={BRUSH_STEP}
-          value={tools.brushSize}
-          onChange={(event) => tools.setBrushSize(Number(event.target.value))}
-          aria-label="Brush size"
-          className="w-24 accent-gold"
-        />
-        <span className="w-7 text-right tabular-nums text-ink">{tools.brushSize}</span>
-      </label>
+      {/* Only in the tools that paint with it; Shift-painting fog in another tool
+          still uses it, and the wheel with Shift or [ and ] still size it */}
+      {(tool === 'fog' || tool === 'effect') && (
+        <label
+          className="flex items-center gap-2 pl-1 text-[13px] text-muted"
+          title="Brush size: mouse wheel in the Fog and Effects tools (or while holding Shift), or [ and ]"
+        >
+          Brush
+          <input
+            type="range"
+            min={MIN_BRUSH}
+            max={MAX_BRUSH}
+            step={BRUSH_STEP}
+            value={tools.brushSize}
+            onChange={(event) => tools.setBrushSize(Number(event.target.value))}
+            aria-label="Brush size"
+            className="w-24 accent-gold"
+          />
+          <span className="w-7 text-right tabular-nums text-ink">{tools.brushSize}</span>
+        </label>
+      )}
 
       <ButtonGroup label="History">
         <Button
@@ -251,9 +264,9 @@ export const Toolbar = memo(function Toolbar({
           <EffectKindPicker
             kind={tools.effectKind}
             onChange={tools.setEffectKind}
-            title={(label) => `Make new shapes, and the selected one, ${label}`}
+            title={(label) => `Make new spell areas, and the selected one, ${label}`}
           />
-          <ButtonGroup label="Add a shape">
+          <ButtonGroup label="Add a spell area">
             {AREA_SHAPES.map((shape) => (
               <Button
                 key={shape}
@@ -277,13 +290,13 @@ export const Toolbar = memo(function Toolbar({
             open={shapeNote !== null && shapesNeed !== null}
             onClose={closeShapeNote}
             anchorRef={shapeAnchorRef}
-            label="Add a shape"
+            label="Add a spell area"
           >
             {shapeNote && shapesNeed === 'grid' && (
               <>
                 <p>
-                  Shapes are sized in feet, so this map needs its grid first. Click two corners of a square
-                  and save it, and the {AREA_LABELS[shapeNote].toLowerCase()} is added.
+                  Spell areas are sized in feet, so this map needs its grid first. Click two corners of a
+                  square and save it, and the {AREA_LABELS[shapeNote].toLowerCase()} is added.
                 </p>
                 <div className="mt-3 flex justify-end">
                   <Button
@@ -299,7 +312,7 @@ export const Toolbar = memo(function Toolbar({
               </>
             )}
             {shapesNeed === 'full' && (
-              <p>A map can have at most {MAX_AREAS} shapes. Delete one to add another.</p>
+              <p>A map can have at most {MAX_AREAS} spell areas. Delete one to add another.</p>
             )}
           </Popover>
         </>
@@ -308,37 +321,35 @@ export const Toolbar = memo(function Toolbar({
         (tools.measureNeedsGrid ? (
           <span className="flex items-center gap-2 text-[13px] text-muted">
             Measuring needs this map’s grid.
-            <Button tone="active" onClick={tools.measureGrid}>
-              Measure grid
-            </Button>
+            <Button onClick={tools.measureGrid}>Measure grid</Button>
           </span>
         ) : (
           <>
             <ButtonGroup label="Measure">
               <Button
-                tone={tools.measureStraight ? 'default' : 'active'}
+                tone={tools.measureStraight ? 'default' : 'on'}
                 aria-pressed={!tools.measureStraight}
                 onClick={() => tools.setMeasureStraight(false)}
-                title={`Movement: counted in squares, from the middle of one to the middle of another; ${MOVEMENT_TITLES[settings.movementRule]}. Settings switch how diagonals count.`}
+                title={`Movement: counted in squares, from the middle of one to the middle of another; ${MOVEMENT_TITLES[settings.movementRule]}. Settings switches how diagonals count.`}
               >
                 Movement
               </Button>
               <Button
-                tone={tools.measureStraight ? 'active' : 'default'}
+                tone={tools.measureStraight ? 'on' : 'default'}
                 aria-pressed={tools.measureStraight}
                 onClick={() => tools.setMeasureStraight(true)}
                 title={keyLabel(
-                  'Straight line: the distance as the crow flies, not counted in squares (Ctrl snaps the ends to square centres)',
+                  'Straight line: the distance as the crow flies, not counted in squares. Ctrl snaps the ends to square centres.',
                 )}
               >
                 Straight line
               </Button>
             </ButtonGroup>
             <Button
-              tone={settings.showRulerToPlayers ? 'active' : 'default'}
+              tone={settings.showRulerToPlayers ? 'on' : 'default'}
               aria-pressed={settings.showRulerToPlayers}
               onClick={() => settings.setShowRulerToPlayers(!settings.showRulerToPlayers)}
-              title="Show the ruler on the player screen too, as you drag it"
+              title="Show players: the ruler appears on the player screen too, as you drag it."
             >
               Show players
             </Button>
@@ -351,7 +362,7 @@ export const Toolbar = memo(function Toolbar({
               {FOG_SHAPES.map(({ shape, label, title }) => (
                 <Button
                   key={shape}
-                  tone={tools.fogShape === shape ? 'active' : 'default'}
+                  tone={tools.fogShape === shape ? 'on' : 'default'}
                   aria-pressed={tools.fogShape === shape}
                   onClick={() => tools.setFogShape(shape)}
                   title={keyLabel(title)}
@@ -367,8 +378,8 @@ export const Toolbar = memo(function Toolbar({
               { label: 'Cover entire map', onSelect: tools.coverAll },
             ]}
             trigger={(trigger) => (
-              <Button {...trigger} disabled={!hasMap} title="Reveal or cover the whole map">
-                Fill
+              <Button {...trigger} disabled={!hasMap} title="Whole map: reveal or cover all of it">
+                Whole map
                 <ChevronDown className="h-3.5 w-3.5 text-muted" />
               </Button>
             )}
@@ -382,7 +393,7 @@ export const Toolbar = memo(function Toolbar({
       <ZoomControl zoom={zoom} onChange={playerView.setZoom} disabled={!hasMap || zoomLocked} />
       <Button
         square
-        tone={zoomLocked ? 'active' : 'default'}
+        tone={zoomLocked ? 'on' : 'default'}
         aria-pressed={zoomLocked}
         aria-label="Lock zoom"
         onClick={playerView.toggleZoomLock}
@@ -395,24 +406,24 @@ export const Toolbar = memo(function Toolbar({
         {zoomLocked ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}
       </Button>
       <Button
-        tone={playerView.fit16by9 ? 'active' : 'default'}
-        aria-pressed={playerView.fit16by9}
-        onClick={playerView.toggleFit16by9}
+        tone={playerView.fillScreen ? 'on' : 'default'}
+        aria-pressed={playerView.fillScreen}
+        onClick={playerView.toggleFillScreen}
         // Turning it on zooms the player view; turning it off doesn't
-        disabled={!hasMap || !playerScreen.playerOpen || (zoomLocked && !playerView.fit16by9)}
-        title="Resize the player window to 16:9 and fill it with the map"
+        disabled={!hasMap || !playerScreen.playerOpen || (zoomLocked && !playerView.fillScreen)}
+        title="Fill screen: zoom the player view so the map fills the player screen with no black edges, and keep the frame on the map. A player window that isn't full screen first takes the shape of its screen."
       >
-        Fit 16:9
+        Fill screen
       </Button>
       <Button
         ref={trueScaleRef}
-        tone={playerView.atTrueScale ? 'active' : 'default'}
+        tone={playerView.atTrueScale ? 'on' : 'default'}
         aria-pressed={playerView.atTrueScale}
         aria-haspopup={trueScaleNeeds ? 'dialog' : undefined}
         aria-expanded={trueScaleNeeds ? trueScaleNote : undefined}
         onClick={() => (trueScaleNeeds ? setTrueScaleNote((shown) => !shown) : playerView.trueScale())}
         disabled={!hasMap || zoomLocked}
-        title="Zoom the player view so the map’s squares are the grid square size from Player screen setup, for miniatures. A map without a grid gets it measured first."
+        title="True scale: zoom the player view so the map’s squares are the grid square size from Player screen setup, for miniatures. A map without a grid gets it measured first."
       >
         True scale
       </Button>
@@ -447,20 +458,25 @@ export const Toolbar = memo(function Toolbar({
       {/* Player screen */}
       <Button
         onClick={playerScreen.openPlayer}
-        title={playerScreen.playerOpen ? 'Bring the player window to the front' : 'Open the player window'}
+        title={
+          playerScreen.playerOpen
+            ? 'Bring the player window to the front. The red dot: the player screen is live.'
+            : 'Open the player window'
+        }
         className="min-w-38"
       >
         <span
           aria-hidden="true"
-          className={`h-2 w-2 rounded-full ${playerScreen.playerOpen ? 'bg-crimson-bright' : 'border border-faint'}`}
+          className={`h-2 w-2 rounded-full ${playerScreen.playerOpen ? 'bg-crimson-bright' : 'border border-muted'}`}
         />
-        {playerScreen.playerOpen ? 'Player screen live' : 'Open player screen'}
+        {playerScreen.playerOpen ? 'Player screen' : 'Open player screen'}
+        {playerScreen.playerOpen && <span className="sr-only">(live)</span>}
       </Button>
       <Button
         tone={playerScreen.blackout ? 'live' : 'default'}
         aria-pressed={playerScreen.blackout}
         onClick={playerScreen.toggleBlackout}
-        title="Hide everything on the player screen (B)"
+        title="Blackout (B): hide everything on the player screen."
       >
         Blackout
       </Button>
@@ -477,15 +493,20 @@ export const Toolbar = memo(function Toolbar({
         align="right"
         items={[
           { label: 'Player screen setup…', onSelect: app.openPlayerSetup },
-          { label: 'Keyboard shortcuts…', onSelect: app.openShortcuts },
-          { label: 'Measure map grid…', onSelect: tools.measureGrid, disabled: !hasMap, separated: true },
+          { label: 'Measure map grid…', onSelect: tools.measureGrid, disabled: !hasMap },
           {
             label: 'Show grid on player screen',
             onSelect: settings.toggleGridToPlayers,
             checked: settings.showGridToPlayers,
+            separated: true,
           },
           {
-            label: 'Show effect and shape tools',
+            label: 'Show tool hints',
+            onSelect: settings.toggleToolHints,
+            checked: settings.showToolHints,
+          },
+          {
+            label: 'Show effect and spell tools',
             onSelect: settings.toggleEffectTools,
             checked: settings.showEffectTools,
           },
@@ -500,6 +521,17 @@ export const Toolbar = memo(function Toolbar({
             checked: settings.movementRule === rule,
             separated: index === 0,
           })),
+        ]}
+        trigger={(trigger) => (
+          <Button {...trigger} square tone="quiet" aria-label="Settings" title="Settings">
+            <Settings className="h-4 w-4" />
+          </Button>
+        )}
+      />
+      <Menu
+        align="right"
+        items={[
+          { label: 'Keyboard shortcuts…', onSelect: app.openShortcuts },
           { label: 'Export project…', onSelect: app.exportProject, separated: true },
           { label: 'Import project…', onSelect: app.importProject },
           { label: 'Open library folder', onSelect: app.revealLibraryFolder },
@@ -514,8 +546,14 @@ export const Toolbar = memo(function Toolbar({
           { label: 'Quit', onSelect: app.quit, separated: true },
         ]}
         trigger={(trigger) => (
-          <Button {...trigger} square tone="quiet" aria-label="Settings" title="Settings">
-            <Settings className="h-4 w-4" />
+          <Button
+            {...trigger}
+            square
+            tone="quiet"
+            aria-label="Menu"
+            title="Menu: keyboard shortcuts, project files and the window"
+          >
+            <MenuIcon className="h-4 w-4" />
           </Button>
         )}
       />
@@ -551,7 +589,7 @@ function ZoomControl({
       className="flex items-center gap-2"
       title="Player view zoom: + and − keys, mouse wheel over the player frame in the View tool, or Alt + mouse wheel in 1% steps"
     >
-      <span className="text-[13px] text-muted">Zoom</span>
+      <span className="text-[13px] text-muted">Player zoom</span>
       <ButtonGroup label="Player view zoom">
         <Button square onClick={() => onChange(stepZoom(zoom, -1))} disabled={disabled} aria-label="Zoom out">
           <Minus className="h-3.5 w-3.5" />
@@ -607,7 +645,7 @@ function EffectKindPicker({
       {EFFECT_KINDS.map((option) => (
         <Button
           key={option}
-          tone={kind === option ? 'active' : 'default'}
+          tone={kind === option ? 'on' : 'default'}
           aria-pressed={kind === option}
           onClick={() => onChange(option)}
           title={title(EFFECT_STYLES[option].label.toLowerCase())}

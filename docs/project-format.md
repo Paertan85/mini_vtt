@@ -1,6 +1,6 @@
 # The `.minivtt` project file
 
-A project file holds a whole Mini VTT library in one file: maps, handouts, fog, painted effects, spell areas and the player screen setup. **Settings → Export project…** writes one; **Settings → Import project…** reads one.
+A project file holds a whole Mini VTT library in one file: maps, handouts, fog, painted effects, spell areas and the player screen setup. **Menu (☰) → Export project…** writes one; **Menu (☰) → Import project…** reads one.
 
 This page explains how to create one yourself, by hand or from your own program. [`project-manifest.schema.json`](project-manifest.schema.json) defines the same format as a JSON Schema, for tools that check files.
 
@@ -25,7 +25,7 @@ This page explains how to create one yourself, by hand or from your own program.
    ```
 
 3. **Zip what is in the folder**, not the folder itself: `manifest.json` must be at the top of the ZIP.
-4. **Rename the `.zip` to `.minivtt`** and open it with **Settings → Import project…**.
+4. **Rename the `.zip` to `.minivtt`** and open it with **Menu (☰) → Import project…**.
 
 Mini VTT measures each image, makes the thumbnails, and starts every map fully fogged.
 

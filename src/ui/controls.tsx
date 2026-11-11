@@ -1,15 +1,19 @@
 // Buttons and grouped controls. One height (32px), one radius, flat fills and
-// 1px borders. Gold marks the active choice; crimson marks anything players
+// 1px borders. Solid gold marks the current tool (and a dialog's main button),
+// so the mode the DM is in stands out; a chosen option or a toggle that is on
+// gets a gold outline and gold text instead. Crimson marks anything players
 // can see change.
 
 import React from 'react';
 
-type Tone = 'default' | 'quiet' | 'active' | 'live';
+type Tone = 'default' | 'quiet' | 'active' | 'on' | 'live';
 
 const TONES: Record<Tone, string> = {
   default: 'bg-raised border-line text-ink hover:border-line-strong hover:bg-raised-hover',
   quiet: 'bg-transparent border-transparent text-muted hover:text-ink hover:bg-raised',
   active: 'bg-gold border-gold text-ground hover:bg-gold-bright hover:border-gold-bright',
+  // Above its neighbours in a group, so its gold outline isn't hidden under theirs
+  on: 'relative z-10 bg-raised border-gold text-gold-bright hover:bg-raised-hover hover:border-gold-bright',
   live: 'bg-crimson border-crimson text-ink hover:bg-crimson-bright hover:border-crimson-bright',
 };
 
@@ -66,5 +70,5 @@ export const Kbd = ({ children }: { children: React.ReactNode }) => (
 /** Shared look for text and number inputs. */
 export const inputClass =
   'h-8 rounded-sm border border-line bg-ground px-2 text-[13px] text-ink tabular-nums ' +
-  'placeholder:text-faint focus:border-gold focus:outline-hidden ' +
+  'placeholder:text-muted focus:border-gold focus:outline-hidden ' +
   '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
