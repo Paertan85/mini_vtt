@@ -9,6 +9,8 @@ Have an idea? Open an [issue](https://github.com/Paertan85/mini_vtt/issues).
 - **No hidden menu on Windows and Linux.** The application menu is hidden there, but it is still what makes F11, Ctrl+R and Ctrl+Shift+I (and Ctrl+Q on Linux) work in both windows, and on Windows letting go of Alt used to give it keyboard focus without showing it. Remove it on Windows and Linux (the Mac keeps it: it is the menu bar at the top of the screen, and its Edit menu makes copy and paste work in text fields), handle those keys in each window's own key handler, and drop the Alt workaround in `hideMenuBar` together with the `window:altReleased` message.
 - **Touch on the Steam Deck.** The Linux build runs on a Deck, and touch works, but not well enough to recommend: for now a keyboard and mouse are needed. Find what gets in the way (such as a finger dragged over the map scrolling the page instead of painting) and tune it.
 - **DM window on a small screen, such as the Steam Deck's.** Make the most of the map area on a small screen. Ctrl+Shift+B already hides the whole interface; the toolbar at the top still wraps onto two lines on the Deck (1280 × 800), so fit it on one line at that width. Then look for other places the interface takes more room than it needs at that size.
+- **Show the squares a spell area covers.** Highlight the grid squares inside each area, for circles (spheres and emanations), squares (cubes), cones and lines, so whether a mini is caught is plain to see at the table. Settle which rule decides a square (covered at least halfway, or its centre inside, as the D&D rules have it) and whether players see the squares too. Work them out only when an area is placed, moved, resized or turned, never per frame.
+- **Reveal a radius.** Click a spot and reveal the fog in a circle sized in feet around it (torchlight, darkvision, 30 or 60 ft), sized like a spell area. One undo takes it back.
 
 ## Ideas
 
@@ -19,7 +21,14 @@ Have an idea? Open an [issue](https://github.com/Paertan85/mini_vtt/issues).
 - **DM notes:** pins on the map that only the DM sees.
 - **Grid from the image size**, as Mini Gridder does: from the map's pixel size, work out the square sizes that fit a whole number of squares both across and down, and step through them (arrow keys or wheel, say) with the grid shown over the map until it lines up. A quicker way to set a grid than measuring, for maps whose names give no grid.
 - **Universal VTT import** (`.dd2vtt`, `.uvtt`, from Dungeondraft and others): the map image together with its grid size, so it needs no measuring.
+- **Get the next map ready without showing it:** load and frame a map, cover it and reveal its first room in the DM window while the players still see the current one, then show it with one key. Each window would still hold one map, so it costs no more memory than now.
+- **Your own text on the player screen:** title cards (“Chapter 3: The Sunken Keep”), “Short rest”, or your own lines for the kill screen, shown the way the kill screen is.
 - **Smaller copies of very large maps** (maybe): when a map much larger than the screens can show is added, offer to keep a smaller copy, as the app already suggests for videos too large to play smoothly. A 318-megapixel map uses 3 GB or more while it is shown (see Known limitations in the README), and on the game laptop (integrated graphics, player screen on a 4K TV) dragging the view lags with it, though play with a still view is fine.
+
+### Grid and measuring
+
+- **Metres:** distances in metres (1.5 m squares), as in many translated rulebooks, instead of feet, for the ruler, spell areas and the grid.
+- **Hex grids** (not likely to be added unless someone asks for it): for hexcrawls and games played on hexes. Drawing the grid, measuring, snapping and true scale would all need a hex version.
 
 ### Platforms
 
@@ -40,3 +49,8 @@ Have an idea? Open an [issue](https://github.com/Paertan85/mini_vtt/issues).
 
 - **Showing fog strokes to players while they are painted.** Players see a stroke when the mouse is released, so a room is revealed all at once, and the mask is encoded once per stroke rather than continuously.
 - **Areas snapping to the grid by default.** Some spells start in the middle of a square and others anywhere at all, so areas move freely; holding Ctrl snaps them.
+- **Tokens, walls, line of sight and dynamic lighting.** The group plays with minis on the table, so the app has no tokens, and without them there is nothing to see from. This includes using the walls in Universal VTT files to reveal what can be seen from a spot.
+- **“Explored” fog** (areas the party has left shown dimmed) **and weather overlays** (rain, snow or mist over the map). Explored fog needs a second fog mask for every map, and an overlay a second video playing on top of the map, which costs on a low-end laptop. Not planned for Mini VTT; a fork is welcome to add them.
+- **Drawing on the player screen.** The ruler with **Show players**, and the Ping idea, cover pointing things out.
+- **Controlling the app from a phone.** It would need a server on the local network, and the app stays offline with nothing running in the background.
+- **PDF handouts.** Showing them relies on Chromium's built-in PDF viewer, which a move to Tauri would lose. Images cover handouts; export a PDF page as an image.
