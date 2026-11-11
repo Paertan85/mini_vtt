@@ -1010,11 +1010,27 @@ app.whenReady().then(async () => {
         aimed.angle === 90 && aimed.radiusFt === 25 && snapped.angle === 0,
         JSON.stringify({ aimed: [aimed.angle, aimed.radiusFt], snapped: snapped.angle }),
       );
+      const length = (from, toFt) =>
+        areasLib.aimArea({ ...cone, radiusFt: from }, { x: toFt * cell, y: 0 }, measured, false).radiusFt;
       check(
-        'a square near a right angle settles onto the grid, and keeps its size',
+        'an aimed length holds until dragged 4 ft past it: 10 ft grows at 14, 15 ft shrinks at 11',
+        length(10, 13.9) === 10 &&
+          length(10, 14.1) === 15 &&
+          length(15, 11.1) === 15 &&
+          length(15, 10.9) === 10 &&
+          length(10, 6.1) === 10 &&
+          length(10, 5.9) === 5,
+      );
+      check(
+        'a square near a right angle settles onto the grid',
         areasLib.aimArea(square(10), { x: 100, y: 4 }, measured, false).angle === 0 &&
-          Math.round(areasLib.aimArea(square(10), { x: 100, y: 50 }, measured, false).angle) === 27 &&
-          areasLib.aimArea(square(10), { x: 300, y: 0 }, measured, false).radiusFt === 10,
+          Math.round(areasLib.aimArea(square(10), { x: 100, y: 50 }, measured, false).angle) === 27,
+      );
+      check(
+        "a square's side follows its handle in 5 ft steps, never below 5 ft",
+        areasLib.aimArea(square(10), { x: 11 * cell, y: 0 }, measured, false).radiusFt === 20 &&
+          areasLib.aimArea(square(10), { x: 0, y: -4 * cell }, measured, false).radiusFt === 10 &&
+          areasLib.aimArea(square(10), { x: 0.5 * cell, y: 0 }, measured, false).radiusFt === 5,
       );
       const added = areasLib.newArea('line', { x: 5, y: 6 }, 'magic', { x: 0, y: -1 });
       check(

@@ -1,5 +1,5 @@
 // The spell areas' handles in the DM window (View and Shapes tools): the dot
-// that moves an area, the handle that aims a cone or line or turns a square,
+// that moves an area, the handle that aims a cone or line or turns and sizes a square,
 // the size label, and the selected area's outline and toolbar. The areas
 // themselves are drawn by DrawnAreas, the same way in both windows.
 

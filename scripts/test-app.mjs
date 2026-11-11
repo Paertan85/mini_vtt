@@ -1326,7 +1326,9 @@ app.whenReady().then(async () => {
     const turnSquare = async (dx, dy) => {
       const from = await centerOf('button[aria-label="Turn the square"]');
       const centre = await centerOf('button[aria-label^="Square,"]');
-      const to = { x: centre.x + dx * (from.x - centre.x), y: centre.y + dy * (from.x - centre.x) };
+      // dx, dy in handle distances from the centre, so (1, 0) keeps the size
+      const reach = Math.hypot(from.x - centre.x, from.y - centre.y);
+      const to = { x: centre.x + dx * reach, y: centre.y + dy * reach };
       mouse('mouseDown', from.x, from.y);
       for (let i = 1; i <= 5; i++) {
         mouse('mouseMove', from.x + ((to.x - from.x) * i) / 5, from.y + ((to.y - from.y) * i) / 5);
@@ -1336,7 +1338,7 @@ app.whenReady().then(async () => {
       await sleep(900);
       return alpha().circles[0];
     };
-    const turned = await turnSquare(1, 1);
+    const turned = await turnSquare(Math.SQRT1_2, Math.SQRT1_2);
     check(
       'dragging the handle turns the square, keeping its size',
       turned?.shape === 'square' && Math.abs(turned.angle - 45) < 1 && turned.radiusFt === 10,
@@ -1344,6 +1346,8 @@ app.whenReady().then(async () => {
     );
     const settled = await turnSquare(1, 0.05);
     check('near a right angle the square settles onto the grid', settled?.angle === 0, `${settled?.angle}°`);
+    const grown = await turnSquare(2, 0);
+    check('dragging the handle away doubles the square', grown?.radiusFt === 20, JSON.stringify(grown));
     await press('Delete');
     await sleep(600);
 

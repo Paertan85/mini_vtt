@@ -21,6 +21,16 @@ All notable changes to this project are documented here. The format is based on
 - Double-click the player screen to go full screen or leave it, as well as
   F11 and its corner button.
 
+- Dragging a square's handle towards or away from its centre now sizes it
+  in 5 ft steps, as with cones and lines, as well as turning it.
+
+### Changed
+
+- Aiming a cone, line or square is less jumpy: its size holds until the
+  handle is 4 ft past it, rather than flipping back and forth at the
+  halfway point. A 10 ft cone grows to 15 ft at 14 ft, and shrinks back
+  to 10 ft at 11 ft.
+
 ### Fixed
 
 - If another program (such as a virus scanner or a backup) briefly held

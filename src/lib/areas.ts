@@ -27,6 +27,12 @@ export const DEFAULT_AREA_FT: Record<AreaShape, number> = { circle: 15, square: 
 export const DEFAULT_LINE_WIDTH_FT = 5;
 /** Feet per wheel notch, and the steps an aimed length keeps to */
 export const AREA_STEP_FT = 5;
+/**
+ * How far (in steps) an aimed size must be dragged past its current one
+ * before it changes, so it doesn't flicker between two sizes at the halfway
+ * point
+ */
+const AIM_HOLD_STEPS = 0.8;
 /** A square turned within this many degrees of the grid settles onto it */
 const SQUARE_SNAP_DEG = 5;
 /** Cones and lines aimed with Ctrl held keep to these steps */
@@ -291,20 +297,31 @@ export const resizeArea = (area: SpellArea, notches: number): SpellArea =>
 /**
  * The handle dragged to `point`. A cone or line points at it and its length
  * follows, in 5 ft steps; with `snap` (Ctrl held) the direction keeps to 45°
- * steps. A square only turns, and settles onto the grid near a right angle.
+ * steps. A square turns, settling onto the grid near a right angle, and its
+ * side follows the handle (the middle of its front edge) in 5 ft steps, about
+ * its centre. A size only changes once the handle is AIM_HOLD_STEPS of a
+ * step past it, then lands on the nearest step.
  */
 export function aimArea(area: SpellArea, point: Point, grid: MapGrid, snap: boolean): SpellArea {
   const dx = point.x - area.x;
   const dy = point.y - area.y;
   const angle = angleOf({ x: dx, y: dy });
+  const feet = pixelsToFeet(Math.hypot(dx, dy), grid);
+  const inSteps = (value: number) =>
+    Math.abs(value - area.radiusFt) < AIM_HOLD_STEPS * AREA_STEP_FT
+      ? area.radiusFt
+      : clampRadius(Math.max(AREA_STEP_FT, Math.round(value / AREA_STEP_FT) * AREA_STEP_FT));
   if (area.shape === 'square') {
     const square = Math.round(angle / 90) * 90;
-    return { ...area, angle: Math.abs(angle - square) <= SQUARE_SNAP_DEG ? square % 360 : angle };
+    return {
+      ...area,
+      angle: Math.abs(angle - square) <= SQUARE_SNAP_DEG ? square % 360 : angle,
+      radiusFt: inSteps(feet * 2),
+    };
   }
-  const feet = pixelsToFeet(Math.hypot(dx, dy), grid);
   return {
     ...area,
     angle: snap ? (Math.round(angle / AIM_SNAP_DEG) * AIM_SNAP_DEG) % 360 : angle,
-    radiusFt: clampRadius(Math.max(AREA_STEP_FT, Math.round(feet / AREA_STEP_FT) * AREA_STEP_FT)),
+    radiusFt: inSteps(feet),
   };
 }
