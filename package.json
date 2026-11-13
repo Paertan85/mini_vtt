@@ -1,6 +1,6 @@
 {
   "name": "mini-vtt",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Lightweight two-screen map display for tabletop RPGs: a DM control window with fog of war and a separate player screen.",
   "main": "dist-electron/main.js",
   "type": "module",

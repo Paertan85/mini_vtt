@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format is based on
 
 ## Unreleased
 
+## 1.5.0 - 2026-11-13
+
 ### Added
 
 - **Squares** in the Spells tool outlines the squares each spell area
