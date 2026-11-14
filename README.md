@@ -17,7 +17,8 @@ I will write more of the text myself when it is more feature complete but from h
 
 You run Mini VTT on your laptop. The **DM window** stays on your screen, where you pick maps, paint fog of war and decide what the players see. The **player screen** goes on a TV, a monitor laid flat on the table, or a projector, and shows only the part of the map you've framed, with unrevealed areas in solid black.
 
-It's built to stay out of the way on modest hardware: no accounts, no server, no internet connection, and nothing running in the background while you're not touching it.
+It's built to stay out of the way on modest hardware: no accounts, no server, no internet connection, and nothing running in the background while you're not touching it. 
+I am currently using Electron during development which is good for testing on multiple platforms but not the best for performance. The plan is to move to Tauri when I have tested it in more real DND sessions.
 
 | DM window                                                                                                                                                                         | Player screen                                                                                                                                                            |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
