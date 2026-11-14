@@ -1,7 +1,7 @@
 // The DM window's state and what can be done with it, apart from how it is
 // laid out (App.tsx). It owns the library and the loaded map's state and wires
 // the pieces together: the fog lives in useFog, the painted effects in
-// useEffectLayer, the spell areas in useAreas. The keyboard shortcuts are
+// useEffectLayer, the spell areas in useAreas, the markers in useMarkers. The keyboard shortcuts are
 // handled here too; their keys are in lib/shortcuts.ts.
 //
 // The window gets it in groups (library, tools, player view…), each the same
@@ -22,6 +22,7 @@ import type {
   MapGrid,
   MapPan,
   MapView,
+  MarkerColor,
   MediaType,
   MovementRule,
   Point,
@@ -38,6 +39,7 @@ import { useSettings } from './useSettings';
 import { useAreas } from './useAreas';
 import { useLoadedMap } from './useLoadedMap';
 import { useRoomEdits } from './useRoomEdits';
+import { useMarkers } from './useMarkers';
 import { commandFor, type Command } from '../lib/shortcuts';
 import { pickKillPhrase } from '../lib/killScreen';
 import {
@@ -124,7 +126,7 @@ export interface DmTools {
   effectKind: EffectKind;
   /** In the Spells tool, the selected shape takes the colour too */
   setEffectKind: (kind: EffectKind) => void;
-  /** Undo and redo apply to the layer of the active tool: effects in the Effects tool, otherwise fog */
+  /** Undo and redo apply to the layer of the active tool: effects in the Effects tool, markers in the Markers tool, otherwise fog */
   canUndo: boolean;
   canRedo: boolean;
   undo: () => void;
@@ -134,6 +136,21 @@ export interface DmTools {
   /** Asks first */
   revealAll: () => void;
   coverAll: () => void;
+  /** The Markers tool: the colour of the next marker, and of the selected one */
+  markerColor: MarkerColor;
+  setMarkerColor: (color: MarkerColor) => void;
+  /** Its size: squares across on a map with a grid (measureNeedsGrid false), else a radius in map pixels */
+  markerSize: number;
+  setMarkerSize: (size: number) => void;
+  /** The selected marker's letter, or the one the next marker gets; '' for none */
+  markerLetter: string;
+  /** Whether a marker is selected, so its letter can be changed */
+  markerSelected: boolean;
+  /** The selected marker's letter, A to Z; '' for none */
+  setMarkerLetter: (letter: string) => void;
+  canClearMarkers: boolean;
+  /** Undo brings them back */
+  clearMarkers: () => void;
   /** Adds a spell area, or starts measuring the grid when the map has none (it follows the save) */
   addArea: (shape: AreaShape) => void;
   shapesNeed: ShapesNeed | null;
@@ -340,9 +357,18 @@ export function useDmController(): DmController {
     mirrorVertical,
     grid,
     rooms,
+    markers,
   } = loadedMap.map;
-  const { setMediaSize, setZoom, setRotation, setMirrorHorizontal, setMirrorVertical, setGrid, setRooms } =
-    loadedMap;
+  const {
+    setMediaSize,
+    setZoom,
+    setRotation,
+    setMirrorHorizontal,
+    setMirrorVertical,
+    setGrid,
+    setRooms,
+    setMarkers,
+  } = loadedMap;
   // The player frame, moved once per animation frame while dragged (see applyPan)
   const [pan, setPan] = useState<MapPan | null>(null);
 
@@ -399,6 +425,10 @@ export function useDmController(): DmController {
 
   // ─── Fog rooms (per map, part of the loaded map; saved with its view) ────────
   const roomEdits = useRoomEdits(rooms, setRooms);
+
+  // ─── Markers (per map, part of the loaded map; saved with its view) ──────────
+  const markerTool = useMarkers(currentMapId, markers, setMarkers, grid);
+  const { edits: markerEdits, selectedId: selectedMarkerId } = markerTool;
 
   // ─── Player screen ──────────────────────────────────────────────────────────
   const [playerOpen, setPlayerOpen] = useState(false);
@@ -526,14 +556,23 @@ export function useDmController(): DmController {
 
   useEffect(() => {
     if (!currentMapId || restoringRef.current) return;
-    const view: MapView = { zoom, pan, rotation, mirrorHorizontal, mirrorVertical, circles: areas, rooms };
+    const view: MapView = {
+      zoom,
+      pan,
+      rotation,
+      mirrorHorizontal,
+      mirrorVertical,
+      circles: areas,
+      rooms,
+      markers,
+    };
     if (pendingViewSave.current) window.clearTimeout(pendingViewSave.current.timer);
     const timer = window.setTimeout(() => {
       pendingViewSave.current = null;
       saveView(currentMapId, view);
     }, VIEW_SAVE_DELAY_MS);
     pendingViewSave.current = { id: currentMapId, view, timer };
-  }, [currentMapId, zoom, pan, rotation, mirrorHorizontal, mirrorVertical, areas, rooms, saveView]);
+  }, [currentMapId, zoom, pan, rotation, mirrorHorizontal, mirrorVertical, areas, rooms, markers, saveView]);
 
   useEffect(() => {
     window.addEventListener('beforeunload', flushViewSave);
@@ -1129,14 +1168,16 @@ export function useDmController(): DmController {
     if (tool === 'shapes' && selectedAreaId) spellAreas.recolor(selectedAreaId, kind);
   };
 
-  // Areas can only be edited in the View and Spells tools: leaving them
-  // drops the selection, so Delete can't remove an area that isn't shown
+  // Areas can only be edited in the View and Spells tools, markers in the
+  // Markers tool: leaving them drops the selection, so Delete can't remove
+  // something that can't be changed
   const changeTool = useCallback(
     (next: Tool) => {
       setTool(next);
       if (next !== 'view' && next !== 'shapes') setSelectedAreaId(null);
+      if (next !== 'markers') markerEdits.select(null);
     },
-    [setSelectedAreaId],
+    [setSelectedAreaId, markerEdits],
   );
 
   // Kept in a ref, so a drag re-renders nothing here
@@ -1188,8 +1229,8 @@ export function useDmController(): DmController {
     [],
   );
 
-  // Undo and redo apply to the layer of the active tool
-  const history = tool === 'effect' ? effects : fog;
+  // Undo and redo apply to the layer of the active tool: effects, markers, otherwise fog
+  const history = tool === 'effect' ? effects : tool === 'markers' ? markerTool.history : fog;
   const viewControls = useRef<ViewControls | null>(null);
   const hasMap = !!mediaUrl;
 
@@ -1203,8 +1244,17 @@ export function useDmController(): DmController {
   // What each shortcut does (the keys are in lib/shortcuts.ts). A handler
   // that returns false didn't apply, so the key keeps its usual effect.
   const commands: Record<Command, (event: KeyboardEvent) => boolean | void> = {
-    cancel: () => (calibration ? setCalibration(null) : setSelectedAreaId(null)),
-    deleteArea: () => !!selectedAreaId && spellAreas.remove(selectedAreaId),
+    cancel: () => {
+      if (calibration) return setCalibration(null);
+      setSelectedAreaId(null);
+      markerEdits.select(null);
+    },
+    // A spell area, or in the Markers tool the selected marker
+    deleteArea: () => {
+      if (selectedAreaId) return spellAreas.remove(selectedAreaId);
+      if (tool === 'markers' && selectedMarkerId) return markerEdits.remove(selectedMarkerId);
+      return false;
+    },
     brushSize: (event) => hasMap && resizeBrush(event.key === ']' ? 1 : -1),
     undo: () => history.undo(),
     redo: () => history.redo(),
@@ -1235,6 +1285,7 @@ export function useDmController(): DmController {
     effectsTool: () => hasMap && showEffectTools && changeTool('effect'),
     shapesTool: () => hasMap && showEffectTools && changeTool('shapes'),
     measureTool: () => hasMap && changeTool('measure'),
+    markersTool: () => hasMap && changeTool('markers'),
     blackout: () => setBlackout((value) => !value),
     // A held Ctrl+K toggles once
     killScreen: (event) => {
@@ -1309,11 +1360,18 @@ export function useDmController(): DmController {
     addArea: handleAddArea,
     setMeasureStraight,
     measureGrid: startCalibration,
+    setMarkerColor: markerEdits.setColor,
+    setMarkerSize: markerEdits.setSize,
+    setMarkerLetter: markerEdits.setLetter,
+    clearMarkers: markerEdits.clear,
   });
   const canUndo = history.canUndo;
   const canRedo = history.canRedo;
   const canClearEffects = !effects.isEmpty;
   const measureNeedsGrid = !grid;
+  const { color: markerColor, size: markerSize, letter: markerLetter } = markerTool;
+  const markerSelected = selectedMarkerId !== null;
+  const canClearMarkers = markers.length > 0;
   const tools = useMemo<DmTools>(
     () => ({
       hasMap,
@@ -1327,6 +1385,11 @@ export function useDmController(): DmController {
       shapesNeed,
       measureStraight,
       measureNeedsGrid,
+      markerColor,
+      markerSize,
+      markerLetter,
+      markerSelected,
+      canClearMarkers,
       ...toolActions,
     }),
     [
@@ -1341,6 +1404,11 @@ export function useDmController(): DmController {
       shapesNeed,
       measureStraight,
       measureNeedsGrid,
+      markerColor,
+      markerSize,
+      markerLetter,
+      markerSelected,
+      canClearMarkers,
       toolActions,
     ],
   );
@@ -1529,6 +1597,11 @@ export function useDmController(): DmController {
     onDuplicateArea: spellAreas.duplicate,
     onDeleteArea: spellAreas.remove,
     onRecolorArea: spellAreas.recolor,
+    markers,
+    selectedMarkerId,
+    markerColor,
+    markerRadius: markerTool.radius,
+    markerEdits,
     calibrationPoints: calibration?.points ?? null,
     onCalibrationPoint: handleCalibrationPoint,
     viewControls,

@@ -88,6 +88,26 @@ export interface MapView {
   circles: SpellArea[];
   /** Fog rooms marked out on this map */
   rooms: FogRoom[];
+  /** The DM's markers on this map */
+  markers: MapMarker[];
+}
+
+/** The colours a marker can be. */
+export type MarkerColor = 'red' | 'blue' | 'green' | 'yellow';
+
+/**
+ * A round marker the DM puts on a map, such as where enemies will appear or
+ * where something invisible stands. Only the DM sees it. Map natural pixels,
+ * unrotated; on a map with a grid it covers whole squares.
+ */
+export interface MapMarker {
+  id: string;
+  x: number;
+  y: number;
+  radius: number;
+  color: MarkerColor;
+  /** One capital letter, A to Z, shown large in its middle so the DM knows what it stands for */
+  letter?: string;
 }
 
 /**
@@ -164,6 +184,7 @@ export interface MapEntryMeta {
   grid: MapGrid | null;
   circles: SpellArea[];
   rooms: FogRoom[];
+  markers: MapMarker[];
   /** Epoch ms when the map was added */
   addedAt: number;
 }

@@ -18,6 +18,7 @@ import { DEFAULT_SETTINGS, LIBRARY_ID, normalizeSettings } from '../src/lib/sett
 import { EXTENSIONS } from './mediaFiles';
 import { normalizeAreas } from '../src/lib/areas';
 import { normalizeRooms } from '../src/lib/rooms';
+import { normalizeMarkers } from '../src/lib/markers';
 import { normalizeGrid } from '../src/lib/grid';
 
 export const LIBRARY_DIR = () => path.join(app.getPath('userData'), 'library');
@@ -128,6 +129,7 @@ async function readIndex(): Promise<IndexShape> {
             grid: normalizeGrid(m.grid),
             circles: normalizeAreas(m.circles),
             rooms: normalizeRooms(m.rooms),
+            markers: normalizeMarkers(m.markers),
           };
         }),
     };

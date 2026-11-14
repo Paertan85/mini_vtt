@@ -25,6 +25,8 @@ const TOOL_HINTS: Record<Exclude<Tool, 'fog'>, string> = {
     'Add a spell area with the buttons above. Drag its dot to move it; the mouse wheel over it resizes it.',
   measure:
     'Drag, or click point by point for a path. Double-click or Enter finishes; right-click takes back a point.',
+  markers:
+    'Click to put down a marker only you see. Drag to move it, right-click to remove it; the mouse wheel sizes it.',
 };
 
 export const ToolHint = memo(function ToolHint({ tool, fogShape }: { tool: Tool; fogShape: FogShape }) {

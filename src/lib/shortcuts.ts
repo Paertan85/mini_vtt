@@ -38,6 +38,7 @@ export type Command =
   | 'effectsTool'
   | 'shapesTool'
   | 'measureTool'
+  | 'markersTool'
   | 'blackout'
   | 'killScreen';
 
@@ -97,6 +98,8 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
   { command: 'effectsTool', key: 'e', label: 'E' },
   { command: 'shapesTool', key: 's', label: 'S' },
   { command: 'measureTool', key: 'm', label: 'M' },
+  // K for marKers: M is the Measure tool
+  { command: 'markersTool', key: 'k', label: 'K' },
   { command: 'blackout', key: 'b', label: 'B' },
   { command: 'killScreen', key: 'k', ctrl: true, label: 'Ctrl+K' },
 ];
@@ -159,10 +162,11 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       ['Fog tool', [keys('fogTool')]],
       ['Effects tool', [keys('effectsTool')]],
       ['Spells tool', [keys('shapesTool')]],
+      ['Markers tool', [keys('markersTool')]],
       ['Blackout the player screen', [keys('blackout')]],
       ['Show or hide the kill screen', [keys('killScreen')], 'Red words on black, for a kill'],
       ['Hide or show everything but the map', [keys('toggleInterface')], 'For small screens'],
-      ['Undo', [keys('undo')], 'Fog, or effects in the Effects tool'],
+      ['Undo', [keys('undo')], 'Fog; effects or markers in their own tool'],
       ['Redo', [keys('redo')]],
       ['Show this list', [keys('showShortcuts')]],
     ],
@@ -199,6 +203,21 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       ['Snap to the grid', ['Ctrl + drag']],
       ['Copy a room', ['Ctrl+C'], 'With the mouse pointer over it'],
       ['Paste it at the mouse pointer', ['Ctrl+V'], 'On the grid if the room was'],
+    ],
+  },
+  {
+    title: 'Markers',
+    note: 'Markers tool; only you see the markers',
+    shortcuts: [
+      ['Put down a marker', ['Click on the map'], 'On a grid, on the squares it covers'],
+      ['Move a marker', ['Drag it']],
+      ['Remove a marker', ['Right-click it', keys('deleteArea')], 'Del removes the selected one'],
+      ['Resize the selected marker', ['Wheel'], 'Anywhere; a square at a time on a grid'],
+      ['Resize another marker', ['Wheel over it']],
+      ['Size of the next marker', ['Wheel'], 'With none selected'],
+      ['Change its letter', ['Type it in the Letter field'], 'A new marker gets the next free letter'],
+      ['Undo a change, such as a marker removed', [keys('undo')]],
+      ['Deselect', [keys('cancel')]],
     ],
   },
   {

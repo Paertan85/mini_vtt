@@ -1,5 +1,5 @@
 // The map loaded in the DM window: its media and the per-map view the DM
-// changes (zoom, orientation, grid, fog rooms), held as one object.
+// changes (zoom, orientation, grid, fog rooms, markers), held as one object.
 //
 // Loading and unloading replace the whole object, so no per-map value can be
 // left over from the previous map: a new field gets its value from the
@@ -8,7 +8,7 @@
 // restored by loadMap in useDmController.
 
 import { useCallback, useState } from 'react';
-import type { FogRoom, MapEntryMeta, MapGrid, MediaType } from '../types/map';
+import type { FogRoom, MapEntryMeta, MapGrid, MapMarker, MediaType } from '../types/map';
 import type { Size } from '../lib/geometry';
 
 export interface LoadedMap {
@@ -26,6 +26,8 @@ export interface LoadedMap {
   grid: MapGrid | null;
   /** Fog rooms marked out on the map; only the DM sees them */
   rooms: FogRoom[];
+  /** The DM's markers on the map; only the DM sees them */
+  markers: MapMarker[];
 }
 
 const NO_MAP: LoadedMap = {
@@ -39,6 +41,7 @@ const NO_MAP: LoadedMap = {
   mirrorVertical: false,
   grid: null,
   rooms: [],
+  markers: [],
 };
 
 /** A library entry, loaded from `mediaUrl`; its size follows once the media has loaded. */
@@ -53,6 +56,7 @@ const loadedFrom = (meta: MapEntryMeta, mediaUrl: string): LoadedMap => ({
   mirrorVertical: meta.mirrorVertical,
   grid: meta.grid,
   rooms: meta.rooms,
+  markers: meta.markers,
 });
 
 type Change<T> = T | ((current: T) => T);
@@ -83,5 +87,6 @@ export function useLoadedMap() {
     setMirrorVertical: useCallback((mirrored: boolean) => set('mirrorVertical', mirrored), [set]),
     setGrid: useCallback((grid: MapGrid | null) => set('grid', grid), [set]),
     setRooms: useCallback((change: Change<FogRoom[]>) => set('rooms', change), [set]),
+    setMarkers: useCallback((change: Change<MapMarker[]>) => set('markers', change), [set]),
   };
 }

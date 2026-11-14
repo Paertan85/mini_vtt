@@ -56,6 +56,7 @@ app.whenReady().then(async () => {
   const saveLib = await import('../dist-electron/delayedSave.test.mjs');
   const areasLib = await import('../dist-electron/areas.test.mjs');
   const roomsLib = await import('../dist-electron/rooms.test.mjs');
+  const markersLib = await import('../dist-electron/markers.test.mjs');
   const rectLib = await import('../dist-electron/rect.test.mjs');
   const geometryLib = await import('../dist-electron/geometry.test.mjs');
   const shortcutsLib = await import('../dist-electron/shortcuts.test.mjs');
@@ -1282,7 +1283,8 @@ app.whenReady().then(async () => {
           press('b') === 'blackout' &&
           press('b', { ctrlKey: true }) === 'toggleLibrary' &&
           press('k', { ctrlKey: true }) === 'killScreen' &&
-          press('k') === null &&
+          // Plain K picks the Markers tool; only Ctrl+K shows the kill screen
+          press('k') === 'markersTool' &&
           press('V', { shiftKey: true }) === 'viewTool' &&
           press('?', { shiftKey: true }) === 'showShortcuts' &&
           press('ArrowUp', { shiftKey: true }) === 'nudgeArea',
@@ -1409,6 +1411,15 @@ app.whenReady().then(async () => {
         { id: '../r', x: 0, y: 0, width: 5, height: 5 }, // unsafe id
         { id: 'r4', x: 200, y: 0, width: 40, height: 40, name: 42 }, // a name that isn't text
       ],
+      markers: [
+        { id: 'k1', x: 150, y: 150, radius: 50, color: 'blue', letter: 'G' },
+        { id: 'k1', x: 0, y: 0, radius: 5, color: 'red' }, // duplicate id
+        { id: 'k2', x: 0, y: 0, radius: 0, color: 'red' }, // no size
+        { id: 'k3', x: NaN, y: 0, radius: 5, color: 'red' }, // not finite
+        { id: '../k', x: 0, y: 0, radius: 5, color: 'red' }, // unsafe id
+        // An unknown colour is kept as red; a letter that isn't one is left out
+        { id: 'k4', x: 10, y: 10, radius: 20, color: 'purple', letter: 'gg' },
+      ],
     });
     const calibrated = (await lib.loadSnapshot()).maps.find((m) => m.id === c.id);
     check(
@@ -1416,6 +1427,15 @@ app.whenReady().then(async () => {
       JSON.stringify(calibrated.rooms?.map((room) => room.id)) === '["r1","r4"]' &&
         calibrated.rooms[0].width === 100,
       JSON.stringify(calibrated.rooms),
+    );
+    check(
+      'markers persist with their letter, invalid ones are dropped, an unknown colour shows as red',
+      JSON.stringify(calibrated.markers) ===
+        JSON.stringify([
+          { id: 'k1', x: 150, y: 150, radius: 50, color: 'blue', letter: 'G' },
+          { id: 'k4', x: 10, y: 10, radius: 20, color: 'red' },
+        ]),
+      JSON.stringify(calibrated.markers),
     );
     check(
       'room names are saved trimmed, and one that is not text is dropped',
@@ -1437,6 +1457,134 @@ app.whenReady().then(async () => {
         roomsLib.normalizeRooms([{ id: 'a', x: 0, y: 0, width: 1, height: 1, name: 'x'.repeat(99) }])[0].name
           .length === roomsLib.MAX_ROOM_NAME,
     );
+
+    // Markers: on a grid they cover whole squares and sit on them; without
+    // one their size is a radius in map pixels, in the brush's steps
+    {
+      const grid = { cell: 50, offsetX: 10, offsetY: 0, feetPerCell: 5 };
+      const near = (a, b) => Math.abs(a - b) < 1e-9;
+      const at = (point, x, y) => near(point.x, x) && near(point.y, y);
+      check(
+        'a marker of one or three squares sits in the middle of a square, of two or four on a corner',
+        at(markersLib.placeMarker({ x: 70, y: 70 }, markersLib.markerRadius(1, grid), grid), 85, 75) &&
+          at(markersLib.placeMarker({ x: 70, y: 70 }, markersLib.markerRadius(2, grid), grid), 60, 50) &&
+          at(markersLib.placeMarker({ x: 70, y: 70 }, markersLib.markerRadius(3, grid), grid), 85, 75) &&
+          at(markersLib.placeMarker({ x: 70, y: 70 }, markersLib.markerRadius(4, grid), grid), 60, 50),
+      );
+      check(
+        'without a grid a marker stays where it is put',
+        at(markersLib.placeMarker({ x: 70.5, y: 71 }, 40, null), 70.5, 71),
+      );
+      check(
+        'a marker of n squares is n squares across',
+        markersLib.markerRadius(2, grid) === 50 &&
+          markersLib.markerSize({ radius: 50 }, grid) === 2 &&
+          markersLib.markerSize({ radius: 50 }, null) === 50,
+      );
+      check(
+        'sizes keep to their range and steps, a square or 10 px per wheel notch',
+        markersLib.stepMarkerSize(1, 1, grid) === 2 &&
+          markersLib.stepMarkerSize(1, -3, grid) === markersLib.MIN_MARKER_SQUARES &&
+          markersLib.stepMarkerSize(markersLib.MAX_MARKER_SQUARES, 1, grid) ===
+            markersLib.MAX_MARKER_SQUARES &&
+          markersLib.stepMarkerSize(40, 1, null) === 50 &&
+          markersLib.stepMarkerSize(40, -10, null) === markersLib.MIN_MARKER_RADIUS &&
+          markersLib.clampMarkerSize(10_000, null) === markersLib.MAX_MARKER_RADIUS &&
+          markersLib.clampMarkerSize(2.4, grid) === 2,
+      );
+      const one = { id: 'a', x: 85, y: 75, radius: 25, color: 'green' };
+      const grown = markersLib.resizeMarker(one, 2, grid);
+      check(
+        'a marker grown to two squares moves onto a corner, keeping its colour',
+        grown.radius === 50 && at(grown, 110, 100) && grown.color === 'green' && grown.id === 'a',
+        JSON.stringify(grown),
+      );
+      const shrunk = markersLib.resizeMarker(grown, 1, grid);
+      const three = markersLib.resizeMarker(grown, 3, grid);
+      const backFromFour = markersLib.resizeMarker(
+        markersLib.resizeMarker(markersLib.resizeMarker(one, 4, grid), 3, grid),
+        1,
+        grid,
+      );
+      check(
+        'shrunk again it goes back where it was; grown on, it stays round the square it started on',
+        at(shrunk, 85, 75) &&
+          shrunk.radius === 25 &&
+          at(three, 85, 75) &&
+          three.radius === 75 &&
+          at(backFromFour, 85, 75),
+        JSON.stringify({ shrunk, three, backFromFour }),
+      );
+      const big = { id: 'b', x: 100, y: 100, radius: 60, color: 'blue' };
+      const tiny = { id: 'c', x: 300, y: 300, radius: 1, color: 'red' };
+      check(
+        'the topmost marker under a point is found, a small one at the size it is drawn',
+        markersLib.markerAt([one, big], { x: 90, y: 80 }, 0)?.id === 'b' &&
+          markersLib.markerAt([one, big], { x: 400, y: 400 }, 0) === null &&
+          markersLib.markerAt([tiny], { x: 305, y: 300 }, 0) === null &&
+          markersLib.markerAt([tiny], { x: 305, y: 300 }, 0, 6)?.id === 'c',
+      );
+      const full = Array.from({ length: markersLib.MAX_MARKERS }, (_, i) => ({ ...one, id: `m${i}` }));
+      check(
+        'a map has at most MAX_MARKERS markers',
+        markersLib.addMarker(full, { ...one, id: 'extra' }).length === markersLib.MAX_MARKERS &&
+          markersLib.normalizeMarkers([...full, { ...one, id: 'extra' }]).length === markersLib.MAX_MARKERS &&
+          markersLib.normalizeMarkers('nope').length === 0,
+      );
+      const edited = markersLib.changeMarker([one, big], 'b', (marker) => ({ ...marker, color: 'yellow' }));
+      check(
+        'markers are changed and removed one at a time',
+        edited[1].color === 'yellow' &&
+          edited[0] === one &&
+          JSON.stringify(markersLib.removeMarker(edited, 'a').map((marker) => marker.id)) === '["b"]',
+      );
+      const lettered = (...letters) => letters.map((letter, i) => ({ ...one, id: `l${i}`, letter }));
+      check(
+        'a new marker gets the first letter not yet on the map, A again once all are',
+        markersLib.nextMarkerLetter([]) === 'A' &&
+          markersLib.nextMarkerLetter(lettered('A', 'C')) === 'B' &&
+          markersLib.nextMarkerLetter([one, ...lettered('A')]) === 'B' &&
+          markersLib.nextMarkerLetter(lettered(...markersLib.MARKER_LETTERS)) === 'A',
+      );
+      check(
+        'a typed letter is the last one typed, as a capital; anything else is ignored',
+        markersLib.typedMarkerLetter('Ab') === 'B' &&
+          markersLib.typedMarkerLetter('q') === 'Q' &&
+          markersLib.typedMarkerLetter('') === '' &&
+          markersLib.typedMarkerLetter('A7') === null &&
+          markersLib.typedMarkerLetter('Å') === null,
+      );
+      check(
+        'only one capital A to Z is kept as a letter, and an empty one removes it',
+        markersLib
+          .normalizeMarkers([
+            { ...one, id: 'x1', letter: 'Q' },
+            { ...one, id: 'x2', letter: 'q' },
+            { ...one, id: 'x3', letter: 'QQ' },
+            { ...one, id: 'x4', letter: 5 },
+          ])
+          .map((marker) => marker.letter ?? '-')
+          .join('') === 'Q---' &&
+          !('letter' in markersLib.withLetter({ ...one, letter: 'A' }, '')) &&
+          markersLib.withLetter(one, 'Z').letter === 'Z',
+      );
+      check(
+        'an edit that changes nothing is told apart from one that does',
+        markersLib.sameMarkers([one, big], [{ ...one }, { ...big }]) &&
+          !markersLib.sameMarkers([one, big], [one, { ...big, radius: 61 }]) &&
+          !markersLib.sameMarkers([one, big], [big, one]) &&
+          !markersLib.sameMarkers([one], [{ ...one, letter: 'A' }]) &&
+          !markersLib.sameMarkers([one], []),
+      );
+      check(
+        'the four colours are the app’s own: crimson, sky blue, poison green and gold',
+        JSON.stringify(markersLib.MARKER_COLORS) === '["red","blue","green","yellow"]' &&
+          markersLib.MARKER_STYLES.red.rgb === '196 58 63' &&
+          markersLib.MARKER_STYLES.blue.rgb === '86 166 236' &&
+          markersLib.MARKER_STYLES.green.rgb === '69 182 73' &&
+          markersLib.MARKER_STYLES.yellow.rgb === '201 162 39',
+      );
+    }
 
     // Rooms are edited with pure steps; the name is kept as typed until it is saved
     const [added] = roomsLib.addRoom([], { x: 1, y: 2, width: 3, height: 4, extra: true });
@@ -1691,6 +1839,12 @@ app.whenReady().then(async () => {
       'grid and circles travel with the project',
       second.grid?.cell === 100 && second.circles.length === 3 && first.grid === null,
       JSON.stringify({ grid: second.grid, circles: second.circles.length }),
+    );
+    check(
+      'markers travel with the project',
+      JSON.stringify(second.markers?.map((marker) => marker.id)) === '["k1","k4"]' &&
+        first.markers.length === 0,
+      JSON.stringify({ first: first.markers, second: second.markers }),
     );
     check(
       'fog rooms travel with the project',

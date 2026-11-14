@@ -1521,6 +1521,198 @@ app.whenReady().then(async () => {
       );
     }
 
+    // Markers (K): put down on the grid's squares, moved, resized, recoloured
+    // and removed; only the DM sees them, in every tool
+    {
+      await press('k');
+      await sleep(200);
+      check('K picks the Markers tool', (await pressed('Markers')) === 'true');
+      const savedMarkers = () => alpha().markers ?? [];
+      const box = await js(`(() => { const r = document.querySelector('main img').getBoundingClientRect();
+        return { x: r.x, y: r.y, w: r.width, h: r.height }; })()`);
+      const { cell, offsetX: gx, offsetY: gy } = alpha().grid;
+      const scale = box.w / 800;
+      const toScreen = (point) => ({ x: box.x + point.x * scale, y: box.y + point.y * scale });
+      const squareMiddle = (value, offset) => offset + (Math.floor((value - offset) / cell) + 0.5) * cell;
+      const near = (a, b) => Math.abs(a - b) < 1e-6;
+      // A quarter of a square off the middle of one near the map's centre
+      const target = { x: squareMiddle(400, gx), y: squareMiddle(300, gy) };
+      const clickAt = async (point, button = 'left') => {
+        const at = toScreen(point);
+        mouse('mouseDown', at.x, at.y, button);
+        mouse('mouseUp', at.x, at.y, button);
+        await sleep(100);
+      };
+      await clickAt({ x: target.x + cell / 4, y: target.y - cell / 4 });
+      check(
+        'a click puts down a one-square red marker in the middle of the square, saved with the map',
+        (await waitFor(() => savedMarkers().length === 1)) &&
+          near(savedMarkers()[0].x, target.x) &&
+          near(savedMarkers()[0].y, target.y) &&
+          near(savedMarkers()[0].radius, cell / 2) &&
+          savedMarkers()[0].color === 'red',
+        JSON.stringify({ markers: savedMarkers(), target, cell }),
+      );
+      check(
+        'a new marker shows the letter A, and the toolbar shows it',
+        savedMarkers()[0].letter === 'A' &&
+          (await js(`document.querySelector('[data-marker] text')?.textContent`)) === 'A' &&
+          (await js(`document.querySelector('input[aria-label="Marker letter"]').value`)) === 'A',
+      );
+      check(
+        'players never see the markers',
+        (await js(`document.querySelectorAll('[data-marker]').length`)) === 1 &&
+          (await js(`document.querySelectorAll('[data-marker]').length`, player)) === 0,
+      );
+
+      // While it is selected, the wheel anywhere makes it two squares, on the
+      // corner of its square
+      const away = toScreen({ x: 760, y: 560 });
+      await wheelAt(away, { deltaY: -100 });
+      check(
+        'while a marker is selected, the wheel away from it makes it a square bigger, onto a corner',
+        (await waitFor(() => near(savedMarkers()[0]?.radius, cell))) &&
+          near((savedMarkers()[0].x - gx) / cell, Math.round((savedMarkers()[0].x - gx) / cell)) &&
+          near((savedMarkers()[0].y - gy) / cell, Math.round((savedMarkers()[0].y - gy) / cell)),
+        JSON.stringify(savedMarkers()),
+      );
+      const sizeField = () => js(`document.querySelector('input[aria-label="Marker size"]').value`);
+      check('and the toolbar shows its size', (await sizeField()) === '2');
+      // With none selected, the wheel away from the markers sizes the next one
+      await press('Escape');
+      await sleep(200);
+      await wheelAt(away, { deltaY: -100 });
+      await sleep(600);
+      check(
+        'with no marker selected, the wheel away from them sizes the next one only',
+        (await sizeField()) === '3' && near(savedMarkers()[0].radius, cell),
+        JSON.stringify(savedMarkers()),
+      );
+      await wheelAt(away, { deltaY: 100 });
+      await sleep(200);
+
+      // Dragged, it moves square by square
+      const before = savedMarkers()[0];
+      await drag(toScreen(before), cell * scale * 1.1, 0);
+      check(
+        'dragging a marker moves it a whole square',
+        (await waitFor(() => near(savedMarkers()[0]?.x, before.x + cell))) &&
+          near(savedMarkers()[0].y, before.y),
+        JSON.stringify({ before, after: savedMarkers()[0] }),
+      );
+
+      // The colour picked goes to the selected marker and the next one
+      await clickText('Blue');
+      check(
+        'picking a colour recolours the selected marker',
+        (await waitFor(() => savedMarkers()[0]?.color === 'blue')) === true,
+        JSON.stringify(savedMarkers()),
+      );
+      const second = { x: squareMiddle(200, gx), y: squareMiddle(150, gy) };
+      await clickAt(second);
+      check(
+        'the next marker takes the colour and size',
+        (await waitFor(() => savedMarkers().length === 2)) &&
+          savedMarkers()[1].color === 'blue' &&
+          near(savedMarkers()[1].radius, cell),
+        JSON.stringify(savedMarkers()),
+      );
+      check('and the first letter not yet on the map, B', savedMarkers()[1].letter === 'B');
+      // Its letter is changed in the toolbar; typing it sets off no shortcuts
+      const typeLetter = (text) =>
+        js(`(() => {
+          const input = document.querySelector('input[aria-label="Marker letter"]');
+          input.focus();
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(text)});
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', bubbles: true }));
+        })()`);
+      await typeLetter('Bf');
+      check(
+        'typing a letter gives the selected marker that letter, as a capital',
+        (await waitFor(() => savedMarkers()[1]?.letter === 'F')) === true &&
+          (await pressed('Markers')) === 'true',
+        JSON.stringify(savedMarkers()),
+      );
+      await typeLetter('F7');
+      await sleep(600);
+      check('anything but a letter is ignored', savedMarkers()[1]?.letter === 'F');
+      await typeLetter('');
+      check(
+        'an emptied field leaves the marker without a letter',
+        (await waitFor(() => savedMarkers()[1] && !('letter' in savedMarkers()[1]))) === true,
+        JSON.stringify(savedMarkers()),
+      );
+      await js(`document.activeElement.blur()`);
+      await press('Delete');
+      check(
+        'Delete removes the selected marker',
+        (await waitFor(() => savedMarkers().length === 1)) === true,
+        JSON.stringify(savedMarkers()),
+      );
+
+      // Shown in the other tools too, where the mouse goes through them to the map
+      await press('f');
+      await sleep(200);
+      check(
+        'markers stay in view in another tool, without taking the mouse',
+        (await js(`document.querySelectorAll('[data-marker]').length`)) === 1 &&
+          (await js(
+            `getComputedStyle(document.querySelector('[data-marker]').ownerSVGElement).pointerEvents`,
+          )) === 'none',
+      );
+      await press('k');
+      await sleep(200);
+      const beforeRemove = JSON.stringify(savedMarkers());
+      await clickAt(savedMarkers()[0], 'right');
+      check('a right-click removes a marker', (await waitFor(() => savedMarkers().length === 0)) === true);
+
+      // In the Markers tool, undo and redo apply to the markers, not the fog
+      const fogBeforeUndo = fogHash();
+      check(
+        'the Undo button offers to undo the marker change',
+        (await js(`document.querySelector('[aria-label="Undo"]').disabled`)) === false &&
+          (await js(`document.querySelector('[aria-label="Undo"]').title`)).startsWith('Undo marker change'),
+      );
+      await press('z', { ctrlKey: true });
+      check(
+        'Ctrl+Z brings back a removed marker, just as it was',
+        (await waitFor(() => JSON.stringify(savedMarkers()) === beforeRemove)) === true,
+        JSON.stringify({ beforeRemove, now: savedMarkers() }),
+      );
+      await press('y', { ctrlKey: true });
+      check('Ctrl+Y removes it again', (await waitFor(() => savedMarkers().length === 0)) === true);
+      await press('z', { ctrlKey: true });
+      await waitFor(() => savedMarkers().length === 1);
+
+      // Resizing one marker notch by notch is one step
+      const radiusBefore = savedMarkers()[0].radius;
+      await clickAt(savedMarkers()[0]);
+      await wheelAt(away, { deltaY: -100 });
+      await sleep(100);
+      await wheelAt(away, { deltaY: -100 });
+      await waitFor(() => near(savedMarkers()[0]?.radius, radiusBefore + cell));
+      await press('z', { ctrlKey: true });
+      check(
+        'one undo takes back a marker resized notch by notch',
+        (await waitFor(() => near(savedMarkers()[0]?.radius, radiusBefore))) === true,
+        JSON.stringify({ radiusBefore, now: savedMarkers() }),
+      );
+      check('undoing markers leaves the fog alone', fogHash() === fogBeforeUndo);
+
+      // Clear removes them all at once, and one undo brings them all back
+      await clickAt(second);
+      await waitFor(() => savedMarkers().length === 2);
+      await clickText('Clear');
+      check('Clear removes every marker', (await waitFor(() => savedMarkers().length === 0)) === true);
+      await press('z', { ctrlKey: true });
+      check('one undo brings them all back', (await waitFor(() => savedMarkers().length === 2)) === true);
+      await clickText('Clear');
+      await waitFor(() => savedMarkers().length === 0);
+      await press('v');
+      await sleep(200);
+    }
+
     // The Measure tool: a drag shows the distance in feet. Movement counts
     // diagonals 5/10 until the settings menu says otherwise, and players only
     // see the ruler when it is shown to them

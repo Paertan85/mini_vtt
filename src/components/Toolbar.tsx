@@ -1,8 +1,9 @@
 // The DM window's toolbar, in three groups:
-//   left    tools (view / fog / effects / spells / measure), brush size (fog
-//           and effects), undo and redo, and the active tool's options: the
-//           whole-map menu, the effect colours and Clear, the colours and the
-//           spell areas to add, or how the Measure tool counts diagonals
+//   left    tools (view / fog / effects / spells / measure / markers), brush
+//           size (fog and effects), undo and redo, and the active tool's
+//           options: the whole-map menu, the effect colours and Clear, the
+//           colours and the spell areas to add, how the Measure tool counts
+//           diagonals, or the markers' colour, size and Clear
 //   centre  player view zoom, Fill screen and True scale
 //   right   player screen, blackout, the welcome screen, settings and the menu
 //
@@ -34,6 +35,16 @@ import type { AreaShape, EffectKind } from '../types/map';
 import { MOVEMENT_LABELS, MOVEMENT_RULES, MOVEMENT_TITLES } from '../lib/grid';
 import { AREA_LABELS, AREA_SHAPES, DEFAULT_AREA_FT, MAX_AREAS } from '../lib/areas';
 import { EFFECT_KINDS, EFFECT_STYLES } from '../lib/effects';
+import {
+  MARKER_COLORS,
+  MARKER_RADIUS_STEP,
+  MARKER_STYLES,
+  MAX_MARKER_RADIUS,
+  MAX_MARKER_SQUARES,
+  MIN_MARKER_RADIUS,
+  MIN_MARKER_SQUARES,
+  typedMarkerLetter,
+} from '../lib/markers';
 import { keyLabel } from '../lib/platform';
 import {
   BRUSH_STEP,
@@ -116,7 +127,7 @@ export const Toolbar = memo(function Toolbar({
 }: ToolbarProps) {
   const { hasMap, tool, shapesNeed } = tools;
   const { zoom, zoomLocked, trueScaleNeeds } = playerView;
-  const layerName = tool === 'effect' ? 'effects' : 'fog';
+  const layerName = tool === 'effect' ? 'effects' : tool === 'markers' ? 'marker' : 'fog';
 
   // The note beneath True scale saying what it still needs
   const trueScaleRef = useRef<HTMLButtonElement>(null);
@@ -203,6 +214,15 @@ export const Toolbar = memo(function Toolbar({
           title="Measure (M): drag to see the distance in feet, or click point by point for a path round corners. Double-click or Enter finishes it."
         >
           Measure
+        </Button>
+        <Button
+          tone={tool === 'markers' ? 'active' : 'default'}
+          aria-pressed={tool === 'markers'}
+          onClick={() => tools.setTool('markers')}
+          disabled={!hasMap}
+          title="Markers (K): put down round markers only you see, such as where enemies will appear or something invisible stands."
+        >
+          Markers
         </Button>
       </ButtonGroup>
 
@@ -331,6 +351,86 @@ export const Toolbar = memo(function Toolbar({
               <p>A map can have at most {MAX_AREAS} spell areas. Delete one to add another.</p>
             )}
           </Popover>
+        </>
+      )}
+      {tool === 'markers' && (
+        <>
+          <ButtonGroup label="Marker colour">
+            {MARKER_COLORS.map((color) => (
+              <Button
+                key={color}
+                tone={tools.markerColor === color ? 'on' : 'default'}
+                aria-pressed={tools.markerColor === color}
+                onClick={() => tools.setMarkerColor(color)}
+                title={`Make new markers, and the selected one, ${MARKER_STYLES[color].label.toLowerCase()}`}
+              >
+                <span
+                  aria-hidden="true"
+                  className="h-3 w-3 rounded-full border border-black/40"
+                  style={{ backgroundColor: `rgb(${MARKER_STYLES[color].rgb})` }}
+                />
+                {MARKER_STYLES[color].label}
+              </Button>
+            ))}
+          </ButtonGroup>
+          {/* Squares on a map with a grid, else pixels of the map like the fog brush */}
+          <label
+            className="flex items-center gap-2 pl-1 text-[13px] text-muted"
+            title={
+              tools.measureNeedsGrid
+                ? 'Marker size, in pixels of the map like the fog brush, so it zooms with the map. Mouse wheel: over a marker sizes it, elsewhere the next one.'
+                : 'Marker size in squares: 1 Medium or smaller, 2 Large, 3 Huge, 4 Gargantuan. Mouse wheel: over a marker sizes it, elsewhere the next one.'
+            }
+          >
+            Size
+            <input
+              type="range"
+              min={tools.measureNeedsGrid ? MIN_MARKER_RADIUS : MIN_MARKER_SQUARES}
+              max={tools.measureNeedsGrid ? MAX_MARKER_RADIUS : MAX_MARKER_SQUARES}
+              step={tools.measureNeedsGrid ? MARKER_RADIUS_STEP : 1}
+              value={tools.markerSize}
+              onChange={(event) => tools.setMarkerSize(Number(event.target.value))}
+              aria-label="Marker size"
+              className="w-24 accent-gold"
+            />
+            <span className="w-8 text-right tabular-nums text-ink">
+              {tools.measureNeedsGrid ? tools.markerSize : `${tools.markerSize}×${tools.markerSize}`}
+            </span>
+          </label>
+          <label
+            className="flex items-center gap-2 pl-1 text-[13px] text-muted"
+            title={
+              tools.markerSelected
+                ? 'Letter: type a capital A to Z to show in the selected marker, so you know what it stands for. Empty: no letter.'
+                : 'Letter: a new marker gets the first letter not yet on the map. Select a marker to change its letter.'
+            }
+          >
+            Letter
+            <input
+              type="text"
+              aria-label="Marker letter"
+              value={tools.markerLetter}
+              disabled={!tools.markerSelected}
+              onFocus={(event) => event.currentTarget.select()}
+              onChange={(event) => {
+                const letter = typedMarkerLetter(event.target.value);
+                if (letter !== null) tools.setMarkerLetter(letter);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === 'Escape') event.currentTarget.blur();
+              }}
+              autoComplete="off"
+              spellCheck={false}
+              className={`${inputClass} w-9 text-center font-semibold uppercase disabled:opacity-40`}
+            />
+          </label>
+          <Button
+            onClick={tools.clearMarkers}
+            disabled={!tools.canClearMarkers}
+            title={keyLabel('Remove all markers from this map (undo with Ctrl+Z)')}
+          >
+            Clear
+          </Button>
         </>
       )}
       {tool === 'measure' &&

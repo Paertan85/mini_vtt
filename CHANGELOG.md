@@ -6,6 +6,27 @@ All notable changes to this project are documented here. The format is based on
 
 ## Unreleased
 
+### Added
+
+- **Markers** (K): round markers on the map that only the DM sees, to plan
+  where enemies will appear or mark something invisible. They come in red,
+  blue, green and yellow, the app's own crimson, sky blue, poison green and
+  gold, and show over the fog in every tool. On a map with a grid a marker
+  covers whole squares (1 for a Medium creature, 2 Large, 3 Huge,
+  4 Gargantuan) and keeps to them; without one its size is in pixels of the
+  map, like the fog brush, so it zooms with the map. Each shows a large
+  capital letter, so the DM can keep track of what it stands for: a new
+  marker gets the first letter not yet on the map (A, B, C…), and the
+  **Letter** field changes the selected one's. The letter reads upright in
+  the DM window however the map is turned or mirrored. Click to put a marker
+  down, drag to move it, right-click (or Del) to remove it, and turn the
+  mouse wheel to resize the selected one, wherever the pointer is (with none
+  selected: the one under the pointer, else the next one); **Clear** removes
+  them all. In the Markers tool, undo and redo (Ctrl+Z, Ctrl+Y) work on the
+  markers, so one removed or moved by mistake comes straight back; resizing
+  one notch by notch is one step. Markers are saved with each map and travel
+  in project files.
+
 ## 1.5.0 - 2026-11-13
 
 ### Added

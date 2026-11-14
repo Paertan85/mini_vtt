@@ -9,6 +9,8 @@
 //         frame tool    drag the frame to move the player view (Ctrl: its
 //                       corner keeps to the grid, on a map with one)
 //         measure tool  drag to measure a distance in feet
+//         markers tool  click puts down a marker only the DM sees, drag
+//                       moves one, right-click removes it (MarkersLayer)
 //         any tool      Shift + left/right paints fog
 //
 // Wheel:  Ctrl          zooms the DM view around the pointer (touchpad pinch
@@ -16,7 +18,10 @@
 //         Alt           zooms the player view in 1% steps, in any tool
 //         plain         resizes what you work with: the selected area under
 //                       the pointer (5 ft per notch), else the Fog tool's
-//                       circle (5 ft per notch), else the brush (Fog and
+//                       circle (5 ft per notch), else in the Markers tool
+//                       the selected marker, or the one under the pointer,
+//                       or the next one (a square or 10 px per notch), else
+//                       the brush (Fog and
 //                       Effects tools, or while Shift is held), else the player
 //                       view when over the frame (View tool, unless its zoom
 //                       is locked)
@@ -36,7 +41,9 @@ import type {
   FogMode,
   FogRoom,
   MapGrid,
+  MapMarker,
   MapPan,
+  MarkerColor,
   MediaType,
   Point,
   RulerState,
@@ -45,14 +52,17 @@ import type { Fog } from '../hooks/useFog';
 import type { EffectLayer } from '../hooks/useEffectLayer';
 import { useFogShapeDrag } from '../hooks/useFogShapeDrag';
 import type { RoomEdits } from '../hooks/useRoomEdits';
+import type { MarkerEdits } from '../hooks/useMarkers';
 import { EFFECT_OPACITY, EFFECT_STYLES } from '../lib/effects';
 import { areaContains, nearestStep, stepSize, toDrawnAreas } from '../lib/areas';
 import { feetToPixels, pixelsToFeet, snapToCell } from '../lib/grid';
 import { rectCorners } from '../lib/rect';
+import { markerAt, markerMinRadius } from '../lib/markers';
 import { AreaHandles } from './AreaHandles';
 import { DrawnAreas } from './DrawnAreas';
 import { FogRoomsLayer } from './FogRoomsLayer';
 import { MeasureLayer } from './MeasureLayer';
+import { MarkersLayer } from './MarkersLayer';
 import {
   circleOutline,
   mapToOriented,
@@ -66,7 +76,7 @@ import { ctrlHeld, keyLabel } from '../lib/platform';
 import { releaseVideo } from '../lib/video';
 import { FRAME_COLOR_STYLES, type FrameColor } from '../lib/frameColors';
 
-export type Tool = 'view' | 'fog' | 'effect' | 'shapes' | 'measure';
+export type Tool = 'view' | 'fog' | 'effect' | 'shapes' | 'measure' | 'markers';
 
 /**
  * How the Fog tool draws: a round brush, a freehand lasso, a rectangle, a
@@ -151,6 +161,14 @@ export interface MapStageProps {
   onDuplicateArea: (id: string) => void;
   onDeleteArea: (id: string) => void;
   onRecolorArea: (id: string, kind: EffectKind) => void;
+
+  /** The DM's markers: drawn over the fog in every tool, never on the player screen */
+  markers: MapMarker[];
+  selectedMarkerId: string | null;
+  /** The next marker's colour and radius (map px) */
+  markerColor: MarkerColor;
+  markerRadius: number;
+  markerEdits: MarkerEdits;
 
   /** Corners clicked so far while calibrating the grid; null when not calibrating */
   calibrationPoints: Point[] | null;
@@ -293,6 +311,12 @@ export function MapStage(props: MapStageProps) {
   const drawsCircle = canPaint && fogDraw === 'circle' && !!grid;
   const brushShown = canPaint && !drawsShape && (fogDraw !== 'circle' || drawsCircle);
   const shapes = useFogShapeDrag(fog.fillOutline, grid, displayScale);
+
+  // The same object until the map is turned or mirrored, so memoized layers skip renders
+  const orientation = useMemo(
+    () => ({ rotation, mirrorHorizontal, mirrorVertical }),
+    [rotation, mirrorHorizontal, mirrorVertical],
+  );
 
   /** Client coordinates → map natural pixels, undoing rotation and mirroring. */
   const toMapPoint = useCallback(
@@ -537,6 +561,20 @@ export function MapStage(props: MapStageProps) {
           if (notches !== 0) current.onResizeArea(selected.id, notches);
           return;
         }
+      }
+      // The Markers tool: the selected marker, wherever the pointer is; else
+      // the marker under the pointer; else the next one
+      if (current.tool === 'markers' && !current.shiftHeld && !event.shiftKey && surface) {
+        event.preventDefault();
+        const notches = notchesFrom(brushWheelRef);
+        if (notches === 0) return;
+        const { toMapPoint: toMap, displayScale: scale } = geometry.current;
+        const pointer = toMap(event.clientX, event.clientY);
+        const under = pointer && markerAt(current.markers, pointer, 2 / scale, markerMinRadius(scale));
+        const target = current.selectedMarkerId ?? under?.id;
+        if (target) current.markerEdits.resize(target, notches);
+        else current.markerEdits.stepSize(notches);
+        return;
       }
       // The Fog tool's circle: its radius, in 5 ft steps
       if (current.tool === 'fog' && current.fogShape === 'circle' && current.grid) {
@@ -802,6 +840,22 @@ export function MapStage(props: MapStageProps) {
                 drawsShape ? 'cursor-crosshair' : brushShown ? 'cursor-none' : 'cursor-default'
               }`}
             />
+            {/* Over the fog, so the DM sees them on fogged parts of the map; players never do */}
+            {mediaSize && (
+              <MarkersLayer
+                markers={props.markers}
+                media={mediaSize}
+                grid={grid}
+                orientation={orientation}
+                displayScale={displayScale}
+                editable={tool === 'markers' && !shiftHeld && !calibrationPoints}
+                selectedId={props.selectedMarkerId}
+                color={props.markerColor}
+                radius={props.markerRadius}
+                toMapPoint={toMapPoint}
+                edits={props.markerEdits}
+              />
+            )}
             {/* A lasso or rectangle while it is drawn; a lasso's closing edge is implied */}
             {mediaSize && drawsShape && (
               <svg

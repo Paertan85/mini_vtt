@@ -9,6 +9,7 @@ import * as yauzl from 'yauzl';
 import * as yazl from 'yazl';
 import type {
   FogRoom,
+  MapMarker,
   SpellArea,
   HandoutMeta,
   LibrarySettings,
@@ -19,6 +20,7 @@ import type {
 import { normalizeGrid } from '../src/lib/grid';
 import { type AreaReport, normalizeAreas } from '../src/lib/areas';
 import { normalizeRooms } from '../src/lib/rooms';
+import { normalizeMarkers } from '../src/lib/markers';
 import { EFFECT_STYLES } from '../src/lib/effects';
 import { cleanSettingsPatch } from '../src/lib/settings';
 import {
@@ -104,6 +106,8 @@ interface ProjectMapRecord {
   circles: ProjectArea[];
   /** DM-only fog rooms; optional, so older readers ignore them (and show players nothing) */
   rooms?: FogRoom[];
+  /** DM-only markers; optional, so older readers ignore them (and show players nothing) */
+  markers?: MapMarker[];
   /** Paths inside the archive */
   media: string;
   thumb?: string;
@@ -191,6 +195,7 @@ export async function exportProject(destPath: string): Promise<{ maps: number; h
       grid: map.grid,
       circles: map.circles.map((area) => ({ ...area, color: EFFECT_STYLES[area.kind].color })),
       rooms: map.rooms,
+      markers: map.markers,
       media,
       ...(thumb ? { thumb } : {}),
       ...(fog ? { fog } : {}),
@@ -666,6 +671,8 @@ export async function importProject(sourcePath: string): Promise<ProjectImportSu
         circles: normalizeAreas(record.circles, areas),
         // Optional: files from before rooms existed simply have none
         rooms: normalizeRooms(record.rooms),
+        // Optional: files from before markers existed simply have none
+        markers: normalizeMarkers(record.markers),
         addedAt: now,
       });
     }
