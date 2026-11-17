@@ -222,7 +222,7 @@ scripts/            Tests and the Windows icon patch used by electron-builder
 
 Both windows load the same page; the player screen is opened with `?mode=view`. The DM window owns all state and pushes it to the player screen over IPC. Fog strokes are painted in the DM window only; at the end of each stroke the DM window encodes the mask once, in a worker so the window never waits, and the main process relays that snapshot to the player screen and saves it to disk. Players therefore see a whole stroke appear at once, never the brush moving. Each fog or effects snapshot names its map and is shown only while that map is on screen, and a player window that opens or reloads gets everything it shows from the main process in one request.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. The design rules for keeping the app light on low-end laptops are in [AGENTS.md](AGENTS.md). Plans, and ideas not decided on yet, are collected in [ROADMAP.md](ROADMAP.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. The design rules for keeping the app light on low-end laptops are in [AGENTS.md](AGENTS.md). Plans, and ideas not decided on yet, are collected in [ROADMAP.md](ROADMAP.md). Why the app stays on Electron rather than moving to Tauri is in [docs/TAURI-DECISION.md](docs/TAURI-DECISION.md).
 
 ## Built with
 

@@ -22,15 +22,13 @@
 - Before a release, everything except the version change and the tag is pushed to main first, and CI must pass on Windows, macOS and Linux. Only then make the release commit and the tag, so a failing test never lands on a release tag.
 - At every release, ask the user to update the screenshots in `docs/screenshots/` first, if anything they show has changed. They take them; don't make or edit screenshots yourself.
 
-## Keeping a move to Tauri easy
+## A plain main process
 
-The app may move from Electron to Tauri once it is more feature complete (see `ROADMAP.md`): `electron/` would be rewritten in Rust, and the windows would use the system's web view (WebView2, Safari's WebKit, WebKitGTK) instead of Chromium. Don't make that move harder:
+Mini VTT stays on Electron (see `docs/TAURI-DECISION.md`). These rules keep the code simple, and keep another shell possible if that decision is ever looked at again:
 
-- Keep the main process to plain file and data handling that ports to Rust directly. Don't add npm packages to `electron/` that have no Rust equivalent, or new uses of Electron-only APIs (such as `nativeImage` or `webUtils`) when a portable way exists.
+- Keep the main process to plain file and data handling. Don't add npm packages to `electron/`, or new uses of Electron-only APIs (such as `nativeImage` or `webUtils`), when a plain way exists.
 - The renderer reaches the main process only through `electron/preload.ts`; nothing in `src/` imports Electron.
 - Keep `src/lib/` and the project format free of Electron and Node.
-- Don't rely on web features only Chromium has, unless there is a fallback for WebKit.
-- When a change would make the move harder anyway, tell the user before building it.
 
 ## Art
 

@@ -1,5 +1,5 @@
 // Where the player window opens. Kept free of Electron, so it is plain data
-// handling that tests can run and a Rust port can copy.
+// handling that tests can run.
 
 export interface Rect {
   x: number;
