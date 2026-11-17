@@ -91,9 +91,17 @@ const webPreferences = (): Electron.WebPreferences => ({
 /**
  * The app only ever shows its own bundled page. Block navigation and pop-ups so
  * a file dropped in the wrong place (or any stray link) can't replace the UI.
+ * In development the page may still reload itself from the Vite dev server:
+ * Vite reloads it once it has prepared new dependencies (or the preload is
+ * rebuilt), and a blocked reload left the window blank. Electron counts a
+ * page's own reload as a navigation.
  */
 function lockDownNavigation(target: BrowserWindow) {
-  target.webContents.on('will-navigate', (event) => event.preventDefault());
+  const devOrigin = VITE_DEV_SERVER_URL ? new URL(VITE_DEV_SERVER_URL).origin : null;
+  target.webContents.on('will-navigate', (event) => {
+    if (devOrigin && URL.canParse(event.url) && new URL(event.url).origin === devOrigin) return;
+    event.preventDefault();
+  });
   target.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 }
 
@@ -131,10 +139,13 @@ const sendToPlayer = (channel: string, ...args: unknown[]) => {
 };
 
 function createDmWindow() {
-  const area = screen.getPrimaryDisplay().workAreaSize;
+  const area = screen.getPrimaryDisplay().workArea;
   const tooSmall = area.width < DM_WINDOW.width || area.height < DM_WINDOW.height;
   dmWindow = new BrowserWindow({
     title: 'Mini VTT',
+    // In development and test runs, open at the left edge rather than centred,
+    // so the window doesn't cover a terminal or chat kept on the right
+    ...(app.isPackaged ? {} : { x: area.x, y: area.y }),
     width: Math.min(DM_WINDOW.width, area.width),
     height: Math.min(DM_WINDOW.height, area.height),
     minWidth: 960,
