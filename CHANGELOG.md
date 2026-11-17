@@ -27,6 +27,22 @@ All notable changes to this project are documented here. The format is based on
   one notch by notch is one step. Markers are saved with each map and travel
   in project files.
 
+- For contributors: `npm run cpu` loads each map and drags, zooms, paints and
+  measures on it with real mouse input, and prints the CPU each process uses
+  during each action. `npm run memory -- --peak` adds the highest memory
+  while each map loads. See CONTRIBUTING.md.
+
+### Fixed
+
+- Adding a large map now frees its full-size picture straight away. The fix
+  for this in 1.4.0 often didn't take effect: a 318-megapixel map still kept
+  1.2 GB in use for about 30 seconds after it was added.
+
+- For contributors: `npm run memory -- --cpu` read eight times too low on an
+  eight-core computer (100 meant every core busy, not one). It now reads 100
+  for one busy core, and memory left over in the main process (from adding
+  the maps) is collected before each reading too.
+
 ## 1.5.0 - 2026-11-13
 
 ### Added

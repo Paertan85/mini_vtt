@@ -240,7 +240,7 @@ export function shownImageSize(probe: Electron.NativeImage, header: Buffer, ext:
 // A decoded image is held outside the JavaScript heap, where the garbage
 // collector doesn't see its size: a 300-megapixel map kept 1.2 GB in this
 // process for minutes after its import. Collecting garbage once the image is
-// let go of frees it at once, and takes a few milliseconds (this heap is small).
+// let go of frees it, and takes a few milliseconds (this heap is small).
 const collectGarbage = (() => {
   try {
     v8.setFlagsFromString('--expose-gc');
@@ -252,20 +252,33 @@ const collectGarbage = (() => {
 
 /**
  * Decode an image once for its shown size (see shownImageSize) and, unless
- * `withThumb` is false, its thumbnail; the decoded image is freed before this
- * returns.
+ * `withThumb` is false, its thumbnail; the decoded image is freed straight
+ * after this returns.
  */
 export function probeImage(filePath: string, header: Buffer, ext: string, withThumb = true) {
-  let image: Electron.NativeImage | null = nativeImage.createFromPath(filePath);
   try {
+    const image = nativeImage.createFromPath(filePath);
     return {
       size: shownImageSize(image, header, ext),
       thumb: withThumb ? makeThumb(image, ext === 'jpg' ? readJpegOrientation(header) : 1) : null,
     };
   } finally {
-    image = null;
-    collectGarbage();
+    collectGarbageSoon();
   }
+}
+
+// Collect garbage in a task of its own, once the call that decoded the image
+// has unwound. Collected inside that call, the image often stayed in use (the
+// 1.2 GB were held for about 30 seconds more), likely because the stack still
+// pointed to it. Several imports in a row share one collection.
+let collectionPending = false;
+function collectGarbageSoon() {
+  if (collectionPending) return;
+  collectionPending = true;
+  setImmediate(() => {
+    collectionPending = false;
+    collectGarbage();
+  });
 }
 
 /** Read the first few KB of a file so its type can be sniffed. */

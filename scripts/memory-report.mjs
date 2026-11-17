@@ -10,7 +10,9 @@
 //
 // --fullscreen puts the DM window full screen on the main display and the
 // player window full screen on another one (the TV), as at the table.
-// --cpu adds the CPU used over two seconds after each step (100 = one core).
+// --cpu adds the CPU used over two seconds after each step (100 = one core
+// busy, so two busy cores read 200).
+// --peak adds the highest memory while each map loads, read every 100 ms.
 //
 // Image and video files in a folder named "Handouts" (any depth) are imported
 // as handouts, the others as maps; other files (notes, scripts) are left out.
@@ -21,6 +23,8 @@
 import { app, BrowserWindow, protocol, screen } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
+import v8 from 'node:v8';
+import vm from 'node:vm';
 import { scratchDir } from './scratch-dir.mjs';
 import zlib from 'node:zlib';
 
@@ -37,6 +41,8 @@ const WITH_PLAYER = !args.includes('--no-player');
 const FULLSCREEN = args.includes('--fullscreen');
 // Also read the CPU each process uses over two seconds at every step
 const CPU = args.includes('--cpu');
+// Also read the highest memory while each map loads
+const PEAK = args.includes('--peak');
 const CSV = option('--csv');
 const valued = new Set(['--rounds', '--csv', '--switch']);
 const folder = args.find((arg, i) => !arg.startsWith('--') && !valued.has(args[i - 1]));
@@ -64,6 +70,11 @@ app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.on('browser-window-created', (_event, window) => window.webContents.setBackgroundThrottling(false));
+
+// Garbage collection in the main process too, so memory left over from the
+// import is not counted against the first map
+v8.setFlagsFromString('--expose-gc');
+const collectMainGarbage = vm.runInNewContext('gc');
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const MB = (kb) => Math.round(kb / 1024);
@@ -218,10 +229,45 @@ async function run() {
     return window.webContents.debugger;
   };
 
+  /**
+   * Read every process every 100 ms until stopped, and keep the highest total
+   * (MB) and each process's own highest (MB), to see the peak while a map loads.
+   */
+  const samplePeak = () => {
+    const roles = new Map(windows().map((w) => [w.webContents.getOSProcessId(), w === dm ? 'DM' : 'Player']));
+    let total = 0;
+    const highest = {};
+    const read = () => {
+      const now = {};
+      for (const metric of app.getAppMetrics()) {
+        const name = roles.get(metric.pid) ?? metric.type;
+        now[name] = (now[name] ?? 0) + (metric.memory.privateBytes ?? metric.memory.workingSetSize);
+      }
+      total = Math.max(
+        total,
+        Object.values(now).reduce((sum, kb) => sum + kb, 0),
+      );
+      for (const [name, kb] of Object.entries(now)) highest[name] = Math.max(highest[name] ?? 0, kb);
+    };
+    read();
+    const timer = setInterval(read, 100);
+    return {
+      stop() {
+        clearInterval(timer);
+        read();
+        const byProcess = Object.entries(highest)
+          .map(([name, kb]) => `${name}:${MB(kb)}`)
+          .join('/');
+        return { total: MB(total), byProcess };
+      },
+    };
+  };
+
   /** Collect garbage in both windows, then read every process. */
   const measure = async (step, extra = {}) => {
     await sleep(1000);
     for (const window of windows()) await attach(window).sendCommand('HeapProfiler.collectGarbage');
+    collectMainGarbage();
     await sleep(1000);
     const roles = new Map(windows().map((w) => [w.webContents.getOSProcessId(), w === dm ? 'DM' : 'Player']));
     const processes = {};
@@ -242,15 +288,21 @@ async function run() {
       counters[role] = { nodes: dom.nodes, listeners: dom.jsEventListeners, documents: dom.documents };
     }
     const total = Object.values(processes).reduce((sum, kb) => sum + kb, 0);
-    // Each reading is the use since the one before: start now, read in two seconds
+    // The CPU seconds each process uses over two seconds. Not percentCPUUsage:
+    // that is shared out over all the cores, so 100 would mean every core busy.
     const cpu = {};
     if (CPU) {
-      app.getAppMetrics();
+      const before = new Map(app.getAppMetrics().map((m) => [m.pid, m.cpu.cumulativeCPUUsage ?? 0]));
+      const started = Date.now();
       await sleep(2000);
+      const seconds = (Date.now() - started) / 1000;
       for (const metric of app.getAppMetrics()) {
+        if (!before.has(metric.pid)) continue;
         const name = roles.get(metric.pid) ?? metric.type;
-        cpu[`${name} cpu`] = Math.round((cpu[`${name} cpu`] ?? 0) + metric.cpu.percentCPUUsage);
+        const used = (metric.cpu.cumulativeCPUUsage ?? 0) - before.get(metric.pid);
+        cpu[`${name} cpu`] = (cpu[`${name} cpu`] ?? 0) + (used / seconds) * 100;
       }
+      for (const key of Object.keys(cpu)) cpu[key] = Math.round(cpu[key]);
       cpu['total cpu'] = Object.values(cpu).reduce((sum, value) => sum + value, 0);
     }
     const row = {
@@ -299,12 +351,18 @@ async function run() {
     await tab('Maps');
     for (const map of library.maps) {
       const begin = Date.now();
+      const sampler = PEAK ? samplePeak() : null;
       await open('Maps', map.name);
       const state = await waitFor(() => mediaState(map.id, dm), 60000);
       const seconds = ((Date.now() - begin) / 1000).toFixed(1);
+      // Keep sampling for a while after load: the decode and the copy to the
+      // GPU finish seconds after the image's load event
+      if (sampler) await sleep(10000);
+      const peak = sampler?.stop();
       await measure(`r${round} map: ${map.name}`, {
         load: `${seconds}s${state === 'ok' ? '' : ` (${state ?? 'timed out'})`}`,
         reads: reads[map.id] ?? 0,
+        ...(peak ? { 'peak total': peak.total, 'peak by process': peak.byProcess } : {}),
       });
     }
     if (player && library.handouts.length) {

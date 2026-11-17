@@ -52,8 +52,19 @@ to round is a leak. It uses plain grey test maps, or your own:
 named `Handouts` become handouts). `--no-player` leaves out the player window,
 `--fullscreen` puts the DM window full screen on the main display and the
 player window full screen on another (a TV), `--cpu` adds the CPU each
-process uses over two seconds at every step, and `--switch name=value` tries
+process uses over two seconds at every step (100 is one core busy), `--peak`
+adds the highest memory while each map loads, and `--switch name=value` tries
 a Chromium switch. Your real library is untouched.
+
+For changes that affect CPU, `npm run cpu -- <folder or files>` loads each map
+and does what a DM does with it: moves the mouse, drags the player frame,
+zooms and pans the DM view, paints fog and effects and measures, with real
+mouse and key input, and prints the CPU each process uses during each action
+(100 is one core busy). `--fullscreen` works as for `npm run memory`, and
+`--seconds 5` makes each action longer. The mouse moves without a pause, so
+compare builds and actions with each other rather than reading the numbers
+as what play costs; runs vary by about a fifth. An action that had no effect
+is marked, so a broken step can't pass for a cheap one.
 
 A few guidelines:
 
