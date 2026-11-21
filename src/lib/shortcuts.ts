@@ -277,7 +277,11 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       ['Zoom in', [keys('viewZoomIn')]],
       ['Zoom out', [keys('viewZoomOut')]],
       ['Fit the map', [keys('viewFit')]],
-      ['Pan when zoomed in', ['Middle-drag']],
+      [
+        'Pan when zoomed in',
+        ['Middle-drag', 'Right-drag'],
+        'Right-drag where the right button doesn’t paint: not in the Fog tool’s brush, lasso, rectangle or circle, nor Effects',
+      ],
     ],
   },
   {

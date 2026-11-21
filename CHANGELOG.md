@@ -26,6 +26,14 @@ All notable changes to this project are documented here. The format is based on
   markers, so one removed or moved by mistake comes straight back; resizing
   one notch by notch is one step. Markers are saved with each map and travel
   in project files.
+- A zoomed-in DM view also pans with a **right-button drag**, wherever the
+  right button doesn't paint: the View, Spells, Measure and Markers tools,
+  and the Fog tool's Rooms. A right-click that comes up without the mouse
+  moving still does what it did, such as removing a marker or covering a
+  room, so a right-drag that starts on a marker pans instead of removing it.
+  The middle button still pans in every tool; in the Fog tool's brush,
+  lasso, rectangle and circle and in the Effects tool, a right-drag still
+  covers or erases.
 
 - For contributors: `npm run cpu` loads each map and drags, zooms, paints and
   measures on it with real mouse input, and prints the CPU each process uses

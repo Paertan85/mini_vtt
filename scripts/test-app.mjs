@@ -862,6 +862,19 @@ app.whenReady().then(async () => {
     await drag(pointer, 80, 0, 'middle');
     await sleep(300);
     check('middle-drag pans the zoomed view', Math.abs((await fogRect()).x - zoomedStart.x - 80) < 2);
+    // In the Fog tool's brush the right button covers; in the View tool it pans
+    await press('v');
+    await sleep(100);
+    const rightStart = await fogRect();
+    await drag(pointer, 0, 60, 'right');
+    await sleep(300);
+    check(
+      'right-drag pans the zoomed view in the View tool',
+      Math.abs((await fogRect()).y - rightStart.y - 60) < 2,
+      `${rightStart.y} → ${(await fogRect()).y}`,
+    );
+    await press('f');
+    await sleep(100);
     await press('0', { ctrlKey: true });
     await sleep(300);
 
@@ -1663,6 +1676,23 @@ app.whenReady().then(async () => {
       );
       await press('k');
       await sleep(200);
+      // Zoomed in, a right-drag that starts on a marker pans instead of removing it
+      const onMarker = toScreen(savedMarkers()[0]);
+      const markerFog = () =>
+        js(`document.querySelector('canvas[aria-label="Fog of war"]').getBoundingClientRect().x`);
+      await js(`document.querySelector('svg[aria-label="Markers"]').dispatchEvent(new WheelEvent('wheel',
+        { deltaY: -400, ctrlKey: true, clientX: ${onMarker.x}, clientY: ${onMarker.y}, bubbles: true, cancelable: true }))`);
+      await sleep(300);
+      const fogXBefore = await markerFog();
+      await drag(onMarker, 50, 0, 'right');
+      await sleep(600);
+      check(
+        'a right-drag from a marker pans the zoomed view and keeps the marker',
+        Math.abs((await markerFog()) - fogXBefore - 50) < 2 && savedMarkers().length === 1,
+        JSON.stringify({ fogXBefore, after: await markerFog(), markers: savedMarkers().length }),
+      );
+      await press('0', { ctrlKey: true });
+      await sleep(300);
       const beforeRemove = JSON.stringify(savedMarkers());
       await clickAt(savedMarkers()[0], 'right');
       check('a right-click removes a marker', (await waitFor(() => savedMarkers().length === 0)) === true);

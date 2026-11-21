@@ -19,6 +19,13 @@ interface Vector {
   y: number;
 }
 
+/** Moving less than this (screen px) between press and release is a click, not a drag */
+export const CLICK_SLOP_PX = 4;
+
+/** Whether the mouse has moved too far from `from` (screen px) for a press to be a click. */
+export const slipped = (from: Vector, to: Vector) =>
+  Math.hypot(to.x - from.x, to.y - from.y) >= CLICK_SLOP_PX;
+
 /** How a map is shown: turned clockwise in 90° steps, after mirroring. */
 export interface Orientation {
   rotation: number;

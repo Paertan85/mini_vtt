@@ -26,7 +26,10 @@
 //                       view when over the frame (View tool, unless its zoom
 //                       is locked)
 //
-// Panning a zoomed DM view: middle-button drag. Alt + drag on the player
+// Panning a zoomed DM view: middle-button drag, and right-button drag where
+// the right button doesn't paint (not the Fog tool's brush, lasso, rectangle
+// and circle, the Effects tool, or Shift). A right press there that comes up
+// without moving is still a right-click, such as removing a marker. Alt + drag on the player
 // frame moves it from any tool, zoomed in or not (Ctrl too: on the grid).
 // Circles (View and Spells tools): drag the centre dot to move (Ctrl: snap
 // to square centres).
@@ -69,6 +72,7 @@ import {
   orientedSize,
   screenToMapDirection,
   snapPanToGrid,
+  slipped,
   wheelPixels,
   type Size,
 } from '../lib/geometry';
@@ -258,6 +262,9 @@ export function MapStage(props: MapStageProps) {
   const brushWheelRef = useRef(0);
   const playerWheelRef = useRef(0);
   const viewDragRef = useRef<{ start: Point; startView: ViewZoom; pointerId: number } | null>(null);
+  // A right press where the right button doesn't paint: a pan once the mouse
+  // moves, else a right-click for the tool under it
+  const rightPressRef = useRef<{ start: Point; startView: ViewZoom; pointerId: number } | null>(null);
   const cursorLabelRef = useRef<HTMLSpanElement>(null);
   // The Fog tool's circle while the mouse is down: its centre, and the radius
   // dragged out (null until the mouse has moved far enough to be a drag)
@@ -609,7 +616,7 @@ export function MapStage(props: MapStageProps) {
     return () => container.removeEventListener('wheel', onWheel);
   }, []);
 
-  // ─── DM view: middle-button drag pans a zoomed map; Alt + drag the frame ───
+  // ─── DM view: middle- or right-button drag pans a zoomed map; Alt + drag the frame
 
   /**
    * Where the player frame goes when dragged from `startPan`, the mouse
@@ -634,9 +641,23 @@ export function MapStage(props: MapStageProps) {
    * Alt + drag also moves the player frame from any tool. Alt is read from the
    * press itself as well as the key: Windows doesn't always deliver the Alt
    * keydown before the press.
+   *
+   * A right press where the right button doesn't paint goes on to the tool
+   * under it, which acts when the button comes up unmoved; once the mouse
+   * moves, the stage takes the mouse and pans.
    */
   const handleViewPointerDown = (event: React.PointerEvent<HTMLElement>) => {
     const alt = event.button === 0 && (altHeld || event.altKey);
+    rightPressRef.current = null;
+    const onControl = event.target instanceof Element && !!event.target.closest('button, input');
+    if (event.button === 2 && shownView.zoom > 1 && !canPaint && !event.shiftKey && !onControl) {
+      rightPressRef.current = {
+        start: { x: event.clientX, y: event.clientY },
+        startView: shownView,
+        pointerId: event.pointerId,
+      };
+      return;
+    }
     if (event.button === 1 && shownView.zoom > 1) {
       event.preventDefault();
       event.stopPropagation();
@@ -673,6 +694,17 @@ export function MapStage(props: MapStageProps) {
       props.onPanChange(draggedPan(frameDrag.start, frameDrag.startPan, event));
       return;
     }
+    const press = rightPressRef.current;
+    if (press?.pointerId === event.pointerId) {
+      // The button came up where the stage never saw it
+      if ((event.buttons & 2) === 0) rightPressRef.current = null;
+      else if (slipped(press.start, { x: event.clientX, y: event.clientY })) {
+        rightPressRef.current = null;
+        viewDragRef.current = press;
+        // From the tool under it too, which then drops its right-click
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }
+    }
     const drag = viewDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     setView(
@@ -686,6 +718,7 @@ export function MapStage(props: MapStageProps) {
 
   const endViewDrag = (event: React.PointerEvent<HTMLElement>) => {
     if (viewDragRef.current?.pointerId === event.pointerId) viewDragRef.current = null;
+    if (rightPressRef.current?.pointerId === event.pointerId) rightPressRef.current = null;
     if (altFrameDragRef.current?.pointerId === event.pointerId) altFrameDragRef.current = null;
   };
 
@@ -764,7 +797,8 @@ export function MapStage(props: MapStageProps) {
           }}
           onPointerDownCapture={(event) => {
             const target = event.target as HTMLElement;
-            if (event.button === 1) return; // panning the view keeps the selection
+            // Panning the view keeps the selection; only the left button drops it
+            if (event.button !== 0) return;
             if (selectedAreaId && !target.closest('[data-area-control]')) props.onSelectArea(null);
           }}
         >
@@ -1015,7 +1049,7 @@ export function MapStage(props: MapStageProps) {
         <button
           type="button"
           title={keyLabel(
-            'DM view only; players are unaffected. Ctrl + mouse wheel zooms, middle-drag pans. Click to fit the map.',
+            'DM view only; players are unaffected. Ctrl + mouse wheel zooms, middle-drag pans (right-drag too, where the right button doesn’t paint). Click to fit the map.',
           )}
           onClick={() => setView(FIT_VIEW)}
           className="absolute bottom-3 right-3 z-50 rounded-sm border border-line bg-panel/90 px-2 py-1 text-[12px] tabular-nums text-ink hover:bg-raised"

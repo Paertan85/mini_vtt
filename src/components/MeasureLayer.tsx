@@ -4,7 +4,9 @@
 //   click          starts a path: the next leg follows the mouse, and each
 //                  click adds a point, to measure round corners
 //   double-click or Enter   finishes the path
-//   right-click    takes back the last point (a finished ruler: clears it)
+//   right-click    takes back the last point (a finished ruler: clears it),
+//                  when the button comes up unmoved: a right-drag pans a
+//                  zoomed-in DM view
 //   Esc or Backspace   clears it
 //
 // Movement counts squares, from the middle of one to the middle of another;
@@ -15,10 +17,11 @@
 // left or another map loads, and a drag re-renders nothing else. Each change
 // is reported through `onChange` (null when it goes), for the player screen.
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { DiagonalRule, MapGrid, Point, RulerState } from '../types/map';
 import { MAX_RULER_POINTS, measurePathFeet, snapToCell } from '../lib/grid';
 import { ctrlHeld } from '../lib/platform';
+import { slipped } from '../lib/geometry';
 
 interface MeasureLayerProps {
   grid: MapGrid;
@@ -73,6 +76,8 @@ export function MeasureLayer({
   onChange,
 }: MeasureLayerProps) {
   const [ruler, setRuler] = useState<Ruler | null>(null);
+  // Where the right button went down; it takes back a point if it comes up there
+  const rightPressRef = useRef<Point | null>(null);
   const points = ruler ? rulerPoints(ruler) : [];
   const feet = points.length >= 2 ? measurePathFeet(points, grid, rule) : 0;
 
@@ -110,9 +115,10 @@ export function MeasureLayer({
   };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    rightPressRef.current = null;
     if (event.button === 2) {
       event.preventDefault();
-      setRuler((current) => current && takeBack(current));
+      rightPressRef.current = { x: event.clientX, y: event.clientY };
       return;
     }
     if (event.button !== 0) return;
@@ -131,6 +137,14 @@ export function MeasureLayer({
   };
 
   const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    const rightFrom = rightPressRef.current;
+    rightPressRef.current = null;
+    if (event.button === 2) {
+      if (rightFrom && !slipped(rightFrom, { x: event.clientX, y: event.clientY })) {
+        setRuler((current) => current && takeBack(current));
+      }
+      return;
+    }
     if (event.button !== 0 || !ruler) return;
     const point = pointAt(event) ?? ruler.cursor;
     if (!point) return;

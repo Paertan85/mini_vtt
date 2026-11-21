@@ -19,7 +19,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Eye, EyeOff, Trash2 } from 'lucide-react';
 import type { FogMode, FogRoom, MapGrid, Point } from '../types/map';
-import type { Orientation, Size } from '../lib/geometry';
+import { slipped, type Orientation, type Size } from '../lib/geometry';
 import {
   clipToMap,
   edgesOnMap,
@@ -57,8 +57,6 @@ interface FogRoomsLayerProps {
   onFill: (room: FogRoom, mode: FogMode) => void;
 }
 
-/** Moving less than this (screen px) between press and release is a click, not a drag */
-const CLICK_SLOP_PX = 4;
 /** A room narrower than this (screen px) is a slip, not a room */
 const MIN_ROOM_PX = 4;
 
@@ -110,10 +108,6 @@ const STATUS_COLORS: Record<RoomStatus, string> = {
 
 const sameRect = (a: Rect, b: Rect) =>
   a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
-
-/** Whether the mouse has moved too far since the press for it to be a click. */
-const slipped = (drag: { from: Point }, event: React.PointerEvent) =>
-  Math.hypot(event.clientX - drag.from.x, event.clientY - drag.from.y) >= CLICK_SLOP_PX;
 
 export function FogRoomsLayer({
   rooms,
@@ -229,7 +223,11 @@ export function FogRoomsLayer({
       return;
     }
     // Only the left button moves a room, and only once the mouse has really moved
-    if (drag.kind === 'press' && (drag.button !== 0 || !slipped(drag, event))) return;
+    if (
+      drag.kind === 'press' &&
+      (drag.button !== 0 || !slipped(drag.from, { x: event.clientX, y: event.clientY }))
+    )
+      return;
     const delta = { x: point.x - drag.start.x, y: point.y - drag.start.y };
     const rect = moveRect(room, delta, media, snap);
     setDrag({ kind: 'move', pointerId: drag.pointerId, id: drag.id, start: drag.start, rect });
@@ -246,7 +244,8 @@ export function FogRoomsLayer({
     if (!room) return;
     if (drag.kind === 'press') {
       // A click: the left button reveals, the right one covers
-      if (!slipped(drag, event)) onFill(room, drag.button === 0 ? 'reveal' : 'cover');
+      if (!slipped(drag.from, { x: event.clientX, y: event.clientY }))
+        onFill(room, drag.button === 0 ? 'reveal' : 'cover');
       return;
     }
     if (!sameRect(drag.rect, room) && bigEnough(drag.rect)) edits.reshape(room.id, drag.rect);
@@ -264,6 +263,8 @@ export function FogRoomsLayer({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={() => setDrag(null)}
+      // A right-drag pans the DM view, which takes the mouse: no click then
+      onLostPointerCapture={() => setDrag(null)}
       onPointerLeave={() => (pointerRef.current = null)}
       onContextMenu={(event) => event.preventDefault()}
     >

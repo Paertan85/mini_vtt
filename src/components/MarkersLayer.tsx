@@ -5,7 +5,8 @@
 //   click on the map        puts down a marker of the chosen colour and size
 //                           (on a grid, on the squares it covers)
 //   drag a marker           moves it (on a grid, square by square)
-//   right-click a marker    removes it
+//   right-click a marker    removes it (when the button comes up unmoved:
+//                           a right-drag pans a zoomed-in DM view)
 //   click a marker          selects it: its colour, size and letter show in
 //                           the toolbar, and changing them changes it
 //
@@ -20,7 +21,7 @@
 
 import React, { memo, useRef, useState } from 'react';
 import type { MapGrid, MapMarker, MarkerColor, Point } from '../types/map';
-import type { Orientation, Size } from '../lib/geometry';
+import { slipped, type Orientation, type Size } from '../lib/geometry';
 import { MARKER_STYLES, markerAt, markerMinRadius, placeMarker } from '../lib/markers';
 import type { MarkerEdits } from '../hooks/useMarkers';
 
@@ -43,8 +44,6 @@ interface MarkersLayerProps {
   edits: MarkerEdits;
 }
 
-/** Moving less than this (screen px) between press and release is a click, not a drag */
-const CLICK_SLOP_PX = 4;
 /** Fill strength of a marker's body; its edge is solid */
 const FILL_OPACITY = 0.35;
 /** A letter's height, as a share of the marker's radius: large, with room to spare inside */
@@ -155,6 +154,8 @@ export const MarkersLayer = memo(function MarkersLayer({
   edits,
 }: MarkersLayerProps) {
   const [drag, setDrag] = useState<Drag | null>(null);
+  // A right press on a marker, removed when the button comes up unmoved
+  const removeRef = useRef<{ id: string; from: Point } | null>(null);
   const ghostRef = useRef<SVGCircleElement>(null);
   const minRadius = markerMinRadius(displayScale);
   const shownRadius = (value: number) => Math.max(minRadius, value);
@@ -179,8 +180,9 @@ export const MarkersLayer = memo(function MarkersLayer({
     if (!point) return;
     event.preventDefault();
     const pressed = hit(point);
+    removeRef.current = null;
     if (event.button === 2) {
-      if (pressed) edits.remove(pressed.id);
+      if (pressed) removeRef.current = { id: pressed.id, from: { x: event.clientX, y: event.clientY } };
       return;
     }
     if (!pressed) {
@@ -207,8 +209,7 @@ export const MarkersLayer = memo(function MarkersLayer({
       else moveGhost(point);
       return;
     }
-    const slipped = Math.hypot(event.clientX - drag.from.x, event.clientY - drag.from.y) >= CLICK_SLOP_PX;
-    if (!drag.center && !slipped) return;
+    if (!drag.center && !slipped(drag.from, { x: event.clientX, y: event.clientY })) return;
     const marker = markers.find((entry) => entry.id === drag.id);
     if (!marker) return;
     const center = placeMarker(
@@ -221,6 +222,12 @@ export const MarkersLayer = memo(function MarkersLayer({
   };
 
   const handlePointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
+    const remove = removeRef.current;
+    removeRef.current = null;
+    if (remove && event.button === 2 && event.type === 'pointerup') {
+      if (!slipped(remove.from, { x: event.clientX, y: event.clientY })) edits.remove(remove.id);
+      return;
+    }
     if (!drag || drag.pointerId !== event.pointerId) return;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
