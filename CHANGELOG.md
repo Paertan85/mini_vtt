@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format is based on
 
 ## Unreleased
 
+## 1.6.0 - 2026-11-22
+
 ### Added
 
 - **Markers** (K): round markers on the map that only the DM sees, to plan
