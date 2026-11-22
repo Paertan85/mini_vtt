@@ -66,13 +66,13 @@ export interface AreaGrid extends PlayerGrid {
 export interface DrawnArea {
   x: number;
   y: number;
-  /** Circle radius, square side, cone or line length */
+  /** Circle radius, square side, cone or line length, emanation distance */
   radius: number;
   kind: EffectKind;
   shape: AreaShape;
   /** Degrees, map space (0 points along +x); cones and lines */
   angle: number;
-  /** Line width */
+  /** Line width; for an emanation, the side of the square it comes from (one grid square) */
   width: number;
 }
 
@@ -140,19 +140,20 @@ export interface MapGrid {
   feetPerCell: number;
 }
 
-/** The shapes of spell areas: sphere/emanation, cube, cone and line/wall. */
-export type AreaShape = 'circle' | 'square' | 'cone' | 'line';
+/** The shapes of spell areas: sphere (circle), cube (square), cone, line/wall and emanation. */
+export type AreaShape = 'circle' | 'square' | 'cone' | 'line' | 'emanation';
 
 /**
- * A spell area on the map: a circle, square, cone or line. The point is the
- * centre of a circle or square, and the origin of a cone or line. Saved as
+ * A spell area on the map: a circle, square, cone, line or emanation. The
+ * point is the centre of a circle or square, the origin of a cone or line,
+ * and the middle of the square an emanation comes from. Saved as
  * it is (`radiusFt` is named for the circle, the first shape).
  */
 export interface SpellArea {
   id: string;
   x: number;
   y: number;
-  /** Circle radius, square side, cone or line length, in feet */
+  /** Circle radius, square side, cone or line length, emanation distance, in feet */
   radiusFt: number;
   kind: EffectKind;
   shape: AreaShape;

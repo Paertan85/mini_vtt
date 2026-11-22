@@ -217,16 +217,16 @@ The squares drawn on the map image, in map pixels.
 
 ### A spell area
 
-| Field      | Default  | Value                                                                                                                |
-| ---------- | -------- | -------------------------------------------------------------------------------------------------------------------- |
-| `id`       | required | 1 to 32 of `A–Z a–z 0–9 _ -`, unique on its map.                                                                     |
-| `x`, `y`   | required | In map pixels: the centre of a circle or square, or the point a cone or line starts from.                            |
-| `radiusFt` | required | In feet, 1 to 500: a circle's radius, a square's side, or a cone's or line's length.                                 |
-| `kind`     | required | `"fire"`, `"poison"` or `"magic"`: how it is coloured.                                                               |
-| `shape`    | circle   | `"circle"`, `"square"`, `"cone"` or `"line"`.                                                                        |
-| `angle`    | `0`      | Degrees: where a cone or line points, or how a square is turned.                                                     |
-| `widthFt`  | `5`      | A line's width in feet, 1 to 500.                                                                                    |
-| `color`    | none     | The kind's colour: fire `#ff6a1a`, poison `#45b649`, magic `#5c7cff`. Used only by readers that don't know the kind. |
+| Field      | Default  | Value                                                                                                                                                                                        |
+| ---------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`       | required | 1 to 32 of `A–Z a–z 0–9 _ -`, unique on its map.                                                                                                                                             |
+| `x`, `y`   | required | In map pixels: the centre of a circle or square, the point a cone or line starts from, or the middle of the square an emanation comes from.                                                  |
+| `radiusFt` | required | In feet, 1 to 500: a circle's radius, a square's side, a cone's or line's length, or how far an emanation reaches.                                                                           |
+| `kind`     | required | `"fire"`, `"poison"` or `"magic"`: how it is coloured.                                                                                                                                       |
+| `shape`    | circle   | `"circle"`, `"square"`, `"cone"`, `"line"` or `"emanation"`. An emanation comes from a creature in one grid square and reaches `radiusFt` out from its edges; that square isn't in its area. |
+| `angle`    | `0`      | Degrees: where a cone or line points, or how a square is turned.                                                                                                                             |
+| `widthFt`  | `5`      | A line's width in feet, 1 to 500.                                                                                                                                                            |
+| `color`    | none     | The kind's colour: fire `#ff6a1a`, poison `#45b649`, magic `#5c7cff`. Used only by readers that don't know the kind.                                                                         |
 
 ### A fog room
 

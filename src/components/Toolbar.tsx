@@ -200,7 +200,7 @@ export const Toolbar = memo(function Toolbar({
               aria-pressed={tool === 'shapes'}
               onClick={() => tools.setTool('shapes')}
               disabled={!hasMap}
-              title="Spells (S): place spell areas sized in feet: circles, cubes, cones and lines."
+              title="Spells (S): place spell areas sized in feet: circles, cubes, cones, lines and emanations."
             >
               Spells
             </Button>
@@ -318,7 +318,7 @@ export const Toolbar = memo(function Toolbar({
             tone={settings.showAreaSquares ? 'on' : 'default'}
             aria-pressed={settings.showAreaSquares}
             onClick={settings.toggleAreaSquares}
-            title="Affected squares: outline the grid squares each spell area covers, on the player screen too. A square counts when at least half of it is covered; a circle centred in a square is an emanation, counted out from that square as movement is."
+            title="Affected squares: outline the grid squares each spell area covers, on the player screen too. A square counts when at least half of it is covered. An emanation counts out from its creature's square as movement is, and leaves that square out."
           >
             Affected squares
           </Button>

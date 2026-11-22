@@ -40,7 +40,20 @@ All notable changes to this project are documented here. The format is based on
   during each action. `npm run memory -- --peak` adds the highest memory
   while each map loads. See CONTRIBUTING.md.
 
+- **Emanation** in the Spells tool, for spells such as Spirit Guardians
+  that reach out from a creature. It sits in the middle of the creature's
+  square, moves a square at a time, and reaches its distance out from every
+  edge of that square. **Affected squares** counts it out from that square
+  as movement is and, as in the 2024 rules, leaves the creature's own
+  square out.
+
 ### Changed
+
+- A spell area **Circle** is now always a sphere: it covers the squares it
+  covers at least half of, also when centred in a square, where it used to
+  count as an emanation. Ctrl + drag snaps it to a grid corner, its point of
+  origin on a grid in the 2024 Dungeon Master's Guide. Use **Emanation**
+  for an area that comes from a creature.
 
 - The Spells tool's **Square** is now **Cube**, as spells call it, and its
   **Squares** button is now **Affected squares**, which says what it shows.

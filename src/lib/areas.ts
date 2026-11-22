@@ -1,5 +1,5 @@
-// Spell areas: the templates (circles, cubes, cones and lines) placed on a
-// map, sized in feet against the map's grid.
+// Spell areas: the templates (circles, cubes, cones, lines and emanations)
+// placed on a map, sized in feet against the map's grid.
 //
 // Pure functions with no DOM access: the main process uses the validators for
 // everything that arrives over IPC or from a project file, both windows use
@@ -15,15 +15,24 @@ import { feetToPixels, pixelsToFeet, snapToCell, snapToCorner } from './grid';
 export const MAX_AREAS = 50;
 export const MIN_RADIUS_FT = 1;
 export const MAX_RADIUS_FT = 500;
-export const AREA_SHAPES: readonly AreaShape[] = ['circle', 'square', 'cone', 'line'];
+export const AREA_SHAPES: readonly AreaShape[] = ['circle', 'square', 'cone', 'line', 'emanation'];
 export const AREA_LABELS: Record<AreaShape, string> = {
   circle: 'Circle',
   square: 'Cube',
   cone: 'Cone',
   line: 'Line',
+  emanation: 'Emanation',
 };
-/** Size of a new template: circle radius, square side, cone or line length */
-export const DEFAULT_AREA_FT: Record<AreaShape, number> = { circle: 15, square: 10, cone: 15, line: 30 };
+/** Size of a new template: circle radius, square side, cone or line length, emanation distance */
+export const DEFAULT_AREA_FT: Record<AreaShape, number> = {
+  circle: 15,
+  square: 10,
+  cone: 15,
+  line: 30,
+  emanation: 15,
+};
+/** Points along each rounded corner of an emanation's outline */
+const EMANATION_ARC_STEPS = 8;
 export const DEFAULT_LINE_WIDTH_FT = 5;
 /** Feet per wheel notch, and the steps an aimed length keeps to */
 export const AREA_STEP_FT = 5;
@@ -117,12 +126,13 @@ export function normalizeDrawnAreas(value: unknown): DrawnArea[] {
 }
 
 /**
- * Where a template's point snaps: a circle to the middle of a square, a
- * square so its edges follow the grid lines, a cone or line to the nearest
- * grid corner (the usual origin point).
+ * Where a template's point snaps: a square so its edges follow the grid
+ * lines, an emanation to the middle of a square (the creature's), a circle,
+ * cone or line to the nearest grid corner (the point of origin the 2024
+ * Dungeon Master's Guide uses on a grid).
  */
 export function snapArea(point: Point, area: SpellArea, grid: MapGrid): Point {
-  if (area.shape === 'circle') return snapToCell(point, grid);
+  if (area.shape === 'emanation') return snapToCell(point, grid);
   if (area.shape === 'square') {
     const squares = Math.max(1, Math.round(area.radiusFt / grid.feetPerCell));
     return squares % 2 === 1 ? snapToCell(point, grid) : snapToCorner(point, grid);
@@ -130,17 +140,28 @@ export function snapArea(point: Point, area: SpellArea, grid: MapGrid): Point {
   return snapToCorner(point, grid);
 }
 
-/** What the player screen needs to draw the templates. */
+/**
+ * Where an area goes when it is added or moved to `point`: an emanation
+ * always in the middle of a square, as it comes from a creature standing
+ * there; any other area at `point`.
+ */
+export const placeArea = (point: Point, shape: AreaShape, grid: MapGrid | null): Point =>
+  shape === 'emanation' && grid ? snapToCell(point, grid) : point;
+
+/**
+ * What the player screen needs to draw the templates. An emanation is drawn
+ * round the square its point is in, one grid square across, so it lines up
+ * with the squares it covers.
+ */
 export const toDrawnAreas = (areas: SpellArea[], grid: MapGrid | null): DrawnArea[] =>
   grid
     ? areas.map(({ x, y, radiusFt, kind, shape, angle, widthFt }) => ({
-        x,
-        y,
+        ...placeArea({ x, y }, shape, grid),
         radius: feetToPixels(radiusFt, grid),
         kind,
         shape,
         angle,
-        width: feetToPixels(widthFt, grid),
+        width: shape === 'emanation' ? grid.cell : feetToPixels(widthFt, grid),
       }))
     : [];
 
@@ -152,21 +173,42 @@ export function areaTip(disc: Pick<DrawnArea, 'x' | 'y' | 'radius' | 'angle'>): 
 
 /**
  * Where a template's handle sits (map pixels): the tip of a cone or line, the
- * middle of a square's front edge; null for a circle.
+ * middle of a square's front edge; null for a circle or an emanation.
  */
 export function areaHandle(disc: DrawnArea): Point | null {
-  if (disc.shape === 'circle') return null;
+  if (disc.shape === 'circle' || disc.shape === 'emanation') return null;
   return areaTip(disc.shape === 'square' ? { ...disc, radius: disc.radius / 2 } : disc);
 }
 
 /**
- * Outline of a square, cone or line (map pixels); null for a circle. A square
- * turns about its centre; a cone is as wide at its end as it is long, as in
- * D&D 5e; a line is centred on its direction.
+ * Outline of a square, cone, line or emanation (map pixels); null for a
+ * circle. A square turns about its centre; a cone is as wide at its end as it
+ * is long, as in D&D 5e; a line is centred on its direction. An emanation
+ * reaches its distance out from every edge of its square (`width` across),
+ * so its corners are rounded.
  */
 export function areaOutline(disc: DrawnArea): Point[] | null {
   const { x, y, radius, shape } = disc;
   if (shape === 'circle') return null;
+  if (shape === 'emanation') {
+    const half = disc.width / 2;
+    // A quarter circle round each corner of the square, clockwise from the bottom right
+    const corners = [
+      [1, 1],
+      [-1, 1],
+      [-1, -1],
+      [1, -1],
+    ];
+    return corners.flatMap(([sx, sy], corner) =>
+      Array.from({ length: EMANATION_ARC_STEPS + 1 }, (_, step) => {
+        const radians = ((corner + step / EMANATION_ARC_STEPS) * Math.PI) / 2;
+        return {
+          x: x + sx * half + Math.cos(radians) * radius,
+          y: y + sy * half + Math.sin(radians) * radius,
+        };
+      }),
+    );
+  }
   const radians = (disc.angle * Math.PI) / 180;
   const along = { x: Math.cos(radians), y: Math.sin(radians) };
   const across = { x: -along.y, y: along.x };
@@ -238,34 +280,25 @@ export const MAX_AREA_SQUARES = 10_000;
  */
 const SQUARE_SAMPLES = 8;
 
-/** Whether a circle is centred in the middle of a square, as an emanation from a creature in it, rather than on a grid line. */
-function centredInSquare(disc: DrawnArea, grid: AreaGrid): boolean {
-  const inSquare = (value: number, offset: number) => {
-    const at = (value - offset) / grid.cell;
-    const fraction = at - Math.floor(at);
-    return fraction >= 0.25 && fraction < 0.75;
-  };
-  return inSquare(disc.x, grid.offsetX) && inSquare(disc.y, grid.offsetY);
-}
-
 /**
  * The grid squares a spell area covers, or null when it spans more than
  * MAX_AREA_SQUARES. As the 2024 Dungeon Master's Guide has it, an area
  * covers a square when it covers at least half of it; that goes for
- * spheres (a circle centred on a grid line or intersection, its point of
- * origin), squares, cones and lines.
+ * spheres (circles, wherever their point of origin is), cubes, cones and
+ * lines.
  *
- * A circle centred in a square is an emanation (Spirit Guardians) from a
- * creature in that square. It reaches out from the creature's square, so it
- * covers the squares within its radius counted as movement is: diagonals 5,
- * 10, 5 ft under the 5/10 rule, every square the same under the other, which
- * makes it a square. The creature's own square is included.
+ * An emanation (Spirit Guardians) reaches out from the square of the
+ * creature it comes from, so it covers the squares within its distance of
+ * that square, counted as movement is: diagonals 5, 10, 5 ft under the 5/10
+ * rule, every square the same under the other, which makes it a square. In
+ * the 2024 rules an emanation's origin isn't in its area, so the creature's
+ * own square is left out.
  */
 export function coveredSquares(disc: DrawnArea, grid: AreaGrid): GridSquare[] | null {
   const { cell, offsetX, offsetY } = grid;
   if (!(cell > 0) || !(disc.radius > 0)) return [];
   const squares: GridSquare[] = [];
-  if (disc.shape === 'circle' && centredInSquare(disc, grid)) {
+  if (disc.shape === 'emanation') {
     const reach = disc.radius / cell;
     const col0 = Math.floor((disc.x - offsetX) / cell);
     const row0 = Math.floor((disc.y - offsetY) / cell);
@@ -277,7 +310,7 @@ export function coveredSquares(disc: DrawnArea, grid: AreaGrid): GridSquare[] | 
         const b = Math.abs(row - row0);
         const longer = Math.max(a, b);
         const moved = grid.rule === 'uniform' ? longer : longer + Math.floor(Math.min(a, b) / 2);
-        if (moved <= reach + 1e-9) squares.push({ col, row });
+        if (longer > 0 && moved <= reach + 1e-9) squares.push({ col, row });
       }
     }
     return squares;

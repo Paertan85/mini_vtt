@@ -5,11 +5,20 @@
 
 import React, { useRef } from 'react';
 import { Copy, Trash2 } from 'lucide-react';
-import type { SpellArea, DrawnArea, EffectKind, MapGrid, Point } from '../types/map';
+import type { AreaShape, SpellArea, DrawnArea, EffectKind, MapGrid, Point } from '../types/map';
 import { EFFECT_KINDS, EFFECT_STYLES } from '../lib/effects';
 import { feetToPixels } from '../lib/grid';
 import { AREA_LABELS, areaHandle, areaOutline, snapArea } from '../lib/areas';
 import { ctrlHeld, keyLabel } from '../lib/platform';
+
+/** What the size field of each shape sets */
+const SIZE_NAMES: Record<AreaShape, string> = {
+  circle: 'Radius',
+  square: 'Side',
+  cone: 'Length',
+  line: 'Length',
+  emanation: 'Distance',
+};
 
 interface AreaHandlesProps {
   areas: SpellArea[];
@@ -105,7 +114,7 @@ export function AreaHandles({
         const label = AREA_LABELS[area.shape];
         const sizeText =
           area.shape === 'line' ? `${area.radiusFt} × ${area.widthFt} ft` : `${area.radiusFt} ft`;
-        const sizeName = area.shape === 'circle' ? 'Radius' : area.shape === 'square' ? 'Side' : 'Length';
+        const sizeName = SIZE_NAMES[area.shape];
         return (
           <div key={area.id} data-area-control="">
             {selected && outline && (
@@ -159,9 +168,11 @@ export function AreaHandles({
               type="button"
               aria-label={`${label}, ${sizeText}`}
               title={keyLabel(
-                `Drag to move (Ctrl: snap to the grid). Mouse wheel over it changes the ${
-                  area.shape === 'line' ? 'width' : 'size'
-                }; arrow keys nudge it.`,
+                area.shape === 'emanation'
+                  ? 'Drag to move it from square to square, onto the creature it comes from. Mouse wheel over it changes the size; arrow keys move it a square.'
+                  : `Drag to move (Ctrl: snap to the grid). Mouse wheel over it changes the ${
+                      area.shape === 'line' ? 'width' : 'size'
+                    }; arrow keys nudge it.`,
               )}
               // Its ::before reaches 4px past its edge, so it is easier to grab than it looks
               className={`absolute z-30 h-4 w-4 cursor-move rounded-full border-2 before:absolute before:-inset-1.5 before:rounded-full ${

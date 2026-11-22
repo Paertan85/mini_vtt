@@ -1491,6 +1491,52 @@ app.whenReady().then(async () => {
     await press('Delete');
     await sleep(600);
 
+    // An emanation comes from a creature's square: it stays in the middle of one, even when dragged off it
+    {
+      const inMiddle = (area) => {
+        const { cell, offsetX, offsetY } = alpha().grid;
+        const fraction = (value, offset) => ((((value - offset) / cell) % 1) + 1) % 1;
+        return (
+          Math.abs(fraction(area.x, offsetX) - 0.5) < 0.01 && Math.abs(fraction(area.y, offsetY) - 0.5) < 0.01
+        );
+      };
+      await addArea('Emanation');
+      await sleep(900);
+      const added = alpha().circles[0];
+      check(
+        'an emanation is added 15 ft, in the middle of a square',
+        added?.shape === 'emanation' && added.radiusFt === 15 && inMiddle(added),
+        JSON.stringify({ added, grid: alpha().grid }),
+      );
+      check(
+        'it has no aiming handle, and its size is a distance',
+        (await js(
+          `document.querySelector('button[aria-label^="Aim the"], button[aria-label^="Turn the"]')`,
+        )) === null &&
+          (await js(`!!document.querySelector('input[aria-label="Distance in feet"]')`)) === true,
+      );
+      const dot = await centerOf('button[aria-label^="Emanation,"]');
+      mouse('mouseDown', dot.x, dot.y);
+      for (let i = 1; i <= 5; i++) {
+        mouse('mouseMove', dot.x + i * 7, dot.y + i * 5);
+        await sleep(30);
+      }
+      mouse('mouseUp', dot.x + 35, dot.y + 25);
+      await sleep(900);
+      const dragged = alpha().circles[0];
+      check('dragged, it lands in the middle of a square', inMiddle(dragged), JSON.stringify(dragged));
+      await press('ArrowRight', { shiftKey: true });
+      await sleep(900);
+      const nudged = alpha().circles[0];
+      check(
+        'Shift + arrow moves it a whole square, not 1 ft',
+        inMiddle(nudged) && Math.abs(nudged.x - dragged.x - alpha().grid.cell) < 0.01,
+        JSON.stringify({ dragged, nudged }),
+      );
+      await press('Delete');
+      await sleep(600);
+    }
+
     // A shape added twice lands beside the first, far enough away to grab each
     await addArea('Circle');
     await addArea('Circle');

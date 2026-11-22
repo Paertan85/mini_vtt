@@ -18,6 +18,7 @@ import {
   newArea,
   newAreaId,
   newAreaStep,
+  placeArea,
   resizeArea,
 } from '../lib/areas';
 import { notify } from '../ui/notify';
@@ -106,8 +107,8 @@ export function useAreas(grid: MapGrid | null, orientation: Orientation, media: 
       // Cones and lines start pointing right on screen, whatever the map's orientation
       const right = screenToMapDirection({ x: 1, y: 0 }, orientation);
       const step = mapGrid ? newAreaStep(mapGrid, orientation, displayScale) : { x: 0, y: 0 };
-      const spot = freeSpot(center, step, areasRef.current, size);
-      const area = newArea(shape, spot, kind, right);
+      const spot = freeSpot(placeArea(center, shape, mapGrid), step, areasRef.current, size);
+      const area = newArea(shape, placeArea(spot, shape, mapGrid), kind, right);
       replace([...areasRef.current, area]);
       setSelectedId(area.id);
       return true;
@@ -130,7 +131,8 @@ export function useAreas(grid: MapGrid | null, orientation: Orientation, media: 
   }, []);
 
   const move = useCallback(
-    (id: string, center: Point) => updateOne(id, (area) => ({ ...area, ...center })),
+    (id: string, center: Point) =>
+      updateOne(id, (area) => ({ ...area, ...placeArea(center, area.shape, latest.current.grid) })),
     [updateOne],
   );
   const resize = useCallback(
@@ -169,7 +171,7 @@ export function useAreas(grid: MapGrid | null, orientation: Orientation, media: 
         areasRef.current,
         latest.current.media,
       );
-      const copy = { ...source, id: newAreaId(), ...spot };
+      const copy = { ...source, id: newAreaId(), ...placeArea(spot, source.shape, mapGrid) };
       replace([...areasRef.current, copy]);
       setSelectedId(copy.id);
     },
@@ -180,9 +182,13 @@ export function useAreas(grid: MapGrid | null, orientation: Orientation, media: 
     (id: string, direction: Point, fine: boolean) => {
       const { grid: mapGrid, orientation: shown } = latest.current;
       if (!mapGrid) return;
-      const step = fine ? mapGrid.cell / mapGrid.feetPerCell : mapGrid.cell;
       const by = screenToMapDirection(direction, shown);
-      updateOne(id, (area) => ({ ...area, x: area.x + by.x * step, y: area.y + by.y * step }));
+      // An emanation stays in the middle of a square, so it always moves a whole one
+      updateOne(id, (area) => {
+        const step = fine && area.shape !== 'emanation' ? mapGrid.cell / mapGrid.feetPerCell : mapGrid.cell;
+        const to = { x: area.x + by.x * step, y: area.y + by.y * step };
+        return { ...area, ...placeArea(to, area.shape, mapGrid) };
+      });
     },
     [updateOne],
   );

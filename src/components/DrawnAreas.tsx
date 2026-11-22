@@ -1,4 +1,4 @@
-// Area templates (circles, cubes, cones, lines), drawn the same way in both
+// Area templates (circles, cubes, cones, lines, emanations), drawn the same way in both
 // windows.
 //
 // A static SVG in map coordinates, placed inside the rotated map container.

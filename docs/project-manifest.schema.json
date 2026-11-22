@@ -170,15 +170,18 @@
         "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,32}$", "description": "Unique on its map." },
         "x": {
           "type": "number",
-          "description": "Pixels of the unrotated map: the centre of a circle or square, or where a cone or line starts."
+          "description": "Pixels of the unrotated map: the centre of a circle or square, where a cone or line starts, or the middle of the square an emanation comes from."
         },
         "y": { "type": "number" },
-        "shape": { "enum": ["circle", "square", "cone", "line"], "description": "Default circle." },
+        "shape": {
+          "enum": ["circle", "square", "cone", "line", "emanation"],
+          "description": "Default circle."
+        },
         "radiusFt": {
           "type": "number",
           "minimum": 1,
           "maximum": 500,
-          "description": "Feet: a circle's radius, a square's side, or a cone's or line's length."
+          "description": "Feet: a circle's radius, a square's side, a cone's or line's length, or how far an emanation reaches."
         },
         "angle": {
           "type": "number",

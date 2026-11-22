@@ -985,6 +985,42 @@ app.whenReady().then(async () => {
           JSON.stringify({ x: 160, y: 110 }),
       JSON.stringify(areasLib.snapArea({ x: 130, y: 99 }, square(10), measured)),
     );
+    {
+      const shaped = (shape) => ({ ...square(15), shape });
+      check(
+        "a circle snaps to a grid corner, its point of origin; an emanation to the middle of its creature's square",
+        JSON.stringify(areasLib.snapArea({ x: 130, y: 99 }, shaped('circle'), measured)) ===
+          JSON.stringify({ x: 110, y: 60 }) &&
+          JSON.stringify(areasLib.snapArea({ x: 130, y: 99 }, shaped('emanation'), measured)) ===
+            JSON.stringify({ x: 160, y: 110 }),
+      );
+      check(
+        'an emanation is always placed in the middle of a square; other areas where they are put',
+        JSON.stringify(areasLib.placeArea({ x: 130, y: 99 }, 'emanation', measured)) ===
+          JSON.stringify({ x: 160, y: 110 }) &&
+          JSON.stringify(areasLib.placeArea({ x: 130, y: 99 }, 'circle', measured)) ===
+            JSON.stringify({ x: 130, y: 99 }),
+      );
+      // Saved off the middle of a square, it is still drawn round the square: 15 ft = 300 px out from each edge
+      const [drawn] = areasLib.toDrawnAreas([{ ...shaped('emanation'), x: 130, y: 99 }], measured);
+      const outline = areasLib.areaOutline(drawn);
+      const xs = outline.map((point) => Math.round(point.x));
+      const ys = outline.map((point) => Math.round(point.y));
+      check(
+        "an emanation is drawn its distance out from every edge of its creature's square, with rounded corners",
+        drawn.x === 160 &&
+          drawn.y === 110 &&
+          drawn.width === 100 &&
+          Math.min(...xs) === 110 - 300 &&
+          Math.max(...xs) === 210 + 300 &&
+          Math.min(...ys) === 60 - 300 &&
+          Math.max(...ys) === 160 + 300 &&
+          !areasLib.areaContains(drawn, { x: 110 - 290, y: 60 - 290 }, 0) &&
+          areasLib.areaContains(drawn, { x: 110 - 200, y: 60 - 200 }, 0) &&
+          areasLib.areaHandle(drawn) === null,
+        JSON.stringify({ xs: [Math.min(...xs), Math.max(...xs)], ys: [Math.min(...ys), Math.max(...ys)] }),
+      );
+    }
 
     // Editing steps (the DM window's wheel, aim handle and new shapes)
     {
@@ -1137,21 +1173,32 @@ app.whenReady().then(async () => {
       const count = (area, g = grid) => coveredSquares(area, g)?.length ?? null;
       const has = (area, col, row) => coveredSquares(area, grid).some((s) => s.col === col && s.row === row);
       // Spirit Guardians from a creature's square: 15 ft, 5-10-5 diagonals
-      const guardians = disc('circle', 125, 125, 15);
+      const guardians = disc('emanation', 125, 125, 15);
       check(
-        'a 15 ft emanation counts diagonals 5, 10, 5: 37 squares',
-        count(guardians) === 37,
+        'a 15 ft emanation counts diagonals 5, 10, 5: 36 squares round the creature',
+        count(guardians) === 37 - 1,
         String(count(guardians)),
       );
       check(
-        'it reaches 3 squares straight out and 2 diagonally, not 3',
-        has(guardians, 5, 2) && has(guardians, 4, 4) && !has(guardians, 5, 5) && !has(guardians, 5, 4),
+        "it reaches 3 squares straight out and 2 diagonally, not 3, and leaves out the creature's own square",
+        has(guardians, 5, 2) &&
+          has(guardians, 4, 4) &&
+          !has(guardians, 5, 5) &&
+          !has(guardians, 5, 4) &&
+          !has(guardians, 2, 2),
       );
       check(
-        'with every square counted the same, it is a 7 × 7 square',
-        count(guardians, { ...grid, rule: 'uniform' }) === 49,
+        'with every square counted the same, it is a 7 × 7 square with a hole for the creature',
+        count(guardians, { ...grid, rule: 'uniform' }) === 48,
       );
-      check('a 5 ft emanation is the square and its 8 neighbours', count(disc('circle', 125, 125, 5)) === 9);
+      check("a 5 ft emanation is the creature's 8 neighbours", count(disc('emanation', 125, 125, 5)) === 8);
+      check(
+        'a 15 ft circle centred in a square is a sphere, not an emanation: 29 squares at least half covered, its middle one too',
+        count(disc('circle', 125, 125, 15)) === 29 &&
+          has(disc('circle', 125, 125, 15), 2, 2) &&
+          count(disc('circle', 125, 125, 15), { ...grid, rule: 'uniform' }) === 29,
+        String(count(disc('circle', 125, 125, 15))),
+      );
       // Fireball from a grid intersection: 20 ft, every square at least half covered
       check(
         'a 20 ft sphere from a grid corner covers the 52 squares it covers at least half of',
