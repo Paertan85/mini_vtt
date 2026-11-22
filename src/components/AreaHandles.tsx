@@ -1,5 +1,5 @@
 // The spell areas' handles in the DM window (View and Spells tools): the dot
-// that moves an area, the handle that aims a cone or line or turns and sizes a square,
+// that moves an area, the handle that aims a cone or line or turns and sizes a cube,
 // the size label, and the selected area's outline and toolbar. The areas
 // themselves are drawn by DrawnAreas, the same way in both windows.
 
@@ -131,7 +131,7 @@ export function AreaHandles({
                 aria-label={`${turns ? 'Turn' : 'Aim'} the ${label.toLowerCase()}`}
                 title={
                   turns
-                    ? 'Drag to turn the square (it settles square to the grid near a right angle)'
+                    ? 'Drag to turn the cube (it settles square to the grid near a right angle)'
                     : 'Drag to aim and set the length (5 ft steps; Ctrl: turn in 45° steps)'
                 }
                 // Its ::before reaches 4px past its edge, so it is easier to grab than it looks

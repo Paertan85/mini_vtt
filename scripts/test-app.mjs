@@ -1461,11 +1461,11 @@ app.whenReady().then(async () => {
     );
     await press('Delete');
     await sleep(600);
-    await addArea('Square');
+    await addArea('Cube');
     await sleep(600);
     const turnSquare = async (dx, dy) => {
-      const from = await centerOf('button[aria-label="Turn the square"]');
-      const centre = await centerOf('button[aria-label^="Square,"]');
+      const from = await centerOf('button[aria-label="Turn the cube"]');
+      const centre = await centerOf('button[aria-label^="Cube,"]');
       // dx, dy in handle distances from the centre, so (1, 0) keeps the size
       const reach = Math.hypot(from.x - centre.x, from.y - centre.y);
       const to = { x: centre.x + dx * reach, y: centre.y + dy * reach };

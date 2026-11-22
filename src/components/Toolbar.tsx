@@ -200,7 +200,7 @@ export const Toolbar = memo(function Toolbar({
               aria-pressed={tool === 'shapes'}
               onClick={() => tools.setTool('shapes')}
               disabled={!hasMap}
-              title="Spells (S): place spell areas sized in feet: circles, squares, cones and lines."
+              title="Spells (S): place spell areas sized in feet: circles, cubes, cones and lines."
             >
               Spells
             </Button>

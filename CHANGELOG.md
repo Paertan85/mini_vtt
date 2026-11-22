@@ -40,6 +40,10 @@ All notable changes to this project are documented here. The format is based on
   during each action. `npm run memory -- --peak` adds the highest memory
   while each map loads. See CONTRIBUTING.md.
 
+### Changed
+
+- The Spells tool's **Square** is now **Cube**, as spells call it.
+
 ### Fixed
 
 - Adding a large map now frees its full-size picture straight away. The fix

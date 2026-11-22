@@ -1,4 +1,4 @@
-// Spell areas: the templates (areas, squares, cones and lines) placed on a
+// Spell areas: the templates (circles, cubes, cones and lines) placed on a
 // map, sized in feet against the map's grid.
 //
 // Pure functions with no DOM access: the main process uses the validators for
@@ -18,7 +18,7 @@ export const MAX_RADIUS_FT = 500;
 export const AREA_SHAPES: readonly AreaShape[] = ['circle', 'square', 'cone', 'line'];
 export const AREA_LABELS: Record<AreaShape, string> = {
   circle: 'Circle',
-  square: 'Square',
+  square: 'Cube',
   cone: 'Cone',
   line: 'Line',
 };
