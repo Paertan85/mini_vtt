@@ -174,13 +174,13 @@ export function AreaHandles({
                       area.shape === 'line' ? 'width' : 'size'
                     }; arrow keys nudge it.`,
               )}
-              // Its ::before reaches 4px past its edge, so it is easier to grab than it looks
-              className={`absolute z-30 h-4 w-4 cursor-move rounded-full border-2 before:absolute before:-inset-1.5 before:rounded-full ${
+              // 12px across, and its ::before reaches 6px past its edge: a 24px target, easier to grab than it looks
+              className={`absolute z-30 h-3 w-3 cursor-move rounded-full border-2 before:absolute before:-inset-2 before:rounded-full ${
                 selected ? 'border-ground bg-gold' : 'border-gold'
               }`}
               style={{
-                left: center.x - 8,
-                top: center.y - 8,
+                left: center.x - 6,
+                top: center.y - 6,
                 backgroundColor: selected ? undefined : EFFECT_STYLES[area.kind].color,
               }}
               onPointerDown={(event) => handleAreaPointerDown(event, area.id)}

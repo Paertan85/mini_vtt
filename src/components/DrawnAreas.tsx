@@ -7,6 +7,9 @@
 // per frame, and nothing is mounted when the map has no templates. Poison gets
 // the same dark hatch as painted poison, so it doesn't rely on hue alone.
 //
+// The player screen also marks each area's point of origin with a dot, like
+// the one the DM drags (AreaHandles), without the size beside it.
+//
 // With an area grid, the squares each area covers are outlined too
 // (coveredSquares). They are worked out per area, only when that area
 // changes: dragging one area doesn't count the others' squares again.
@@ -17,6 +20,8 @@ import type { Size } from '../lib/geometry';
 import { EFFECT_KINDS, EFFECT_STYLES } from '../lib/effects';
 import { areaOutline, coveredSquares, squaresPaths } from '../lib/areas';
 
+/** The edge of an origin dot: the app's gold, as on the DM's handle */
+const ORIGIN_EDGE = '#c9a227';
 /** Fill strength of the squares an area covers, over its body */
 const SQUARE_OPACITY = 0.2;
 /** Where a circle's rim starts fading, as a share of the radius: a thin soft
@@ -30,6 +35,7 @@ export const DrawnAreas = memo(function DrawnAreas({
   media,
   squares,
   opacity,
+  originRadius,
 }: {
   discs: DrawnArea[];
   media: Size | null;
@@ -37,6 +43,8 @@ export const DrawnAreas = memo(function DrawnAreas({
   squares: AreaGrid | null;
   /** Fill strength of a template's body (the Spell areas opacity setting) */
   opacity: number;
+  /** Radius in map pixels of a dot on each area's point of origin; none when left out */
+  originRadius?: number;
 }) {
   if (!media || discs.length === 0) return null;
   return (
@@ -116,6 +124,21 @@ export const DrawnAreas = memo(function DrawnAreas({
           </g>
         );
       })}
+      {/* Last, so no other area covers a dot */}
+      {originRadius !== undefined &&
+        discs.map((disc, index) => (
+          <circle
+            key={`origin-${index}`}
+            data-origin={index}
+            cx={disc.x}
+            cy={disc.y}
+            r={originRadius}
+            fill={EFFECT_STYLES[disc.kind].color}
+            stroke={ORIGIN_EDGE}
+            strokeWidth={2}
+            vectorEffect="non-scaling-stroke"
+          />
+        ))}
     </svg>
   );
 });

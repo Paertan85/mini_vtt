@@ -52,6 +52,11 @@ All notable changes to this project are documented here. The format is based on
   areas change on the player screen too; markers are only ever the DM's.
   The change shows while the slider moves and is saved when it is let go.
 
+- The player screen marks each spell area's point of origin with a small
+  dot in the area's colour, like the one the DM drags, so players see where
+  a cone or line starts and which creature an emanation comes from. Like
+  the areas, it stays under the fog.
+
 ### Changed
 
 - A spell area **Circle** is now always a sphere: it covers the squares it
@@ -66,6 +71,9 @@ All notable changes to this project are documented here. The format is based on
 - Markers are filled more strongly (55 %, was 35 %), and painted effects
   (35 %, was 55 %) and spell areas (35 %, was 40 %) less, so the map shows
   through. The new sliders in **Settings** change them.
+
+- A spell area's dot in the DM window is smaller (12 px, was 16), so it
+  covers less of the map. It is as easy to grab as before.
 
 ### Fixed
 

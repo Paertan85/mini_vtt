@@ -24,6 +24,9 @@ const MIN_HANDOUT_ZOOM = 0.1;
 const MAX_HANDOUT_ZOOM = 5;
 const CONTROLS_IDLE_MS = 2000;
 
+/** Width of the dot on each spell area's point of origin, in screen pixels */
+const ORIGIN_DOT_PX = 12;
+
 const INITIAL_STATE: MapState = {
   mediaUrl: null,
   mediaType: 'image',
@@ -349,6 +352,8 @@ export function PlayerScreen() {
               media={mediaSize}
               squares={state.areaGrid}
               opacity={state.areaOpacity}
+              // The same size at any zoom as the DM's dot
+              originRadius={ORIGIN_DOT_PX / 2 / state.zoom}
             />
             {state.grid && <MapGridLines grid={state.grid} zoom={state.zoom} />}
             <canvas ref={fogCanvasRef} className="pointer-events-none absolute inset-0 h-full w-full" />

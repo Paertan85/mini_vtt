@@ -1128,8 +1128,20 @@ app.whenReady().then(async () => {
     );
     check(
       'the player screen draws the circle',
-      (await js(`document.querySelectorAll('svg circle').length`, player)) >= 1,
+      (await js(`document.querySelectorAll('svg circle:not([data-origin])').length`, player)) >= 1,
     );
+    {
+      const origin = await js(
+        `(() => { const dot = document.querySelector('svg circle[data-origin]'); const body = document.querySelector('svg circle:not([data-origin])');
+        return dot && body && { at: dot.getAttribute('cx') === body.getAttribute('cx') && dot.getAttribute('cy') === body.getAttribute('cy'), width: dot.getBoundingClientRect().width }; })()`,
+        player,
+      );
+      check(
+        'players see a 12 px dot on its point of origin, whatever the zoom',
+        origin?.at === true && Math.abs(origin.width - 12) < 1.5,
+        JSON.stringify(origin),
+      );
+    }
 
     // The squares a spell area covers: off until the Spells tool's Squares
     // turns them on, then outlined in both windows
@@ -1307,12 +1319,12 @@ app.whenReady().then(async () => {
       alpha().circles.length === 1 && alpha().circles[0].x > beforeNudge.x + cell,
       JSON.stringify(alpha().circles),
     );
-    // Its dot can be grabbed a little outside its edge
+    // Its dot can be grabbed a little outside its edge, as far out as before it was made smaller
     const dotBox =
       await js(`(() => { const r = document.querySelector('button[aria-label^="Circle,"]').getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + r.height / 2, radius: r.width / 2 }; })()`);
     const beforeEdgeGrab = alpha().circles[0];
-    await drag({ x: dotBox.x + dotBox.radius + 3, y: dotBox.y }, 0, 40);
+    await drag({ x: dotBox.x + dotBox.radius + 5, y: dotBox.y }, 0, 40);
     await sleep(900);
     check(
       'a dot can be grabbed just outside its edge',
@@ -1321,7 +1333,8 @@ app.whenReady().then(async () => {
     );
 
     // A dragged circle stays put for players until it is dropped
-    const playerCircleX = () => js(`document.querySelector('svg circle').getAttribute('cx')`, player);
+    const playerCircleX = () =>
+      js(`document.querySelector('svg circle:not([data-origin])').getAttribute('cx')`, player);
     const circleXBefore = await playerCircleX();
     const handle = await centerOf('button[aria-label^="Circle,"]');
     mouse('mouseDown', handle.x, handle.y);
