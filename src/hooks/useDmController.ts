@@ -223,7 +223,16 @@ export interface DmSettings {
   setMovementRule: (rule: MovementRule) => void;
   showRulerToPlayers: boolean;
   setShowRulerToPlayers: (show: boolean) => void;
+  /** How strongly markers, painted effects and spell areas show, 0.1 to 1 */
+  markerOpacity: number;
+  effectOpacity: number;
+  areaOpacity: number;
+  /** Shows a new opacity at once; `save` once the slider is let go */
+  setOpacity: (layer: OpacityLayer, value: number, save: boolean) => void;
 }
+
+/** The layers with an opacity setting. */
+export type OpacityLayer = 'markerOpacity' | 'effectOpacity' | 'areaOpacity';
 
 /** Commands for the app as a whole: dialogs, project files and the window. */
 export interface DmApp {
@@ -391,7 +400,12 @@ export function useDmController(): DmController {
   const [measureStraight, setMeasureStraight] = useState(false);
 
   // ─── Settings (saved as they change) ────────────────────────────────────────
-  const { settings, update: updateSettings, restore: restoreSettings } = useSettings();
+  const {
+    settings,
+    update: updateSettings,
+    preview: previewSettings,
+    restore: restoreSettings,
+  } = useSettings();
   const {
     showEffectTools,
     showLibrary,
@@ -413,6 +427,10 @@ export function useDmController(): DmController {
     frameColor,
     // Whether maps start fully fogged when added (the main process applies it)
     fogNewMaps,
+    // How strongly each layer shows; effects and spell areas on the player screen too
+    markerOpacity,
+    effectOpacity,
+    areaOpacity,
   } = settings;
   const showRulerRef = useRef(false);
   showRulerRef.current = showRulerToPlayers;
@@ -959,6 +977,8 @@ export function useDmController(): DmController {
       areas: playerAreas,
       grid: playerGrid,
       areaGrid,
+      effectOpacity,
+      areaOpacity,
     });
   }, [
     killScreen,
@@ -974,6 +994,8 @@ export function useDmController(): DmController {
     playerAreas,
     playerGrid,
     areaGrid,
+    effectOpacity,
+    areaOpacity,
   ]);
 
   // A new random phrase each time, facing the way portrait handouts are turned
@@ -1200,6 +1222,8 @@ export function useDmController(): DmController {
   const handleToggleFogNewMaps = () => updateSettings({ fogNewMaps: !fogNewMaps });
 
   const handleMovementRuleChange = (rule: MovementRule) => updateSettings({ diagonalRule: rule });
+  const handleOpacityChange = (layer: OpacityLayer, value: number, save: boolean) =>
+    (save ? updateSettings : previewSettings)({ [layer]: value });
 
   const [interfaceHidden, setInterfaceHidden] = useState(false);
   const handleToggleInterface = () => setInterfaceHidden((hidden) => !hidden);
@@ -1454,6 +1478,7 @@ export function useDmController(): DmController {
     toggleAreaSquares: handleToggleAreaSquares,
     setMovementRule: handleMovementRuleChange,
     setShowRulerToPlayers: handleShowRulerToPlayers,
+    setOpacity: handleOpacityChange,
   });
   const settingsGroup = useMemo<DmSettings>(
     () => ({
@@ -1466,6 +1491,9 @@ export function useDmController(): DmController {
       fogNewMaps,
       movementRule,
       showRulerToPlayers,
+      markerOpacity,
+      effectOpacity,
+      areaOpacity,
       ...settingsActions,
     }),
     [
@@ -1478,6 +1506,9 @@ export function useDmController(): DmController {
       fogNewMaps,
       movementRule,
       showRulerToPlayers,
+      markerOpacity,
+      effectOpacity,
+      areaOpacity,
       settingsActions,
     ],
   );
@@ -1584,6 +1615,9 @@ export function useDmController(): DmController {
     gridPreview: calibrationPreview,
     areas,
     areaGrid,
+    areaOpacity,
+    effectOpacity,
+    markerOpacity,
     selectedAreaId,
     areasInteractive:
       showEffectTools && !calibration && !shiftHeld && (altHeld || tool === 'view' || tool === 'shapes'),

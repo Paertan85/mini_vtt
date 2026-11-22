@@ -42,6 +42,10 @@ export interface MapState {
   grid: PlayerGrid | null;
   /** The grid the squares each spell area covers are shown on; null: not shown */
   areaGrid: AreaGrid | null;
+  /** How strongly the painted effects show (the Effects opacity setting) */
+  effectOpacity: number;
+  /** How strongly spell areas are filled (the Spell areas opacity setting) */
+  areaOpacity: number;
 }
 
 /** The kill screen: one of KILL_PHRASES (src/lib/killScreen.ts), turned like a portrait handout. */
@@ -239,6 +243,12 @@ export interface LibrarySettings {
   fogNewMaps: boolean;
   /** Whether the grid squares each spell area covers are outlined, in both windows (the Spells tool's Squares) */
   showAreaSquares: boolean;
+  /** How strongly markers are filled, 0.1 to 1 (DM window only) */
+  markerOpacity: number;
+  /** How strongly painted effects show, 0.1 to 1, in both windows */
+  effectOpacity: number;
+  /** How strongly spell areas are filled, 0.1 to 1, in both windows */
+  areaOpacity: number;
 }
 
 /**

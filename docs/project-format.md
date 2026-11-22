@@ -253,7 +253,7 @@ A rectangle the DM marked out to reveal or cover in one click. It doesn't change
 
 - **Media**: PNG, JPEG, GIF, WebP or BMP images, and for maps also WebM video (VP8, VP9 or AV1). Mini VTT recognises the type from the file's bytes, so the file name's extension doesn't matter.
 - **Fog mask** (`fog`): a PNG, opaque where the map is hidden and transparent where it is revealed. It is stretched over the whole map, so any size works; Mini VTT writes up to 1920 pixels on the long edge.
-- **Effects** (`effects`): a PNG of coloured paint on a transparent background, stretched over the whole map and shown at 55% opacity under the fog. Mini VTT writes up to 1024 pixels on the long edge.
+- **Effects** (`effects`): a PNG of coloured paint on a transparent background, stretched over the whole map and shown under the fog at the opacity set in the app's settings (35% unless changed). Mini VTT writes up to 1024 pixels on the long edge.
 - **Thumbnails** (`thumb`): PNGs, up to 240 pixels wide. Leave them out and Mini VTT makes its own.
 
 ### Limits

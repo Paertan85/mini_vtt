@@ -808,6 +808,23 @@ app.whenReady().then(async () => {
         (await lib.saveSettings({ frameColor: 'sky' })) === true &&
         (await lib.loadSnapshot()).settings.frameColor === 'sky',
     );
+    {
+      const { markerOpacity, effectOpacity, areaOpacity } = (await lib.loadSnapshot()).settings;
+      check(
+        'markers, effects and spell areas start at 55, 35 and 35 % opacity',
+        markerOpacity === 0.55 && effectOpacity === 0.35 && areaOpacity === 0.35,
+      );
+    }
+    check(
+      'an opacity is kept between 10 and 100 %',
+      (await lib.saveSettings({ effectOpacity: 0 })) === false &&
+        (await lib.saveSettings({ areaOpacity: 1.5 })) === false &&
+        (await lib.saveSettings({ markerOpacity: '0.5' })) === false &&
+        (await lib.saveSettings({ effectOpacity: 0.6, areaOpacity: 1, markerOpacity: 0.1 })) === true &&
+        (await lib.loadSnapshot()).settings.effectOpacity === 0.6 &&
+        (await lib.loadSnapshot()).settings.areaOpacity === 1 &&
+        (await lib.loadSnapshot()).settings.markerOpacity === 0.1,
+    );
 
     // Area templates: old circles load unchanged, shapes have the D&D outlines
     const discs = areasLib.normalizeDrawnAreas([

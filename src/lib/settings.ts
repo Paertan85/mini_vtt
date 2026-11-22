@@ -32,6 +32,15 @@ const positive = (value: unknown): number | undefined => {
 };
 const boolean = (value: unknown) => (typeof value === 'boolean' ? value : undefined);
 
+/** The opacity sliders' range: faint but never invisible, up to solid. */
+export const OPACITY_MIN = 0.1;
+export const OPACITY_MAX = 1;
+/** An opacity the sliders could set, or undefined. */
+export const parseOpacity = (value: unknown): number | undefined =>
+  typeof value === 'number' && Number.isFinite(value) && value >= OPACITY_MIN && value <= OPACITY_MAX
+    ? value
+    : undefined;
+
 /** Turns a new portrait map or handout can get: none, right or left. */
 export const PORTRAIT_ROTATIONS = [0, 90, 270] as const;
 
@@ -63,6 +72,10 @@ const RULES: { [K in keyof SettingsPatch]-?: Rule<LibrarySettings[K]> } = {
   frameColor: { default: DEFAULT_FRAME_COLOR, parse: (value) => (isFrameColor(value) ? value : undefined) },
   fogNewMaps: { default: false, parse: boolean },
   showAreaSquares: { default: false, parse: boolean },
+  // Markers stand out for the DM; effects and spell areas leave the map readable under them
+  markerOpacity: { default: 0.55, parse: parseOpacity },
+  effectOpacity: { default: 0.35, parse: parseOpacity },
+  areaOpacity: { default: 0.35, parse: parseOpacity },
 };
 
 const KEYS = Object.keys(RULES) as (keyof SettingsPatch)[];

@@ -39,13 +39,13 @@ interface MarkersLayerProps {
   /** The next marker's colour and radius (map px), for the ring under the pointer */
   color: MarkerColor;
   radius: number;
+  /** Fill strength of a marker's body (the Markers opacity setting); its edge is solid */
+  fillOpacity: number;
   /** Client coordinates → map natural pixels */
   toMapPoint: (clientX: number, clientY: number) => Point | null;
   edits: MarkerEdits;
 }
 
-/** Fill strength of a marker's body; its edge is solid */
-const FILL_OPACITY = 0.35;
 /** A letter's height, as a share of the marker's radius: large, with room to spare inside */
 const LETTER_SIZE = 1.25;
 
@@ -74,12 +74,14 @@ const MarkerShape = ({
   selected,
   scale,
   orientation,
+  fillOpacity,
 }: {
   marker: MapMarker;
   radius: number;
   selected: boolean;
   scale: number;
   orientation: Orientation;
+  fillOpacity: number;
 }) => {
   const { rgb } = MARKER_STYLES[marker.color];
   const fontSize = radius * LETTER_SIZE;
@@ -90,7 +92,7 @@ const MarkerShape = ({
         cx={marker.x}
         cy={marker.y}
         r={radius}
-        fill={`rgb(${rgb} / ${FILL_OPACITY})`}
+        fill={`rgb(${rgb} / ${fillOpacity})`}
         stroke="rgb(0 0 0 / 0.6)"
         strokeWidth={5}
         vectorEffect="non-scaling-stroke"
@@ -150,6 +152,7 @@ export const MarkersLayer = memo(function MarkersLayer({
   selectedId,
   color,
   radius,
+  fillOpacity,
   toMapPoint,
   edits,
 }: MarkersLayerProps) {
@@ -263,6 +266,7 @@ export const MarkersLayer = memo(function MarkersLayer({
             selected={editable && marker.id === selectedId}
             scale={displayScale}
             orientation={orientation}
+            fillOpacity={fillOpacity}
           />
         );
       })}

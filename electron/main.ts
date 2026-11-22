@@ -27,6 +27,7 @@ import type {
 } from '../src/types/map';
 import { mediaUrlOf } from '../src/lib/media';
 import { isKillPhrase } from '../src/lib/killScreen';
+import { DEFAULT_SETTINGS, parseOpacity } from '../src/lib/settings';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -269,6 +270,8 @@ function normalizeMapState(value: unknown): MapState | null {
     areas: normalizeDrawnAreas(state.areas),
     grid: normalizePlayerGrid(state.grid),
     areaGrid: normalizeAreaGrid(state.areaGrid),
+    effectOpacity: parseOpacity(state.effectOpacity) ?? DEFAULT_SETTINGS.effectOpacity,
+    areaOpacity: parseOpacity(state.areaOpacity) ?? DEFAULT_SETTINGS.areaOpacity,
   };
 }
 

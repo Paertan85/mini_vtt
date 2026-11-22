@@ -56,7 +56,7 @@ import type { EffectLayer } from '../hooks/useEffectLayer';
 import { useFogShapeDrag } from '../hooks/useFogShapeDrag';
 import type { RoomEdits } from '../hooks/useRoomEdits';
 import type { MarkerEdits } from '../hooks/useMarkers';
-import { EFFECT_OPACITY, EFFECT_STYLES } from '../lib/effects';
+import { EFFECT_STYLES } from '../lib/effects';
 import { areaContains, nearestStep, stepSize, toDrawnAreas } from '../lib/areas';
 import { feetToPixels, pixelsToFeet, snapToCell } from '../lib/grid';
 import { rectCorners } from '../lib/rect';
@@ -144,6 +144,10 @@ export interface MapStageProps {
   areas: SpellArea[];
   /** The grid to outline the squares each area covers on; null: not shown */
   areaGrid: AreaGrid | null;
+  /** How strongly spell areas, painted effects and markers show (the opacity settings) */
+  areaOpacity: number;
+  effectOpacity: number;
+  markerOpacity: number;
   selectedAreaId: string | null;
   /** Whether the areas' handles are shown and respond to the mouse */
   areasInteractive: boolean;
@@ -842,7 +846,7 @@ export function MapStage(props: MapStageProps) {
               height={0}
               aria-hidden="true"
               className="pointer-events-none absolute inset-0 h-full w-full"
-              style={{ opacity: EFFECT_OPACITY }}
+              style={{ opacity: props.effectOpacity }}
             />
             <canvas
               ref={effects.scratchRef}
@@ -850,9 +854,14 @@ export function MapStage(props: MapStageProps) {
               height={0}
               aria-hidden="true"
               className="pointer-events-none absolute inset-0 h-full w-full"
-              style={{ opacity: EFFECT_OPACITY }}
+              style={{ opacity: props.effectOpacity }}
             />
-            <DrawnAreas discs={discs} media={mediaSize} squares={props.areaGrid} />
+            <DrawnAreas
+              discs={discs}
+              media={mediaSize}
+              squares={props.areaGrid}
+              opacity={props.areaOpacity}
+            />
             {gridPreview && previewCell > 1 && (
               <GridLines
                 cell={previewCell}
@@ -886,6 +895,7 @@ export function MapStage(props: MapStageProps) {
                 selectedId={props.selectedMarkerId}
                 color={props.markerColor}
                 radius={props.markerRadius}
+                fillOpacity={props.markerOpacity}
                 toMapPoint={toMapPoint}
                 edits={props.markerEdits}
               />

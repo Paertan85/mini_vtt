@@ -46,6 +46,7 @@ import {
   typedMarkerLetter,
 } from '../lib/markers';
 import { keyLabel } from '../lib/platform';
+import { OPACITY_MAX, OPACITY_MIN } from '../lib/settings';
 import {
   BRUSH_STEP,
   MAX_BRUSH,
@@ -55,6 +56,7 @@ import {
   type DmPlayerView,
   type DmSettings,
   type DmTools,
+  type OpacityLayer,
   type TrueScaleNeed,
 } from '../hooks/useDmController';
 
@@ -67,6 +69,25 @@ interface ToolbarProps {
   /** The commands of the settings menu and the welcome button */
   app: DmApp;
 }
+
+/** The opacity sliders in the settings menu. */
+const OPACITY_SLIDERS: { layer: OpacityLayer; label: string; title: string }[] = [
+  {
+    layer: 'markerOpacity',
+    label: 'Markers',
+    title: 'How strongly markers are filled. Only you see markers.',
+  },
+  {
+    layer: 'effectOpacity',
+    label: 'Painted effects',
+    title: 'How strongly painted effects show, on the player screen too',
+  },
+  {
+    layer: 'areaOpacity',
+    label: 'Spell areas',
+    title: 'How strongly spell areas are filled, on the player screen too',
+  },
+];
 
 /** The Fog tool's ways of drawing, as the toolbar offers them. */
 const FOG_SHAPES: { shape: FogShape; label: string; title: string }[] = [
@@ -641,6 +662,18 @@ export const Toolbar = memo(function Toolbar({
             label: MOVEMENT_LABELS[rule],
             onSelect: () => settings.setMovementRule(rule),
             checked: settings.movementRule === rule,
+            separated: index === 0,
+          })),
+          ...OPACITY_SLIDERS.map(({ layer, label, title }, index) => ({
+            kind: 'slider' as const,
+            label,
+            title,
+            value: Math.round(settings[layer] * 100),
+            min: OPACITY_MIN * 100,
+            max: OPACITY_MAX * 100,
+            step: 5,
+            format: (value: number) => `${value} %`,
+            onChange: (value: number, done: boolean) => settings.setOpacity(layer, value / 100, done),
             separated: index === 0,
           })),
         ]}

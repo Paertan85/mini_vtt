@@ -1880,6 +1880,46 @@ app.whenReady().then(async () => {
     await sleep(200);
     await clickFogNewMapsItem();
     check('and turns it off again', await waitFor(() => readIndex().settings.fogNewMaps === false));
+    // The opacity sliders: a drag shows at once and is saved when let go
+    const effectsOpacityIn = (target) =>
+      js(
+        `[...document.querySelectorAll('canvas')].find((c) => c.style.opacity)?.style.opacity ?? null`,
+        target,
+      );
+    const moveSlider = (label, value, letGo) =>
+      js(`(() => {
+        const input = document.querySelector('[role="menu"] input[aria-label="${label}"]');
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, '${value}');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        ${letGo ? "input.dispatchEvent(new Event('change', { bubbles: true }));" : ''}
+      })()`);
+    check(
+      'painted effects start at 35 % in both windows',
+      (await effectsOpacityIn()) === '0.35' && (await effectsOpacityIn(player)) === '0.35',
+      `${await effectsOpacityIn()}, ${await effectsOpacityIn(player)}`,
+    );
+    await click('[aria-label="Settings"]');
+    await sleep(200);
+    await moveSlider('Painted effects', 70, false);
+    check(
+      'dragging the Painted effects slider changes them on both screens',
+      (await waitFor(async () => (await effectsOpacityIn(player)) === '0.7')) &&
+        (await effectsOpacityIn()) === '0.7',
+      `${await effectsOpacityIn()}, ${await effectsOpacityIn(player)}`,
+    );
+    await sleep(300);
+    check('but saves nothing until it is let go', readIndex().settings.effectOpacity !== 0.7);
+    await moveSlider('Painted effects', 70, true);
+    check('letting go saves it', await waitFor(() => readIndex().settings.effectOpacity === 0.7));
+    check(
+      'the menu stays open while a slider is used',
+      (await js(`!!document.querySelector('[role="menu"] input[aria-label="Spell areas"]')`)) === true,
+    );
+    await moveSlider('Painted effects', 35, true);
+    await waitFor(() => readIndex().settings.effectOpacity === 0.35);
+    // Closed with its button: Esc would also clear the ruler
+    await click('[aria-label="Settings"]');
+    await sleep(200);
     await clickText('Show players');
     check(
       'Show players puts the ruler on the player screen',

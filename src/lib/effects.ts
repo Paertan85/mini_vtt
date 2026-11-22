@@ -1,7 +1,7 @@
 // Painted effect layer helpers (fire, poison, magic), shared by both windows.
 //
 // The layer is an RGBA canvas holding opaque colour; both windows show it with
-// CSS opacity, so overlapping strokes never build up. Soft edges are baked in
+// CSS opacity (the Effects opacity setting), so overlapping strokes never build up. Soft edges are baked in
 // once when a stroke ends: the stroke is drawn hard-edged on a scratch canvas
 // while the mouse moves, then only its bounding box is blurred and merged into
 // the layer. Nothing is filtered while panning or zooming.
@@ -11,9 +11,6 @@ import type { Size } from './geometry';
 
 /** Longest layer edge in pixels. Effects are soft, so a lower resolution than fog is fine. */
 const MAX_EFFECT_EDGE = 1024;
-
-/** How strongly the layer shows over the map, on both screens. */
-export const EFFECT_OPACITY = 0.55;
 
 export interface EffectStyle {
   label: string;

@@ -17,8 +17,6 @@ import type { Size } from '../lib/geometry';
 import { EFFECT_KINDS, EFFECT_STYLES } from '../lib/effects';
 import { areaOutline, coveredSquares, squaresPaths } from '../lib/areas';
 
-/** Fill strength of a template's body. */
-const DISC_OPACITY = 0.4;
 /** Fill strength of the squares an area covers, over its body */
 const SQUARE_OPACITY = 0.2;
 /** Where a circle's rim starts fading, as a share of the radius: a thin soft
@@ -31,11 +29,14 @@ export const DrawnAreas = memo(function DrawnAreas({
   discs,
   media,
   squares,
+  opacity,
 }: {
   discs: DrawnArea[];
   media: Size | null;
   /** The grid to outline each area's squares on; null: no squares */
   squares: AreaGrid | null;
+  /** Fill strength of a template's body (the Spell areas opacity setting) */
+  opacity: number;
 }) {
   if (!media || discs.length === 0) return null;
   return (
@@ -48,8 +49,8 @@ export const DrawnAreas = memo(function DrawnAreas({
       <defs>
         {EFFECT_KINDS.map((kind) => (
           <radialGradient key={kind} id={`aura-${kind}`}>
-            <stop offset="0" stopColor={EFFECT_STYLES[kind].color} stopOpacity={DISC_OPACITY} />
-            <stop offset={RIM_START} stopColor={EFFECT_STYLES[kind].color} stopOpacity={DISC_OPACITY} />
+            <stop offset="0" stopColor={EFFECT_STYLES[kind].color} stopOpacity={opacity} />
+            <stop offset={RIM_START} stopColor={EFFECT_STYLES[kind].color} stopOpacity={opacity} />
             <stop offset="1" stopColor={EFFECT_STYLES[kind].color} stopOpacity={0} />
           </radialGradient>
         ))}
@@ -87,14 +88,14 @@ export const DrawnAreas = memo(function DrawnAreas({
                 <polygon
                   points={points}
                   fill={style.color}
-                  fillOpacity={DISC_OPACITY}
+                  fillOpacity={opacity}
                   stroke={style.color}
                   strokeOpacity={0.8}
                   strokeWidth={2}
                   strokeLinejoin="round"
                   vectorEffect="non-scaling-stroke"
                 />
-                {style.hatch && <polygon points={points} fill={hatchFill} opacity={DISC_OPACITY} />}
+                {style.hatch && <polygon points={points} fill={hatchFill} opacity={opacity} />}
               </>
             ) : (
               <>
@@ -106,7 +107,7 @@ export const DrawnAreas = memo(function DrawnAreas({
                     r={disc.radius}
                     fill={hatchFill}
                     mask="url(#aura-fade-mask)"
-                    opacity={DISC_OPACITY}
+                    opacity={opacity}
                   />
                 )}
               </>

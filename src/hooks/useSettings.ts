@@ -8,6 +8,8 @@ export interface Settings {
   settings: Preferences;
   /** Change some settings and save them. */
   update: (patch: Partial<Preferences>) => void;
+  /** Change some settings without saving, while a slider is dragged; `update` saves the last value. */
+  preview: (patch: Partial<Preferences>) => void;
   /** Take the settings as the library has them (on start-up, after an import); nothing is saved. */
   restore: (stored: LibrarySettings) => void;
 }
@@ -18,10 +20,14 @@ export function useSettings(): Settings {
     setSettings((current) => ({ ...current, ...patch }));
     void window.electronAPI?.saveSettings(patch);
   }, []);
+  const preview = useCallback(
+    (patch: Partial<Preferences>) => setSettings((current) => ({ ...current, ...patch })),
+    [],
+  );
   const restore = useCallback(
     // Everything but the loaded map and the map order, which useDmController and the library keep
     ({ currentMapId: _current, mapOrder: _order, ...stored }: LibrarySettings) => setSettings(stored),
     [],
   );
-  return { settings, update, restore };
+  return { settings, update, preview, restore };
 }

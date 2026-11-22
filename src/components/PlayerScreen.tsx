@@ -11,7 +11,8 @@ import { Maximize2, Minimize2, X } from 'lucide-react';
 import type { EffectSnapshot, FogSnapshot, KillScreen, MapState, PlayerGrid, RulerState } from '../types/map';
 import { mediaUrlOf } from '../lib/media';
 import { drawSnapshot, fillMask, fogMaskSize, loadImage } from '../lib/fog';
-import { EFFECT_OPACITY, showLayer } from '../lib/effects';
+import { showLayer } from '../lib/effects';
+import { DEFAULT_SETTINGS } from '../lib/settings';
 import { DrawnAreas } from './DrawnAreas';
 import { RulerGraphic } from './MeasureLayer';
 import { clamp, mapToOriented, wheelPixels, type Size } from '../lib/geometry';
@@ -37,6 +38,8 @@ const INITIAL_STATE: MapState = {
   areas: [],
   grid: null,
   areaGrid: null,
+  effectOpacity: DEFAULT_SETTINGS.effectOpacity,
+  areaOpacity: DEFAULT_SETTINGS.areaOpacity,
 };
 
 export function PlayerScreen() {
@@ -339,9 +342,14 @@ export function PlayerScreen() {
               width={0}
               height={0}
               className="pointer-events-none absolute inset-0 h-full w-full"
-              style={{ opacity: EFFECT_OPACITY }}
+              style={{ opacity: state.effectOpacity }}
             />
-            <DrawnAreas discs={state.areas} media={mediaSize} squares={state.areaGrid} />
+            <DrawnAreas
+              discs={state.areas}
+              media={mediaSize}
+              squares={state.areaGrid}
+              opacity={state.areaOpacity}
+            />
             {state.grid && <MapGridLines grid={state.grid} zoom={state.zoom} />}
             <canvas ref={fogCanvasRef} className="pointer-events-none absolute inset-0 h-full w-full" />
           </div>
