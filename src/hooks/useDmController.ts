@@ -209,7 +209,7 @@ export interface DmSettings {
   toggleEffectTools: () => void;
   showGridToPlayers: boolean;
   toggleGridToPlayers: () => void;
-  /** Whether the squares each spell area covers are outlined, for players too (Spells tool: Squares) */
+  /** Whether the squares each spell area covers are outlined, for players too (Spells tool: Affected squares) */
   showAreaSquares: boolean;
   toggleAreaSquares: () => void;
   /** Whether the line at the bottom of the map says how the current tool works */

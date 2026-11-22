@@ -1142,9 +1142,9 @@ app.whenReady().then(async () => {
         'spell areas show no squares to start with',
         (await outlines()) === 0 && (await outlines(player)) === 0 && !readIndex().settings.showAreaSquares,
       );
-      await clickText('Squares');
+      await clickText('Affected squares');
       check(
-        'Squares in the Spells tool outlines the squares an area covers, for players too',
+        'Affected squares in the Spells tool outlines the squares an area covers, for players too',
         (await waitFor(async () => (await outlines()) === 1 && (await outlines(player)) === 1)) === true,
       );
       check('that is saved', (await waitFor(() => readIndex().settings.showAreaSquares === true)) === true);
@@ -1154,7 +1154,7 @@ app.whenReady().then(async () => {
           `[...document.querySelectorAll('[role="menuitemcheckbox"]')].some((b) => b.textContent.includes('squares'))`,
         )) === false,
       );
-      await clickText('Squares');
+      await clickText('Affected squares');
       check(
         'a second click hides them in both windows',
         (await waitFor(async () => (await outlines()) === 0 && (await outlines(player)) === 0)) === true,

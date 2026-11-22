@@ -318,9 +318,9 @@ export const Toolbar = memo(function Toolbar({
             tone={settings.showAreaSquares ? 'on' : 'default'}
             aria-pressed={settings.showAreaSquares}
             onClick={settings.toggleAreaSquares}
-            title="Squares: outline the grid squares each spell area covers, on the player screen too. A square counts when at least half of it is covered; a circle centred in a square is an emanation, counted out from that square as movement is."
+            title="Affected squares: outline the grid squares each spell area covers, on the player screen too. A square counts when at least half of it is covered; a circle centred in a square is an emanation, counted out from that square as movement is."
           >
-            Squares
+            Affected squares
           </Button>
           <Popover
             open={shapeNote !== null && shapesNeed !== null}

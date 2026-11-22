@@ -42,7 +42,8 @@ All notable changes to this project are documented here. The format is based on
 
 ### Changed
 
-- The Spells tool's **Square** is now **Cube**, as spells call it.
+- The Spells tool's **Square** is now **Cube**, as spells call it, and its
+  **Squares** button is now **Affected squares**, which says what it shows.
 
 ### Fixed
 
