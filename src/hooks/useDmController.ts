@@ -188,6 +188,8 @@ export interface DmPlayerScreen {
   playerOpen: boolean;
   /** Opens the player window, or brings it to the front */
   openPlayer: () => void;
+  /** Opens the player window, or closes it if it is open */
+  togglePlayer: () => void;
   blackout: boolean;
   toggleBlackout: () => void;
   /** The handout players see, or null */
@@ -1107,6 +1109,12 @@ export function useDmController(): DmController {
     setPlayerOpen(true);
   };
 
+  // Closing is reported back through onPlayerWindowClosed, which resets the rest
+  const handleTogglePlayer = () => {
+    if (playerOpen) void api?.closePlayerWindow();
+    else void handleOpenPlayer();
+  };
+
   const handleToggleFillScreen = async () => {
     if (fillScreen) {
       setFillScreen(false);
@@ -1535,6 +1543,7 @@ export function useDmController(): DmController {
 
   const playerScreenActions = useHandlers({
     openPlayer: handleOpenPlayer,
+    togglePlayer: handleTogglePlayer,
     toggleBlackout: handleToggleBlackout,
     hideHandout: () => setActiveHandout(null),
     toggleSlideshow: () => void handleToggleSlideshow(),

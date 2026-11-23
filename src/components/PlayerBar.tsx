@@ -2,13 +2,12 @@
 // that never moves, whatever the tool. The toolbar above the map is for the
 // DM's own tools; this one is the player screen's, much as a presenter view
 // keeps the audience's controls apart from the speaker's.
-//   left    the player screen (open it, or bring it to the front), Blackout
-//           and Slideshow
+//   left    the player screen (open or close it), Blackout and Slideshow
 //   middle  while players see something other than the map (the kill screen,
 //           the slideshow, a blackout or a handout), what they see and how to
 //           go back; the bar turns crimson then. In the bar, not a banner above
 //           the map, so the map area keeps its size and the map doesn't jump
-//   right   the player view's zoom, its lock, Fill screen and True scale
+//   right   True scale, Fill screen, the zoom lock and the player view's zoom
 //
 // With the interface hidden (Ctrl+Shift+B) only that message stays, while there
 // is one, so the DM still sees that the players don't see the map.
@@ -149,10 +148,10 @@ export const PlayerBar = memo(function PlayerBar({
     <div role="group" aria-label="Player screen" className={`${barClass} flex-wrap`}>
       <Button
         tone="plain"
-        onClick={playerScreen.openPlayer}
+        onClick={playerScreen.togglePlayer}
         title={
           playerScreen.playerOpen
-            ? 'Bring the player window to the front. The red dot: the player screen is live.'
+            ? 'Close the player window. The red dot: the player screen is live.'
             : 'Open the player window'
         }
       >
@@ -184,7 +183,28 @@ export const PlayerBar = memo(function PlayerBar({
         {status && <StatusMessage status={status} inBar />}
       </div>
 
-      <ZoomControl zoom={zoom} onChange={playerView.setZoom} disabled={!hasMap || zoomLocked} />
+      <Button
+        ref={trueScaleRef}
+        tone={playerView.atTrueScale ? 'on' : 'plain'}
+        aria-pressed={playerView.atTrueScale}
+        aria-haspopup={trueScaleNeeds ? 'dialog' : undefined}
+        aria-expanded={trueScaleNeeds ? trueScaleNote : undefined}
+        onClick={() => (trueScaleNeeds ? setTrueScaleNote((shown) => !shown) : playerView.trueScale())}
+        disabled={!hasMap || zoomLocked}
+        title="True scale: zoom the player view so the map’s squares are the grid square size from Settings, for miniatures. A map without a grid gets it measured first."
+      >
+        True scale
+      </Button>
+      <Button
+        tone={playerView.fillScreen ? 'on' : 'plain'}
+        aria-pressed={playerView.fillScreen}
+        onClick={playerView.toggleFillScreen}
+        // Turning it on zooms the player view; turning it off doesn't
+        disabled={!hasMap || !playerScreen.playerOpen || (zoomLocked && !playerView.fillScreen)}
+        title="Fill screen: zoom the player view so the map fills the player screen with no black edges, and keep the frame on the map. A player window that isn't full screen first takes the shape of its screen."
+      >
+        Fill screen
+      </Button>
       <Button
         square
         tone={zoomLocked ? 'on' : 'plain'}
@@ -199,28 +219,7 @@ export const PlayerBar = memo(function PlayerBar({
       >
         {zoomLocked ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}
       </Button>
-      <Button
-        tone={playerView.fillScreen ? 'on' : 'plain'}
-        aria-pressed={playerView.fillScreen}
-        onClick={playerView.toggleFillScreen}
-        // Turning it on zooms the player view; turning it off doesn't
-        disabled={!hasMap || !playerScreen.playerOpen || (zoomLocked && !playerView.fillScreen)}
-        title="Fill screen: zoom the player view so the map fills the player screen with no black edges, and keep the frame on the map. A player window that isn't full screen first takes the shape of its screen."
-      >
-        Fill screen
-      </Button>
-      <Button
-        ref={trueScaleRef}
-        tone={playerView.atTrueScale ? 'on' : 'plain'}
-        aria-pressed={playerView.atTrueScale}
-        aria-haspopup={trueScaleNeeds ? 'dialog' : undefined}
-        aria-expanded={trueScaleNeeds ? trueScaleNote : undefined}
-        onClick={() => (trueScaleNeeds ? setTrueScaleNote((shown) => !shown) : playerView.trueScale())}
-        disabled={!hasMap || zoomLocked}
-        title="True scale: zoom the player view so the map’s squares are the grid square size from Settings, for miniatures. A map without a grid gets it measured first."
-      >
-        True scale
-      </Button>
+      <ZoomControl zoom={zoom} onChange={playerView.setZoom} disabled={!hasMap || zoomLocked} />
       <Popover
         open={trueScaleNote && trueScaleNeeds !== null}
         onClose={closeTrueScaleNote}

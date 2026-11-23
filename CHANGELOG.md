@@ -33,9 +33,10 @@ All notable changes to this project are documented here. The format is based on
     swatches, named in their tooltips. At 1280 pixels wide, with the library
     open, every tool's options fit on one line.
   - A **bar beneath the map** holds what the players see: the player screen,
-    **Blackout**, **Slideshow**, and the player view's zoom, lock, **Fill
-    screen** and **True scale**. It stays the same whatever the tool, so
-    nothing moves when the tool changes.
+    **Blackout**, **Slideshow**, and **True scale**, **Fill screen**, the zoom
+    lock and the player view's zoom. It stays the same whatever the tool, so
+    nothing moves when the tool changes. Its **Player screen** button opens
+    the player window, and closes it again.
   - While players see something other than the map (the kill screen, the
     slideshow, a blackout or a handout), that bar turns crimson and says so,
     in place of the banner above the map. The map area keeps its size, so the

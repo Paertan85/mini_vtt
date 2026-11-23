@@ -319,6 +319,12 @@ ipcMain.handle('player:open', async () => {
   return true;
 });
 
+// The DM window hears it has closed through 'player:closed', as when it is closed by hand
+ipcMain.handle('player:close', async () => {
+  if (isOpen(playerWindow)) playerWindow.close();
+  return true;
+});
+
 // Fill screen: a player window in a window takes the shape of the screen it is
 // on (16:9, 16:10, 4:3, ultrawide), as large as its width allows within the
 // screen's work area; one that is full screen or maximised keeps its size,

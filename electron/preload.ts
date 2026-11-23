@@ -97,6 +97,8 @@ const api = {
 
   /** Opens the player window, or focuses it if it is already open. */
   openPlayerWindow: (): Promise<boolean> => ipcRenderer.invoke('player:open'),
+  /** Closes the player window, if it is open. */
+  closePlayerWindow: (): Promise<boolean> => ipcRenderer.invoke('player:close'),
   onPlayerWindowClosed: (callback: () => void) => subscribe('player:closed', callback),
   /** Fill screen: gives a player window that isn't full screen its screen's shape; returns its size. */
   matchPlayerWindowToScreen: (): Promise<{ width: number; height: number } | null> =>

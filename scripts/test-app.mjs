@@ -174,7 +174,7 @@ app.whenReady().then(async () => {
   const settingsCheck = (label) => click(`[role="dialog"] input[aria-label="${label}"]`);
   // The Spells tool's buttons, one per spell area shape
   const addArea = (label) => clickText(label);
-  const playerButton = `[...document.querySelectorAll('button')].find((b) => /^(Open|Bring) the player window/.test(b.title))`;
+  const playerButton = `[...document.querySelectorAll('button')].find((b) => /^(Open|Close) the player window/.test(b.title))`;
   const press = (key, init = {}) =>
     js(
       `window.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(key)}, ...${JSON.stringify(init)} }))`,
@@ -332,10 +332,20 @@ app.whenReady().then(async () => {
     );
     await js(`${playerButton}.click()`);
     await sleep(1500);
+    check('Open player screen opens the player window', BrowserWindow.getAllWindows().length === 2);
     await js(`${playerButton}.click()`);
+    check(
+      'clicking Player screen again closes it',
+      (await waitFor(() => BrowserWindow.getAllWindows().length === 1)) === true &&
+        (await waitFor(async () => (await js(`${playerButton}.textContent`)).includes('Open'))) === true,
+    );
+    await js(`${playerButton}.click()`);
+    await sleep(1500);
+    // The True scale note's Open player screen only opens it, or brings it to the front
+    await js('window.electronAPI.openPlayerWindow()');
     await sleep(800);
     const player = BrowserWindow.getAllWindows().find((w) => w !== main);
-    check('reopening reuses the player window', BrowserWindow.getAllWindows().length === 2);
+    check('opening it again reuses the player window', BrowserWindow.getAllWindows().length === 2);
     // With a second display it opens full screen there; on one screen, in a window
     {
       const dmDisplay = displays.getDisplayMatching(main.getBounds()).id;
