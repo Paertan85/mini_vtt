@@ -5,17 +5,18 @@
 //           colours and the spell areas to add, how the Measure tool counts
 //           diagonals, or the markers' colour, size and Clear
 //   centre  player view zoom, Fill screen and True scale
-//   right   player screen, blackout, slideshow, the welcome screen, settings
-//           and the menu
+//   right   player screen, blackout, slideshow and the menu (☰): Settings,
+//           the welcome screen, shortcuts, project files and the window, as
+//           GNOME's guidelines put them in an app's one primary menu
 //
-// Solid gold marks the current tool; options and toggles that are on get a
-// gold outline (tone "on"), so the tool stands out (NN/g, "Modes in user
-// interfaces"). Tooltips read "Name (key): what it does."
+// Buttons are borderless and choices sit in dark tracks, so the bar is grouped
+// by spacing (Fluent's command bar). Solid gold marks the current tool; options
+// and toggles that are on get a gold outline (tone "on"), so the tool stands
+// out (NN/g, "Modes in user interfaces"). Tooltips read "Name (key): what it does."
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import {
   ChevronDown,
-  CircleHelp,
   Lock,
   LockOpen,
   Menu as MenuIcon,
@@ -24,7 +25,6 @@ import {
   PanelLeftOpen,
   Plus,
   Redo2,
-  Settings,
   Undo2,
 } from 'lucide-react';
 import { Button, ButtonGroup, Divider, inputClass } from '../ui/controls';
@@ -33,7 +33,7 @@ import { Popover } from '../ui/Popover';
 import { clampZoom, MAX_ZOOM, MIN_ZOOM, stepZoom } from '../lib/geometry';
 import type { FogShape } from './MapStage';
 import type { AreaShape, EffectKind } from '../types/map';
-import { MOVEMENT_LABELS, MOVEMENT_RULES, MOVEMENT_TITLES } from '../lib/grid';
+import { MOVEMENT_TITLES } from '../lib/grid';
 import { AREA_LABELS, AREA_SHAPES, DEFAULT_AREA_FT, MAX_AREAS } from '../lib/areas';
 import { EFFECT_KINDS, EFFECT_STYLES } from '../lib/effects';
 import {
@@ -47,8 +47,6 @@ import {
   typedMarkerLetter,
 } from '../lib/markers';
 import { keyLabel } from '../lib/platform';
-import { OPACITY_MAX, OPACITY_MIN } from '../lib/settings';
-import { SLIDESHOW_SECONDS } from '../lib/slideshow';
 import {
   BRUSH_STEP,
   MAX_BRUSH,
@@ -58,7 +56,6 @@ import {
   type DmPlayerView,
   type DmSettings,
   type DmTools,
-  type OpacityLayer,
   type TrueScaleNeed,
 } from '../hooks/useDmController';
 
@@ -66,30 +63,11 @@ interface ToolbarProps {
   tools: DmTools;
   playerView: DmPlayerView;
   playerScreen: DmPlayerScreen;
-  /** The settings it shows and changes, in its menu and beside the tools */
+  /** The settings it shows and changes beside the tools */
   settings: DmSettings;
-  /** The commands of the settings menu and the welcome button */
+  /** The commands of the menu (☰) */
   app: DmApp;
 }
-
-/** The opacity sliders in the settings menu. */
-const OPACITY_SLIDERS: { layer: OpacityLayer; label: string; title: string }[] = [
-  {
-    layer: 'markerOpacity',
-    label: 'Markers',
-    title: 'How strongly markers are filled. Only you see markers.',
-  },
-  {
-    layer: 'effectOpacity',
-    label: 'Painted effects',
-    title: 'How strongly painted effects show, on the player screen too',
-  },
-  {
-    layer: 'areaOpacity',
-    label: 'Spell areas',
-    title: 'How strongly spell areas are filled, on the player screen too',
-  },
-];
 
 /** The Fog tool's ways of drawing, as the toolbar offers them. */
 const FOG_SHAPES: { shape: FogShape; label: string; title: string }[] = [
@@ -127,7 +105,7 @@ const FOG_SHAPES: { shape: FogShape; label: string; title: string }[] = [
 const TRUE_SCALE_NOTES: Record<TrueScaleNeed, { text: string; action: string }> = {
   setup: {
     text: 'True scale needs the player screen’s size, to work out how big a square is on it.',
-    action: 'Player screen setup…',
+    action: 'Open Settings',
   },
   player: {
     text: 'True scale needs the player screen open, to know its size in pixels.',
@@ -189,9 +167,9 @@ export const Toolbar = memo(function Toolbar({
       </Button>
 
       {/* Tools and fog */}
-      <ButtonGroup label="Tool">
+      <ButtonGroup track label="Tool">
         <Button
-          tone={tool === 'view' ? 'active' : 'default'}
+          tone={tool === 'view' ? 'active' : 'plain'}
           aria-pressed={tool === 'view'}
           onClick={() => tools.setTool('view')}
           title="View (V): drag the frame to move the player view, and scroll over it to zoom. Hold Alt to move it while painting."
@@ -199,7 +177,7 @@ export const Toolbar = memo(function Toolbar({
           View
         </Button>
         <Button
-          tone={tool === 'fog' ? 'active' : 'default'}
+          tone={tool === 'fog' ? 'active' : 'plain'}
           aria-pressed={tool === 'fog'}
           onClick={() => tools.setTool('fog')}
           disabled={!hasMap}
@@ -210,7 +188,7 @@ export const Toolbar = memo(function Toolbar({
         {settings.showEffectTools && (
           <>
             <Button
-              tone={tool === 'effect' ? 'active' : 'default'}
+              tone={tool === 'effect' ? 'active' : 'plain'}
               aria-pressed={tool === 'effect'}
               onClick={() => tools.setTool('effect')}
               disabled={!hasMap}
@@ -219,7 +197,7 @@ export const Toolbar = memo(function Toolbar({
               Effects
             </Button>
             <Button
-              tone={tool === 'shapes' ? 'active' : 'default'}
+              tone={tool === 'shapes' ? 'active' : 'plain'}
               aria-pressed={tool === 'shapes'}
               onClick={() => tools.setTool('shapes')}
               disabled={!hasMap}
@@ -230,7 +208,7 @@ export const Toolbar = memo(function Toolbar({
           </>
         )}
         <Button
-          tone={tool === 'measure' ? 'active' : 'default'}
+          tone={tool === 'measure' ? 'active' : 'plain'}
           aria-pressed={tool === 'measure'}
           onClick={() => tools.setTool('measure')}
           disabled={!hasMap}
@@ -239,7 +217,7 @@ export const Toolbar = memo(function Toolbar({
           Measure
         </Button>
         <Button
-          tone={tool === 'markers' ? 'active' : 'default'}
+          tone={tool === 'markers' ? 'active' : 'plain'}
           aria-pressed={tool === 'markers'}
           onClick={() => tools.setTool('markers')}
           disabled={!hasMap}
@@ -273,8 +251,9 @@ export const Toolbar = memo(function Toolbar({
         </label>
       )}
 
-      <ButtonGroup label="History">
+      <ButtonGroup track label="History">
         <Button
+          tone="plain"
           square
           onClick={tools.undo}
           disabled={!tools.canUndo}
@@ -284,6 +263,7 @@ export const Toolbar = memo(function Toolbar({
           <Undo2 className="h-4 w-4" />
         </Button>
         <Button
+          tone="plain"
           square
           onClick={tools.redo}
           disabled={!tools.canRedo}
@@ -302,6 +282,7 @@ export const Toolbar = memo(function Toolbar({
             title={(label) => `Paint ${label}`}
           />
           <Button
+            tone="plain"
             onClick={tools.clearEffects}
             disabled={!tools.canClearEffects}
             title={keyLabel('Remove all effects from this map (undo with Ctrl+Z)')}
@@ -317,9 +298,10 @@ export const Toolbar = memo(function Toolbar({
             onChange={tools.setEffectKind}
             title={(label) => `Make new spell areas, and the selected one, ${label}`}
           />
-          <ButtonGroup label="Add a spell area">
+          <ButtonGroup track label="Add a spell area">
             {AREA_SHAPES.map((shape) => (
               <Button
+                tone="plain"
                 key={shape}
                 aria-haspopup={shapesNeed ? 'dialog' : undefined}
                 aria-expanded={shapesNeed ? shapeNote === shape : undefined}
@@ -338,7 +320,7 @@ export const Toolbar = memo(function Toolbar({
             ))}
           </ButtonGroup>
           <Button
-            tone={settings.showAreaSquares ? 'on' : 'default'}
+            tone={settings.showAreaSquares ? 'on' : 'plain'}
             aria-pressed={settings.showAreaSquares}
             onClick={settings.toggleAreaSquares}
             title="Affected squares: outline the grid squares each spell area covers, on the player screen too. A square counts when at least half of it is covered. An emanation counts out from its creature's square as movement is, and leaves that square out."
@@ -378,11 +360,11 @@ export const Toolbar = memo(function Toolbar({
       )}
       {tool === 'markers' && (
         <>
-          <ButtonGroup label="Marker colour">
+          <ButtonGroup track label="Marker colour">
             {MARKER_COLORS.map((color) => (
               <Button
                 key={color}
-                tone={tools.markerColor === color ? 'on' : 'default'}
+                tone={tools.markerColor === color ? 'on' : 'plain'}
                 aria-pressed={tools.markerColor === color}
                 onClick={() => tools.setMarkerColor(color)}
                 title={`Make new markers, and the selected one, ${MARKER_STYLES[color].label.toLowerCase()}`}
@@ -448,6 +430,7 @@ export const Toolbar = memo(function Toolbar({
             />
           </label>
           <Button
+            tone="plain"
             onClick={tools.clearMarkers}
             disabled={!tools.canClearMarkers}
             title={keyLabel('Remove all markers from this map (undo with Ctrl+Z)')}
@@ -464,9 +447,9 @@ export const Toolbar = memo(function Toolbar({
           </span>
         ) : (
           <>
-            <ButtonGroup label="Measure">
+            <ButtonGroup track label="Measure">
               <Button
-                tone={tools.measureStraight ? 'default' : 'on'}
+                tone={tools.measureStraight ? 'plain' : 'on'}
                 aria-pressed={!tools.measureStraight}
                 onClick={() => tools.setMeasureStraight(false)}
                 title={`Movement: counted in squares, from the middle of one to the middle of another; ${MOVEMENT_TITLES[settings.movementRule]}. Settings switches how diagonals count.`}
@@ -474,7 +457,7 @@ export const Toolbar = memo(function Toolbar({
                 Movement
               </Button>
               <Button
-                tone={tools.measureStraight ? 'on' : 'default'}
+                tone={tools.measureStraight ? 'on' : 'plain'}
                 aria-pressed={tools.measureStraight}
                 onClick={() => tools.setMeasureStraight(true)}
                 title={keyLabel(
@@ -485,7 +468,7 @@ export const Toolbar = memo(function Toolbar({
               </Button>
             </ButtonGroup>
             <Button
-              tone={settings.showRulerToPlayers ? 'on' : 'default'}
+              tone={settings.showRulerToPlayers ? 'on' : 'plain'}
               aria-pressed={settings.showRulerToPlayers}
               onClick={() => settings.setShowRulerToPlayers(!settings.showRulerToPlayers)}
               title="Show players: the ruler appears on the player screen too, as you drag it."
@@ -497,11 +480,11 @@ export const Toolbar = memo(function Toolbar({
       {(tool === 'view' || tool === 'fog') && (
         <>
           {tool === 'fog' && (
-            <ButtonGroup label="Fog drawing">
+            <ButtonGroup track label="Fog drawing">
               {FOG_SHAPES.map(({ shape, label, title }) => (
                 <Button
                   key={shape}
-                  tone={tools.fogShape === shape ? 'on' : 'default'}
+                  tone={tools.fogShape === shape ? 'on' : 'plain'}
                   aria-pressed={tools.fogShape === shape}
                   onClick={() => tools.setFogShape(shape)}
                   title={keyLabel(title)}
@@ -523,7 +506,12 @@ export const Toolbar = memo(function Toolbar({
               { label: 'Cover entire map', onSelect: tools.coverAll },
             ]}
             trigger={(trigger) => (
-              <Button {...trigger} disabled={!hasMap} title="Whole map: reveal or cover all of it">
+              <Button
+                {...trigger}
+                tone="plain"
+                disabled={!hasMap}
+                title="Whole map: reveal or cover all of it"
+              >
                 Whole map
                 <ChevronDown className="h-3.5 w-3.5 text-muted" />
               </Button>
@@ -538,7 +526,7 @@ export const Toolbar = memo(function Toolbar({
       <ZoomControl zoom={zoom} onChange={playerView.setZoom} disabled={!hasMap || zoomLocked} />
       <Button
         square
-        tone={zoomLocked ? 'on' : 'default'}
+        tone={zoomLocked ? 'on' : 'plain'}
         aria-pressed={zoomLocked}
         aria-label="Lock zoom"
         onClick={playerView.toggleZoomLock}
@@ -551,7 +539,7 @@ export const Toolbar = memo(function Toolbar({
         {zoomLocked ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}
       </Button>
       <Button
-        tone={playerView.fillScreen ? 'on' : 'default'}
+        tone={playerView.fillScreen ? 'on' : 'plain'}
         aria-pressed={playerView.fillScreen}
         onClick={playerView.toggleFillScreen}
         // Turning it on zooms the player view; turning it off doesn't
@@ -562,13 +550,13 @@ export const Toolbar = memo(function Toolbar({
       </Button>
       <Button
         ref={trueScaleRef}
-        tone={playerView.atTrueScale ? 'on' : 'default'}
+        tone={playerView.atTrueScale ? 'on' : 'plain'}
         aria-pressed={playerView.atTrueScale}
         aria-haspopup={trueScaleNeeds ? 'dialog' : undefined}
         aria-expanded={trueScaleNeeds ? trueScaleNote : undefined}
         onClick={() => (trueScaleNeeds ? setTrueScaleNote((shown) => !shown) : playerView.trueScale())}
         disabled={!hasMap || zoomLocked}
-        title="True scale: zoom the player view so the map’s squares are the grid square size from Player screen setup, for miniatures. A map without a grid gets it measured first."
+        title="True scale: zoom the player view so the map’s squares are the grid square size from Settings, for miniatures. A map without a grid gets it measured first."
       >
         True scale
       </Button>
@@ -586,7 +574,7 @@ export const Toolbar = memo(function Toolbar({
                 tone="active"
                 onClick={() => {
                   setTrueScaleNote(false);
-                  if (trueScaleNeeds === 'setup') app.openPlayerSetup();
+                  if (trueScaleNeeds === 'setup') app.openSettings();
                   else if (trueScaleNeeds === 'player') playerScreen.openPlayer();
                   else playerView.trueScale();
                 }}
@@ -602,6 +590,7 @@ export const Toolbar = memo(function Toolbar({
 
       {/* Player screen */}
       <Button
+        tone="plain"
         onClick={playerScreen.openPlayer}
         title={
           playerScreen.playerOpen
@@ -618,7 +607,7 @@ export const Toolbar = memo(function Toolbar({
         {playerScreen.playerOpen && <span className="sr-only">(live)</span>}
       </Button>
       <Button
-        tone={playerScreen.blackout ? 'live' : 'default'}
+        tone={playerScreen.blackout ? 'live' : 'plain'}
         aria-pressed={playerScreen.blackout}
         onClick={playerScreen.toggleBlackout}
         title="Blackout (B): hide everything on the player screen."
@@ -626,88 +615,23 @@ export const Toolbar = memo(function Toolbar({
         Blackout
       </Button>
       <Button
-        tone={playerScreen.slideshow ? 'live' : 'default'}
+        tone={playerScreen.slideshow ? 'live' : 'plain'}
         aria-pressed={!!playerScreen.slideshow}
         onClick={playerScreen.toggleSlideshow}
-        title="Slideshow (P): show the pictures in the slideshow folder in place of the map, while you get the next one ready. Choose the folder in the menu (☰)."
+        title="Slideshow (P): show the pictures in the slideshow folder in place of the map, while you get the next one ready. Choose the folder in Settings."
       >
         Slideshow
       </Button>
-      <Button
-        square
-        tone="quiet"
-        onClick={app.openWelcome}
-        aria-label="Welcome"
-        title="Welcome: what Mini VTT is and what needs setting up"
-      >
-        <CircleHelp className="h-4 w-4" />
-      </Button>
       <Menu
         align="right"
         items={[
-          { label: 'Player screen setup…', onSelect: app.openPlayerSetup },
+          { label: 'Settings…', onSelect: app.openSettings, hint: keyLabel('Ctrl+,') },
           { label: 'Measure map grid…', onSelect: tools.measureGrid, disabled: !hasMap },
-          {
-            label: 'Show grid on player screen',
-            onSelect: settings.toggleGridToPlayers,
-            checked: settings.showGridToPlayers,
-            separated: true,
-          },
-          {
-            label: 'Show tool hints',
-            onSelect: settings.toggleToolHints,
-            checked: settings.showToolHints,
-          },
-          {
-            label: 'Show effect and spell tools',
-            onSelect: settings.toggleEffectTools,
-            checked: settings.showEffectTools,
-          },
-          {
-            label: 'Cover new maps in fog',
-            onSelect: settings.toggleFogNewMaps,
-            checked: settings.fogNewMaps,
-          },
-          ...MOVEMENT_RULES.map((rule, index) => ({
-            label: MOVEMENT_LABELS[rule],
-            onSelect: () => settings.setMovementRule(rule),
-            checked: settings.movementRule === rule,
-            separated: index === 0,
-          })),
-          ...OPACITY_SLIDERS.map(({ layer, label, title }, index) => ({
-            kind: 'slider' as const,
-            label,
-            title,
-            value: Math.round(settings[layer] * 100),
-            min: OPACITY_MIN * 100,
-            max: OPACITY_MAX * 100,
-            step: 5,
-            format: (value: number) => `${value} %`,
-            onChange: (value: number, done: boolean) => settings.setOpacity(layer, value / 100, done),
-            separated: index === 0,
-          })),
-          ...SLIDESHOW_SECONDS.map((seconds, index) => ({
-            label: `Slideshow: ${slideshowTime(seconds)} a picture`,
-            onSelect: () => settings.setSlideshowSeconds(seconds),
-            checked: settings.slideshowSeconds === seconds,
-            separated: index === 0,
-          })),
-        ]}
-        trigger={(trigger) => (
-          <Button {...trigger} square tone="quiet" aria-label="Settings" title="Settings">
-            <Settings className="h-4 w-4" />
-          </Button>
-        )}
-      />
-      <Menu
-        align="right"
-        items={[
-          { label: 'Keyboard shortcuts…', onSelect: app.openShortcuts },
+          { label: 'Keyboard shortcuts…', onSelect: app.openShortcuts, hint: '?', separated: true },
+          { label: 'Welcome…', onSelect: app.openWelcome },
           { label: 'Export project…', onSelect: app.exportProject, separated: true },
           { label: 'Import project…', onSelect: app.importProject },
           { label: 'Open library folder', onSelect: app.revealLibraryFolder },
-          { label: 'Slideshow folder…', onSelect: app.chooseSlideshowFolder, separated: true },
-          { label: 'Open slideshow folder', onSelect: app.revealSlideshowFolder },
           {
             label: 'Full screen',
             onSelect: app.toggleFullScreen,
@@ -724,7 +648,7 @@ export const Toolbar = memo(function Toolbar({
             square
             tone="quiet"
             aria-label="Menu"
-            title="Menu: keyboard shortcuts, project files, the slideshow folder and the window"
+            title="Menu: settings, keyboard shortcuts, the welcome screen, project files and the window"
           >
             <MenuIcon className="h-4 w-4" />
           </Button>
@@ -733,9 +657,6 @@ export const Toolbar = memo(function Toolbar({
     </div>
   );
 });
-
-/** How long the slideshow shows a picture, as the settings menu says it: “20 seconds”, “1 minute”. */
-const slideshowTime = (seconds: number) => (seconds === 60 ? '1 minute' : `${seconds} seconds`);
 
 /** − [ 100 % ] +  The field accepts a typed percentage on Enter or blur. */
 function ZoomControl({
@@ -766,8 +687,14 @@ function ZoomControl({
       title="Player view zoom: + and − keys, mouse wheel over the player frame in the View tool, or Alt + mouse wheel in 1% steps"
     >
       <span className="text-[13px] text-muted">Player zoom</span>
-      <ButtonGroup label="Player view zoom">
-        <Button square onClick={() => onChange(stepZoom(zoom, -1))} disabled={disabled} aria-label="Zoom out">
+      <ButtonGroup track label="Player view zoom">
+        <Button
+          square
+          tone="plain"
+          onClick={() => onChange(stepZoom(zoom, -1))}
+          disabled={disabled}
+          aria-label="Zoom out"
+        >
           <Minus className="h-3.5 w-3.5" />
         </Button>
         <span className="relative z-10 -ml-px inline-flex">
@@ -797,7 +724,13 @@ function ZoomControl({
             %
           </span>
         </span>
-        <Button square onClick={() => onChange(stepZoom(zoom, 1))} disabled={disabled} aria-label="Zoom in">
+        <Button
+          square
+          tone="plain"
+          onClick={() => onChange(stepZoom(zoom, 1))}
+          disabled={disabled}
+          aria-label="Zoom in"
+        >
           <Plus className="h-3.5 w-3.5" />
         </Button>
       </ButtonGroup>
@@ -817,11 +750,11 @@ function EffectKindPicker({
   title: (label: string) => string;
 }) {
   return (
-    <ButtonGroup label="Effect">
+    <ButtonGroup track label="Effect">
       {EFFECT_KINDS.map((option) => (
         <Button
           key={option}
-          tone={kind === option ? 'on' : 'default'}
+          tone={kind === option ? 'on' : 'plain'}
           aria-pressed={kind === option}
           onClick={() => onChange(option)}
           title={title(EFFECT_STYLES[option].label.toLowerCase())}

@@ -1,8 +1,9 @@
-// A small dropdown menu. It is positioned with `fixed`, so it is never clipped
-// by a scrolling panel, and closes on outside click, Escape or after a choice
-// (see useAnchoredPopup). A slider row stays open while it is used.
+// A small dropdown menu of commands. It is positioned with `fixed`, so it is
+// never clipped by a scrolling panel, and closes on outside click, Escape or
+// after a choice (see useAnchoredPopup). Settings with values, such as sliders,
+// belong in the Settings dialog, not here.
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { useAnchoredPopup } from './popup';
 
 export interface MenuItem {
@@ -18,26 +19,8 @@ export interface MenuItem {
   separated?: boolean;
 }
 
-/** A slider row, such as an opacity. Arrow up and down move between rows; left and right change it. */
-export interface MenuSlider {
-  kind: 'slider';
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  /** The value as shown beside the slider */
-  format: (value: number) => string;
-  /** While it moves, and once more with `done` when it is let go (or a key changed it) */
-  onChange: (value: number, done: boolean) => void;
-  title?: string;
-  separated?: boolean;
-}
-
-export type MenuEntry = MenuItem | MenuSlider;
-
 interface MenuProps {
-  items: MenuEntry[];
+  items: MenuItem[];
   align?: 'left' | 'right';
   /** Renders the trigger; spread the props onto a button */
   trigger: (props: {
@@ -74,8 +57,7 @@ export function Menu({ items, align = 'left', trigger }: MenuProps) {
             if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
             event.preventDefault();
             const buttons = Array.from(
-              menuRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled)') ??
-                [],
+              menuRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled)') ?? [],
             );
             const index = buttons.indexOf(document.activeElement as HTMLElement);
             const next = (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
@@ -85,68 +67,29 @@ export function Menu({ items, align = 'left', trigger }: MenuProps) {
           {items.map((item) => (
             <React.Fragment key={item.label}>
               {item.separated && <div className="my-1 h-px bg-line" role="separator" />}
-              {'kind' in item ? (
-                <SliderRow slider={item} />
-              ) : (
-                <button
-                  type="button"
-                  role={item.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
-                  aria-checked={item.checked}
-                  disabled={item.disabled}
-                  onClick={() => {
-                    close();
-                    item.onSelect();
-                  }}
-                  className={`flex h-8 w-full items-center gap-2 px-3 text-left text-[13px] outline-hidden disabled:opacity-40 ${
-                    item.danger ? 'text-crimson-text' : 'text-ink'
-                  } hover:bg-raised focus:bg-raised`}
-                >
-                  <span className="w-3 text-gold" aria-hidden="true">
-                    {item.checked ? '✓' : ''}
-                  </span>
-                  <span className="flex-1">{item.label}</span>
-                  {item.hint && <span className="text-xs text-muted">{item.hint}</span>}
-                </button>
-              )}
+              <button
+                type="button"
+                role={item.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
+                aria-checked={item.checked}
+                disabled={item.disabled}
+                onClick={() => {
+                  close();
+                  item.onSelect();
+                }}
+                className={`flex h-8 w-full items-center gap-2 px-3 text-left text-[13px] outline-hidden disabled:opacity-40 ${
+                  item.danger ? 'text-crimson-text' : 'text-ink'
+                } hover:bg-raised focus:bg-raised`}
+              >
+                <span className="w-3 text-gold" aria-hidden="true">
+                  {item.checked ? '✓' : ''}
+                </span>
+                <span className="flex-1">{item.label}</span>
+                {item.hint && <span className="text-xs text-muted">{item.hint}</span>}
+              </button>
             </React.Fragment>
           ))}
         </div>
       )}
     </>
-  );
-}
-
-function SliderRow({ slider }: { slider: MenuSlider }) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const onChangeRef = useRef(slider.onChange);
-  onChangeRef.current = slider.onChange;
-
-  // The native change event fires once, when the slider is let go or a key
-  // has moved it; React's onChange fires on every step of a drag
-  useEffect(() => {
-    const input = inputRef.current;
-    if (!input) return;
-    const commit = () => onChangeRef.current(Number(input.value), true);
-    input.addEventListener('change', commit);
-    return () => input.removeEventListener('change', commit);
-  }, []);
-
-  return (
-    <label className="flex h-8 items-center gap-2 px-3 text-[13px] text-ink" title={slider.title}>
-      <span className="w-3" aria-hidden="true" />
-      <span className="flex-1 whitespace-nowrap">{slider.label}</span>
-      <input
-        ref={inputRef}
-        type="range"
-        min={slider.min}
-        max={slider.max}
-        step={slider.step}
-        value={slider.value}
-        onChange={(event) => slider.onChange(Number(event.target.value), false)}
-        aria-label={slider.label}
-        className="w-24 accent-gold"
-      />
-      <span className="w-9 text-right text-xs tabular-nums text-muted">{slider.format(slider.value)}</span>
-    </label>
   );
 }

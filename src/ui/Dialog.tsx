@@ -1,5 +1,6 @@
 // Modal dialog shell: dimmed backdrop, Escape and backdrop click close it, and
-// focus moves into the dialog when it opens.
+// focus moves into the dialog when it opens. With `dim` off the backdrop is
+// only lightly darkened, so changes to the map behind it can be seen.
 
 import React, { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
@@ -11,9 +12,10 @@ interface DialogProps {
   children: React.ReactNode;
   footer?: React.ReactNode;
   width?: string;
+  dim?: boolean;
 }
 
-export function Dialog({ title, onClose, children, footer, width = 'w-104' }: DialogProps) {
+export function Dialog({ title, onClose, children, footer, width = 'w-104', dim = true }: DialogProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useRef(`dialog-${Math.random().toString(36).slice(2)}`).current;
   // Parents pass a new function on every render. Reading it through a ref lets
@@ -46,7 +48,7 @@ export function Dialog({ title, onClose, children, footer, width = 'w-104' }: Di
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      className={`fixed inset-0 z-50 flex items-center justify-center ${dim ? 'bg-black/60' : 'bg-black/20'}`}
       onPointerDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}

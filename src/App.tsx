@@ -5,7 +5,8 @@
 import { MapLibraryPanel } from './components/MapLibraryPanel';
 import { MapStage } from './components/MapStage';
 import { Toolbar } from './components/Toolbar';
-import { PlayerSetupDialog, ShortcutsDialog, WelcomeDialog } from './components/Dialogs';
+import { ShortcutsDialog, WelcomeDialog } from './components/Dialogs';
+import { SettingsDialog } from './components/SettingsDialog';
 import { GridCalibrationBar } from './components/GridCalibrationBar';
 import { ToolHint } from './components/ToolHint';
 import { useDmController } from './hooks/useDmController';
@@ -94,14 +95,11 @@ export function App() {
         </div>
       </div>
 
-      {dialogs.open === 'setup' && (
-        <PlayerSetupDialog
-          diagonal={dialogs.screenDiagonal}
-          gridSize={dialogs.gridSize}
-          portraitRotation={dialogs.portraitRotation}
-          frameColor={dialogs.frameColor}
+      {dialogs.open === 'settings' && (
+        <SettingsDialog
+          settings={dm.settings}
+          app={dm.app}
           viewportSize={dialogs.viewportSize}
-          onSave={dialogs.savePlayerSetup}
           onClose={dialogs.close}
         />
       )}
@@ -110,7 +108,7 @@ export function App() {
         <WelcomeDialog
           showOnStartup={dialogs.showWelcome}
           onShowOnStartupChange={dialogs.setShowWelcome}
-          onOpenPlayerSetup={dm.app.openPlayerSetup}
+          onOpenSettings={dm.app.openSettings}
           onOpenShortcuts={dm.app.openShortcuts}
           onClose={dialogs.close}
         />

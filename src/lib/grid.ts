@@ -124,10 +124,10 @@ export function snapToCorner(point: Point, grid: MapGrid): Point {
 
 export const MOVEMENT_RULES: readonly MovementRule[] = ['alternate', 'uniform'];
 export const DEFAULT_MOVEMENT_RULE: MovementRule = 'alternate';
-/** The settings menu's names for the Movement ruler's rules */
+/** The Settings dialog's names for the Movement ruler's rules */
 export const MOVEMENT_LABELS: Record<MovementRule, string> = {
-  alternate: 'Movement: 5/10 diagonals',
-  uniform: 'Movement: every square',
+  alternate: '5/10 diagonals',
+  uniform: 'Every square',
 };
 /** How each rule counts, for tooltips */
 export const MOVEMENT_TITLES: Record<MovementRule, string> = {

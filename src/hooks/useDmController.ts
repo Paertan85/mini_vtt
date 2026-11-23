@@ -32,7 +32,7 @@ import type {
 } from '../types/map';
 import { forgetThumb } from '../components/MapLibraryPanel';
 import type { FogShape, MapStageProps, Tool, ViewControls } from '../components/MapStage';
-import { screenDimensions } from '../components/Dialogs';
+import { screenDimensions } from '../components/SettingsDialog';
 import type { Calibration } from '../components/GridCalibrationBar';
 import { useFog } from './useFog';
 import { useHandlers } from './useHandlers';
@@ -176,7 +176,7 @@ export interface DmPlayerView {
   /** Fill screen: the map fills the player screen with no black edges, and the frame stays on the map */
   fillScreen: boolean;
   toggleFillScreen: () => void;
-  /** Whether the zoom is true scale: the map's squares the size set in Player screen setup */
+  /** Whether the zoom is true scale: the map's squares the size set in Settings → Player screen */
   atTrueScale: boolean;
   trueScaleNeeds: TrueScaleNeed | null;
   /** Applies true scale, or starts measuring the grid when that is what it needs */
@@ -202,7 +202,7 @@ export interface DmPlayerScreen {
   toggleSlideshow: () => void;
 }
 
-/** The DM's settings that the toolbar and its menu change; saved as they change. */
+/** The DM's settings that the toolbar and the Settings dialog change; saved as they change. */
 export interface DmSettings {
   showLibrary: boolean;
   /** Brings the interface back first if it is hidden */
@@ -238,6 +238,18 @@ export interface DmSettings {
   /** How long the slideshow shows each picture */
   slideshowSeconds: number;
   setSlideshowSeconds: (seconds: number) => void;
+  /** The player screen's diagonal, for the true-scale grid; null when not set */
+  screenDiagonal: number | null;
+  setScreenDiagonal: (diagonal: number | null) => void;
+  /** The grid square size, in the same unit as the diagonal */
+  gridSize: number;
+  setGridSize: (size: number) => void;
+  /** Rotation for new maps and handouts taller than wide: 0, 90 or 270 */
+  portraitRotation: number;
+  setPortraitRotation: (rotation: number) => void;
+  /** Colour of the player view frame in the DM window */
+  frameColor: FrameColor;
+  setFrameColor: (color: FrameColor) => void;
 }
 
 /** The layers with an opacity setting. */
@@ -245,7 +257,7 @@ export type OpacityLayer = 'markerOpacity' | 'effectOpacity' | 'areaOpacity';
 
 /** Commands for the app as a whole: dialogs, project files and the window. */
 export interface DmApp {
-  openPlayerSetup: () => void;
+  openSettings: () => void;
   openShortcuts: () => void;
   openWelcome: () => void;
   exportProject: () => void;
@@ -261,17 +273,12 @@ export interface DmApp {
   quit: () => void;
 }
 
-/** The dialog that is open, if any, and what the dialogs show and change. */
+/** The dialog that is open, if any, and what the dialogs show that isn't a setting. */
 export interface DmDialogs {
-  open: 'welcome' | 'setup' | 'shortcuts' | null;
+  open: 'welcome' | 'settings' | 'shortcuts' | null;
   close: () => void;
-  /** Player screen setup */
-  screenDiagonal: number | null;
-  gridSize: number;
-  portraitRotation: number;
-  frameColor: FrameColor;
+  /** The player window's size in pixels, for the screen size Settings works out; null while it is closed */
   viewportSize: Size | null;
-  savePlayerSetup: (diagonal: number | null, grid: number, rotation: number, color: FrameColor) => void;
   /** Welcome: whether it opens on start-up */
   showWelcome: boolean;
   setShowWelcome: (show: boolean) => void;
@@ -474,7 +481,7 @@ export function useDmController(): DmController {
   const [activeHandout, setActiveHandout] = useState<{ id: string; url: string; rotation: number } | null>(
     null,
   );
-  const [dialog, setDialog] = useState<'welcome' | 'setup' | 'shortcuts' | null>(null);
+  const [dialog, setDialog] = useState<DmDialogs['open']>(null);
 
   // Suppresses view saves while a map is being restored, so the restore can't
   // overwrite what it is loading
@@ -1049,7 +1056,7 @@ export function useDmController(): DmController {
     if (listing.count === 0) {
       setSlideshowListing(null);
       notify(
-        `There are no pictures in the slideshow folder “${listing.folderName}”. Menu (☰) → Open slideshow folder to add some, or Slideshow folder… to choose another.`,
+        `There are no pictures in the slideshow folder “${listing.folderName}”. Add some, or choose another folder, under Settings → Slideshow.`,
         'error',
         { durationMs: 9000 },
       );
@@ -1091,7 +1098,7 @@ export function useDmController(): DmController {
 
   const handleRevealSlideshowFolder = async () => {
     if (!(await api?.revealSlideshowFolder())) {
-      notify('Couldn’t open the slideshow folder. Choose it again with Slideshow folder…', 'error');
+      notify('Couldn’t open the slideshow folder. Choose it again under Settings → Slideshow.', 'error');
     }
   };
 
@@ -1119,7 +1126,7 @@ export function useDmController(): DmController {
   };
 
   // True scale: the player view zoom at which the map's own squares come out
-  // at the grid square size of Player screen setup on the player screen, so
+  // at the grid square size from Settings → Player screen on the player screen, so
   // miniatures fit them. Like the frame's grid, it takes the player window to
   // fill the screen.
   const trueScaleFor = (mapGrid: MapGrid | null) =>
@@ -1163,19 +1170,6 @@ export function useDmController(): DmController {
       afterGridRef.current = 'trueScale';
     } else if (!trueScaleNeeds && trueScaleZoom !== null) applyTrueScale(trueScaleZoom);
   };
-
-  const handleSavePlayerSetup = (
-    diagonal: number | null,
-    grid: number,
-    rotation: number,
-    color: FrameColor,
-  ) =>
-    updateSettings({
-      playerScreenDiagonal: diagonal,
-      gridSize: grid,
-      portraitRotation: rotation,
-      frameColor: color,
-    });
 
   const handleRevealAll = async () => {
     const confirmed = await confirmAction({
@@ -1381,6 +1375,7 @@ export function useDmController(): DmController {
     loadSelectedMap: (event) =>
       !!selectedMapId && !(event.target instanceof HTMLButtonElement) && handleLoadMap(selectedMapId),
     showShortcuts: () => setDialog('shortcuts'),
+    openSettings: () => setDialog('settings'),
     zoomIn: () => hasMap && !zoomLocked && setZoom((current) => stepZoom(current, 1)),
     zoomOut: () => hasMap && !zoomLocked && setZoom((current) => stepZoom(current, -1)),
     // A held Space keeps its first toggle (and never scrolls or presses a button)
@@ -1584,6 +1579,10 @@ export function useDmController(): DmController {
     setShowRulerToPlayers: handleShowRulerToPlayers,
     setOpacity: handleOpacityChange,
     setSlideshowSeconds: (seconds: number) => updateSettings({ slideshowSeconds: seconds }),
+    setScreenDiagonal: (diagonal: number | null) => updateSettings({ playerScreenDiagonal: diagonal }),
+    setGridSize: (size: number) => updateSettings({ gridSize: size }),
+    setPortraitRotation: (value: number) => updateSettings({ portraitRotation: value }),
+    setFrameColor: (color: FrameColor) => updateSettings({ frameColor: color }),
   });
   const settingsGroup = useMemo<DmSettings>(
     () => ({
@@ -1600,6 +1599,10 @@ export function useDmController(): DmController {
       effectOpacity,
       areaOpacity,
       slideshowSeconds,
+      screenDiagonal,
+      gridSize,
+      portraitRotation,
+      frameColor,
       ...settingsActions,
     }),
     [
@@ -1616,13 +1619,17 @@ export function useDmController(): DmController {
       effectOpacity,
       areaOpacity,
       slideshowSeconds,
+      screenDiagonal,
+      gridSize,
+      portraitRotation,
+      frameColor,
       settingsActions,
     ],
   );
 
   // Nothing but actions, so always the same object
   const appCommands: DmApp = useHandlers({
-    openPlayerSetup: () => setDialog('setup'),
+    openSettings: () => setDialog('settings'),
     openShortcuts: () => setDialog('shortcuts'),
     openWelcome: () => setDialog('welcome'),
     exportProject: () => void handleExportProject(),
@@ -1644,30 +1651,16 @@ export function useDmController(): DmController {
 
   const dialogActions = useHandlers({
     close: () => setDialog(null),
-    savePlayerSetup: handleSavePlayerSetup,
     setShowWelcome: (show: boolean) => updateSettings({ showWelcome: show }),
   });
   const dialogs = useMemo<DmDialogs>(
     () => ({
       open: dialog,
-      screenDiagonal,
-      gridSize,
-      portraitRotation,
-      frameColor,
       viewportSize,
       showWelcome,
       ...dialogActions,
     }),
-    [
-      dialog,
-      screenDiagonal,
-      gridSize,
-      portraitRotation,
-      frameColor,
-      viewportSize,
-      showWelcome,
-      dialogActions,
-    ],
+    [dialog, viewportSize, showWelcome, dialogActions],
   );
 
   const calibrationActions = useHandlers({

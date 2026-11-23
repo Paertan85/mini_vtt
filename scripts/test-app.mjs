@@ -162,6 +162,16 @@ app.whenReady().then(async () => {
     js(
       `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === ${JSON.stringify(text)}).click()`,
     );
+  // The Settings dialog: Ctrl+, opens it, its × closes it (Esc would also clear the ruler)
+  const openSettings = async () => {
+    await press(',', { ctrlKey: true });
+    await sleep(200);
+  };
+  const closeSettings = async () => {
+    await click('[role="dialog"] [aria-label="Close"]');
+    await sleep(200);
+  };
+  const settingsCheck = (label) => click(`[role="dialog"] input[aria-label="${label}"]`);
   // The Spells tool's buttons, one per spell area shape
   const addArea = (label) => clickText(label);
   const playerButton = `[...document.querySelectorAll('button')].find((b) => /^(Open|Bring) the player window/.test(b.title))`;
@@ -221,7 +231,7 @@ app.whenReady().then(async () => {
     );
 
     // The welcome screen opens on start-up until its checkbox turns it off,
-    // and the ? button next to Settings brings it back
+    // and the menu (☰) brings it back
     const welcomeOpen = () =>
       js(`document.querySelector('[role="dialog"] h2')?.textContent === 'Welcome to Mini VTT'`);
     const welcomeBox = `[role="dialog"] input[type="checkbox"]`;
@@ -234,9 +244,11 @@ app.whenReady().then(async () => {
     await clickText('Get started');
     await sleep(200);
     check('Get started closes it', !(await js(`!!document.querySelector('[role="dialog"]')`)));
-    await click('[aria-label="Welcome"]');
+    await click('[aria-label="Menu"]');
+    await sleep(100);
+    await clickText('Welcome…');
     check(
-      'the ? button opens it again, with the box still ticked',
+      'Menu → Welcome… opens it again, with the box still ticked',
       (await waitFor(welcomeOpen)) && (await js(`document.querySelector('${welcomeBox}').checked`)),
     );
     await press('Escape');
@@ -1160,12 +1172,13 @@ app.whenReady().then(async () => {
         (await waitFor(async () => (await outlines()) === 1 && (await outlines(player)) === 1)) === true,
       );
       check('that is saved', (await waitFor(() => readIndex().settings.showAreaSquares === true)) === true);
+      await openSettings();
       check(
-        'the settings menu no longer has it',
-        (await js(
-          `[...document.querySelectorAll('[role="menuitemcheckbox"]')].some((b) => b.textContent.includes('squares'))`,
-        )) === false,
+        'Settings doesn’t have it',
+        (await js(`document.querySelector('[role="dialog"]')?.textContent.includes('Affected squares')`)) ===
+          false,
       );
+      await closeSettings();
       await clickText('Affected squares');
       check(
         'a second click hides them in both windows',
@@ -1836,62 +1849,49 @@ app.whenReady().then(async () => {
       `${await distance()}, ${squarePx.toFixed(1)} px squares`,
     );
     check('players don’t see the ruler unless it is shown to them', (await playerRuler()) === null);
-    await click('[aria-label="Settings"]');
-    await sleep(200);
-    await clickText('Movement: every square');
+    await openSettings();
+    check(
+      'Ctrl+, opens the Settings dialog',
+      (await js(`document.querySelector('[role="dialog"] h2')?.textContent`)) === 'Settings',
+    );
+    await clickText('Every square');
     await sleep(600);
     check(
-      'the settings menu makes every square count the same: 15 ft',
+      'Settings makes every square count the same: 15 ft',
       (await distance()) === `${3 * feetPerCell} ft`,
     );
     check('that is saved', (await waitFor(() => readIndex().settings.diagonalRule === 'uniform')) === true);
-    // The map's measured grid on the player screen, from the settings menu
+    // The map's measured grid on the player screen
     const playerGridCell = () =>
       js(`document.querySelector('[aria-label="Grid"] pattern')?.getAttribute('width') ?? null`, player);
-    // Its text starts with a tick while it is on
-    const clickGridItem = () =>
-      js(
-        `[...document.querySelectorAll('[role="menuitemcheckbox"]')].find((b) => b.textContent.endsWith('Show grid on player screen')).click()`,
-      );
+    const gridItem = 'Show the map’s grid on the player screen';
     check('players see no grid until it is shown to them', (await playerGridCell()) === null);
-    await click('[aria-label="Settings"]');
-    await sleep(200);
-    await clickGridItem();
+    await settingsCheck(gridItem);
     check(
-      'the settings menu draws the map’s grid on the player screen',
+      'Settings draws the map’s grid on the player screen',
       (await waitFor(async () => (await playerGridCell()) !== null)) &&
         Math.abs(Number(await playerGridCell()) - measureCell) < 0.01,
       String(await playerGridCell()),
     );
     check('that is saved too', await waitFor(() => readIndex().settings.showGridToPlayers === true));
-    await click('[aria-label="Settings"]');
-    await sleep(200);
-    await clickGridItem();
+    await settingsCheck(gridItem);
     check(
-      'and the menu takes it away again',
+      'and takes it away again',
       (await waitFor(async () => (await playerGridCell()) === null)) &&
         (await waitFor(() => readIndex().settings.showGridToPlayers === false)),
       String(await playerGridCell()),
     );
     // Whether new maps start fully fogged; the main process applies it as a map is added
-    const clickFogNewMapsItem = () =>
-      js(
-        `[...document.querySelectorAll('[role="menuitemcheckbox"]')].find((b) => b.textContent.endsWith('Cover new maps in fog')).click()`,
-      );
     check(
-      'new maps start without fog until the menu says otherwise',
+      'new maps start without fog until Settings says otherwise',
       readIndex().settings.fogNewMaps !== true,
     );
-    await click('[aria-label="Settings"]');
-    await sleep(200);
-    await clickFogNewMapsItem();
+    await settingsCheck('Cover new maps in fog');
     check(
-      'the settings menu has new maps start fully fogged',
+      'Settings has new maps start fully fogged',
       await waitFor(() => readIndex().settings.fogNewMaps === true),
     );
-    await click('[aria-label="Settings"]');
-    await sleep(200);
-    await clickFogNewMapsItem();
+    await settingsCheck('Cover new maps in fog');
     check('and turns it off again', await waitFor(() => readIndex().settings.fogNewMaps === false));
     // The opacity sliders: a drag shows at once and is saved when let go
     const effectsOpacityIn = (target) =>
@@ -1901,7 +1901,7 @@ app.whenReady().then(async () => {
       );
     const moveSlider = (label, value, letGo) =>
       js(`(() => {
-        const input = document.querySelector('[role="menu"] input[aria-label="${label}"]');
+        const input = document.querySelector('[role="dialog"] input[aria-label="${label}"]');
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, '${value}');
         input.dispatchEvent(new Event('input', { bubbles: true }));
         ${letGo ? "input.dispatchEvent(new Event('change', { bubbles: true }));" : ''}
@@ -1911,8 +1911,6 @@ app.whenReady().then(async () => {
       (await effectsOpacityIn()) === '0.35' && (await effectsOpacityIn(player)) === '0.35',
       `${await effectsOpacityIn()}, ${await effectsOpacityIn(player)}`,
     );
-    await click('[aria-label="Settings"]');
-    await sleep(200);
     await moveSlider('Painted effects', 70, false);
     check(
       'dragging the Painted effects slider changes them on both screens',
@@ -1925,14 +1923,12 @@ app.whenReady().then(async () => {
     await moveSlider('Painted effects', 70, true);
     check('letting go saves it', await waitFor(() => readIndex().settings.effectOpacity === 0.7));
     check(
-      'the menu stays open while a slider is used',
-      (await js(`!!document.querySelector('[role="menu"] input[aria-label="Spell areas"]')`)) === true,
+      'and Settings shows the new value',
+      (await js(`document.querySelector('[role="dialog"]').textContent.includes('70 %')`)) === true,
     );
     await moveSlider('Painted effects', 35, true);
     await waitFor(() => readIndex().settings.effectOpacity === 0.35);
-    // Closed with its button: Esc would also clear the ruler
-    await click('[aria-label="Settings"]');
-    await sleep(200);
+    await closeSettings();
     await clickText('Show players');
     check(
       'Show players puts the ruler on the player screen',
@@ -2105,12 +2101,13 @@ app.whenReady().then(async () => {
         (await js(`!!document.querySelector('[aria-label="Slideshow"]')`, player)) === true,
     );
     // The shortest picture time, to see it change
-    await click('[aria-label="Settings"]');
-    await clickText('Slideshow: 10 seconds a picture');
+    await openSettings();
+    await clickText('10 seconds');
     check(
       'the picture time is a setting',
       (await waitFor(() => readIndex().settings.slideshowSeconds === 10)) === true,
     );
+    await closeSettings();
     const nextSlide = await waitFor(async () => {
       const shown = await slides();
       return shown.some((slide) => isPicture(slide, 1) && slide.loaded && slide.shown) && shown;
@@ -2132,13 +2129,14 @@ app.whenReady().then(async () => {
       const showOpenDialog = dialog.showOpenDialog;
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [chosenSlides] });
       try {
-        await click('[aria-label="Menu"]');
-        await clickText('Slideshow folder…');
+        await openSettings();
+        await clickText('Choose folder…');
         check(
-          'a chosen slideshow folder is kept and shown at once',
+          'a slideshow folder chosen in Settings is kept and shown at once',
           (await waitFor(() => readIndex().settings.slideshowFolder === chosenSlides)) === true &&
             (await waitFor(() => dmText('Players see the slideshow: one picture from “Chosen”'))) === true,
         );
+        await closeSettings();
       } finally {
         dialog.showOpenDialog = showOpenDialog;
       }
@@ -2327,17 +2325,48 @@ app.whenReady().then(async () => {
     await tab('Maps');
     await sleep(300);
 
-    // Player screen setup: new maps and handouts taller than wide can be turned
-    await click('[aria-label="Settings"]');
+    // Settings → Player screen: new maps and handouts taller than wide can be turned
+    await click('[aria-label="Menu"]');
+    await sleep(100);
+    await js(
+      `[...document.querySelectorAll('[role="menuitem"]')].find((b) => b.textContent.startsWith('Settings…')).click()`,
+    );
     await sleep(200);
-    await clickText('Player screen setup…');
-    await sleep(300);
+    check(
+      'Menu → Settings… opens Settings too',
+      (await js(`document.querySelector('[role="dialog"] h2')?.textContent`)) === 'Settings',
+    );
     await clickText('Rotate right');
     await click('[aria-label="Magenta"]');
-    await clickText('Save');
-    await sleep(600);
+    // A typed diagonal is kept when the dialog closes, even without Enter
+    const diagonalField = `[...document.querySelectorAll('[role="dialog"] label')].find((l) => l.textContent.startsWith('Screen diagonal')).querySelector('input')`;
+    const typeDiagonal = (value) =>
+      js(`(() => {
+        const input = ${diagonalField};
+        input.focus();
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, '${value}');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      })()`);
+    const savedDiagonal = readIndex().settings.playerScreenDiagonal;
+    await typeDiagonal('32');
+    await closeSettings();
     check(
-      'player screen setup saves how new portrait maps and handouts are turned',
+      'a diagonal typed in Settings is saved when it closes',
+      (await waitFor(() => readIndex().settings.playerScreenDiagonal === 32)) === true,
+      String(readIndex().settings.playerScreenDiagonal),
+    );
+    await openSettings();
+    await typeDiagonal(String(savedDiagonal ?? ''));
+    // The test window has no focus, so blur() sends no event: send React's focusout itself
+    await js(`(${diagonalField}).dispatchEvent(new FocusEvent('focusout', { bubbles: true }))`);
+    check(
+      'and one typed and left is saved at once',
+      (await waitFor(() => readIndex().settings.playerScreenDiagonal === savedDiagonal)) === true,
+      String(readIndex().settings.playerScreenDiagonal),
+    );
+    await closeSettings();
+    check(
+      'Settings saves how new portrait maps and handouts are turned',
       (await waitFor(() => readIndex().settings.portraitRotation === 90)) === true,
       JSON.stringify(readIndex().settings),
     );
@@ -2444,10 +2473,10 @@ app.whenReady().then(async () => {
         (await fogAlphaAt(0.5, 0.5)) === 0 && (await playerFogAlpha()) === 0,
         `${await fogAlphaAt(0.5, 0.5)}, ${await playerFogAlpha()}`,
       );
-      await click('[aria-label="Settings"]');
-      await sleep(200);
-      await clickFogNewMapsItem();
+      await openSettings();
+      await settingsCheck('Cover new maps in fog');
       await waitFor(() => readIndex().settings.fogNewMaps === true);
+      await closeSettings();
       check('Add maps… loads the next new map', await addFromDialog());
       check(
         'with Cover new maps in fog on, it starts fully fogged, for players too',

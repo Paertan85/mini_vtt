@@ -14,14 +14,30 @@ All notable changes to this project are documented here. The format is based on
   DM can load the next map, frame it and reveal its first room meanwhile; P
   again, or **Show the map** in the bar that says the slideshow is on, shows
   it. The pictures come from the `slideshow` folder in the library folder
-  (**Menu (☰) → Open slideshow folder**), or another one chosen with
-  **Menu (☰) → Slideshow folder…**, in name order (2 before 10). The folder
+  (**Settings → Slideshow → Open folder**), or another one chosen with
+  **Choose folder…** there, in name order (2 before 10). The folder
   is read each time the slideshow starts, so pictures added since are in it.
   One picture is shown at a time, fitted to the screen and fading in over
   the one before; pictures taller than wide are turned like portrait
   handouts. Each one stays 20 seconds, or 10 seconds or a minute
   (**Settings**). The slideshow takes the place of Blackout: B and P swap
   one for the other. A video map is paused beneath it, as under Blackout.
+
+### Changed
+
+- **A calmer toolbar.** Toolbar buttons have no border of their own, and the
+  tools and each set of choices sit in a dark strip, so the current tool and
+  the options that are on stand out from the rest.
+- **Settings is a dialog** (**Menu (☰) → Settings…**, or Ctrl+,) with every
+  setting in one place: the player screen (what Player screen setup had, and
+  the grid on the player screen), the tools, the opacity sliders and the
+  slideshow's picture time and folder. Changes apply at once, and the map
+  behind it stays in view, so an opacity change shows as it is made.
+- **One menu (☰)** in place of the ?, Settings and ☰ buttons: Settings…,
+  Measure map grid…, Keyboard shortcuts…, Welcome…, the project files and the
+  window.
+- The library panel no longer has a title row above its tabs, which leaves
+  more room for maps.
 
 ## 1.6.0 - 2026-11-22
 

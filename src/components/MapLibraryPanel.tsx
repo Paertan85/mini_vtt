@@ -41,11 +41,8 @@ export const MapLibraryPanel = memo(function MapLibraryPanel({
       id="library-panel"
       className={`${hidden ? 'hidden' : 'flex'} min-h-0 w-72 shrink-0 flex-col border-r border-line bg-panel`}
     >
-      <div className="flex h-12 shrink-0 items-center border-b border-line px-4">
-        <h1 className="font-display text-[17px] font-semibold tracking-wider text-ink">Mini VTT</h1>
-      </div>
-
-      <div role="tablist" aria-label="Library" className="flex shrink-0 border-b border-line px-2">
+      {/* No title row: the window's title names the app, and the tabs line up with the toolbar */}
+      <div role="tablist" aria-label="Library" className="flex h-12 shrink-0 border-b border-line px-2">
         {(['maps', 'handouts'] as const).map((name) => {
           const count = name === 'maps' ? library.maps.length : library.handouts.length;
           const selected = tab === name;
@@ -55,7 +52,7 @@ export const MapLibraryPanel = memo(function MapLibraryPanel({
               role="tab"
               aria-selected={selected}
               onClick={() => setTab(name)}
-              className={`-mb-px flex h-10 items-center gap-1.5 border-b-2 px-3 text-[13px] font-medium transition-colors ${
+              className={`-mb-px flex items-center gap-1.5 border-b-2 px-3 text-[13px] font-medium transition-colors ${
                 selected ? 'border-gold text-ink' : 'border-transparent text-muted hover:text-ink'
               }`}
             >

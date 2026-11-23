@@ -27,6 +27,7 @@ export type Command =
   | 'nudgeArea'
   | 'loadSelectedMap'
   | 'showShortcuts'
+  | 'openSettings'
   | 'zoomIn'
   | 'zoomOut'
   | 'toggleZoomLock'
@@ -86,6 +87,8 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
   { command: 'nudgeArea', key: 'ArrowDown' },
   { command: 'loadSelectedMap', key: 'Enter', label: 'Enter' },
   { command: 'showShortcuts', key: '?', label: '?' },
+  // The settings key in browsers, editors and macOS apps
+  { command: 'openSettings', key: ',', ctrl: true, label: 'Ctrl+,' },
   { command: 'zoomIn', key: '+', label: '+' },
   { command: 'zoomIn', key: '=' },
   { command: 'zoomOut', key: '-', label: '−' },
@@ -177,6 +180,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       ['Undo', [keys('undo')], 'Fog; effects or markers in their own tool'],
       ['Redo', [keys('redo')]],
       ['Show this list', [keys('showShortcuts')]],
+      ['Settings', [keys('openSettings')]],
     ],
   },
   {
