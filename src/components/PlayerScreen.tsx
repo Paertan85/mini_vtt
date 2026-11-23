@@ -1,14 +1,22 @@
 // The player screen: shows the framed part of the map with solid black fog,
-// plus handouts and blackout. Everything is driven from the DM window over IPC;
-// this window only reports its size back.
+// plus handouts, blackout, the slideshow and the kill screen. Everything is
+// driven from the DM window over IPC; this window only reports its size back.
 //
 // Its two buttons (full screen, close handout) fade out when the mouse is idle,
 // so players see nothing but the map. A double-click anywhere else also
 // toggles full screen.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Maximize2, Minimize2, X } from 'lucide-react';
-import type { EffectSnapshot, FogSnapshot, KillScreen, MapState, PlayerGrid, RulerState } from '../types/map';
+import type {
+  EffectSnapshot,
+  FogSnapshot,
+  KillScreen,
+  MapState,
+  PlayerGrid,
+  RulerState,
+  Slideshow,
+} from '../types/map';
 import { mediaUrlOf } from '../lib/media';
 import { drawSnapshot, fillMask, fogMaskSize, loadImage } from '../lib/fog';
 import { showLayer } from '../lib/effects';
@@ -18,6 +26,7 @@ import { RulerGraphic } from './MeasureLayer';
 import { clamp, mapToOriented, wheelPixels, type Size } from '../lib/geometry';
 import { keyLabel } from '../lib/platform';
 import { releaseVideo } from '../lib/video';
+import { slideshowPictureUrl } from '../lib/slideshow';
 
 const PLAYER_FOG_COLOR = '#000000';
 const MIN_HANDOUT_ZOOM = 0.1;
@@ -38,6 +47,7 @@ const INITIAL_STATE: MapState = {
   handoutRotation: 0,
   blackout: false,
   killScreen: null,
+  slideshow: null,
   areas: [],
   grid: null,
   areaGrid: null,
@@ -263,12 +273,13 @@ export function PlayerScreen() {
   }, []);
 
   // Pause a video map while it is covered, to save power
+  const mapCovered = !!(state.handoutUrl || state.blackout || state.slideshow || state.killScreen);
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (state.handoutUrl || state.blackout || state.killScreen) video.pause();
+    if (mapCovered) video.pause();
     else void video.play().catch(() => undefined);
-  }, [state.handoutUrl, state.blackout, state.killScreen, state.mediaUrl]);
+  }, [mapCovered, state.mediaUrl]);
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -385,6 +396,14 @@ export function PlayerScreen() {
 
       {state.blackout && <div className="absolute inset-0 z-20 bg-black" aria-label="Blackout" />}
 
+      {state.slideshow && (
+        <SlideshowOverlay
+          // A new listing starts again from its first picture
+          key={state.slideshow.listing}
+          {...state.slideshow}
+        />
+      )}
+
       {(state.killScreen ?? leavingKillScreen) && (
         <KillScreenOverlay
           killScreen={(state.killScreen ?? leavingKillScreen) as KillScreen}
@@ -402,6 +421,132 @@ export function PlayerScreen() {
         {isFullScreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
       </button>
     </main>
+  );
+}
+
+// ─── Slideshow ────────────────────────────────────────────────────────────────
+
+/** How long a picture takes to fade in over the one before; as .slide-in in index.css */
+const SLIDE_FADE_MS = 800;
+
+/**
+ * Pictures from the slideshow folder over the map, one at a time, each fitted
+ * to the screen and turned like a portrait handout when taller than wide.
+ * The next picture loads behind the one shown and fades in over it once it
+ * has loaded; the one before is dropped when the fade is over, so only one
+ * picture is kept apart from that moment. One timer, started once a picture
+ * has loaded, so a large one still gets its full time; none for a single
+ * picture, and nothing runs once the slideshow is hidden. Memoized on plain
+ * values: the DM framing the next map meanwhile re-renders this window often.
+ */
+const SlideshowOverlay = memo(function SlideshowOverlay({
+  listing,
+  count,
+  seconds,
+  portraitRotation,
+}: Slideshow) {
+  const [index, setIndex] = useState(0);
+  // The picture shown before, kept under this one until it has faded in
+  const [previous, setPrevious] = useState<number | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  // Pictures in a row that wouldn't load: once all have failed, it stops trying
+  const failuresRef = useRef(0);
+
+  useEffect(() => {
+    if (!loaded || count < 2) return;
+    const timer = window.setTimeout(() => {
+      setPrevious(index);
+      setIndex((index + 1) % count);
+      setLoaded(false);
+    }, seconds * 1000);
+    return () => window.clearTimeout(timer);
+  }, [loaded, index, count, seconds]);
+
+  // On a timer rather than animationend, which a hidden window may never fire
+  useEffect(() => {
+    if (!loaded || previous === null) return;
+    const timer = window.setTimeout(() => setPrevious(null), SLIDE_FADE_MS);
+    return () => window.clearTimeout(timer);
+  }, [loaded, previous]);
+
+  const handleLoad = () => {
+    failuresRef.current = 0;
+    setLoaded(true);
+  };
+  // A picture removed or damaged since the folder was listed: on to the next,
+  // keeping the one before on screen
+  const handleError = () => {
+    failuresRef.current += 1;
+    if (failuresRef.current >= count) return;
+    const next = (index + 1) % count;
+    setIndex(next);
+    // Round to the picture still on screen: it stays, and its time starts again
+    if (next === previous) {
+      setPrevious(null);
+      setLoaded(true);
+    }
+  };
+
+  const shown = previous === null ? [index] : [previous, index];
+  return (
+    <div aria-label="Slideshow" className="absolute inset-0 z-20 overflow-hidden bg-black">
+      {shown.map((picture) => (
+        <SlideshowPicture
+          key={picture}
+          url={slideshowPictureUrl(listing, picture)}
+          portraitRotation={portraitRotation}
+          // The picture before stays as it is; the new one waits until it has loaded
+          visible={picture !== index || loaded}
+          fadeIn={picture === index && previous !== null}
+          onLoad={picture === index ? handleLoad : undefined}
+          onError={picture === index ? handleError : undefined}
+        />
+      ))}
+    </div>
+  );
+});
+
+interface SlideshowPictureProps {
+  url: string;
+  portraitRotation: number;
+  visible: boolean;
+  /** Fades in over the picture before, rather than appearing at once */
+  fadeIn: boolean;
+  onLoad?: () => void;
+  onError?: () => void;
+}
+
+/** One picture, as large as the screen allows; turned when taller than wide. */
+function SlideshowPicture({
+  url,
+  portraitRotation,
+  visible,
+  fadeIn,
+  onLoad,
+  onError,
+}: SlideshowPictureProps) {
+  const [portrait, setPortrait] = useState(false);
+  const rotation = portrait ? portraitRotation : 0;
+  const sideways = rotation % 180 !== 0;
+  return (
+    <img
+      src={url}
+      alt=""
+      draggable={false}
+      decoding="async"
+      onLoad={(event) => {
+        const { naturalWidth, naturalHeight } = event.currentTarget;
+        setPortrait(naturalHeight > naturalWidth);
+        onLoad?.();
+      }}
+      onError={onError}
+      className={`absolute left-1/2 top-1/2 max-w-none object-contain ${visible ? (fadeIn ? 'slide-in' : '') : 'invisible'}`}
+      style={{
+        width: sideways ? '100vh' : '100vw',
+        height: sideways ? '100vw' : '100vh',
+        transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+      }}
+    />
   );
 }
 

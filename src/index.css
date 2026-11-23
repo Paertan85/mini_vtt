@@ -102,6 +102,11 @@
     animation: kill-fade-out 700ms ease-in-out both;
   }
 
+  /* A slideshow picture fading in over the one before; as SLIDE_FADE_MS in PlayerScreen.tsx */
+  .slide-in {
+    animation: kill-fade 800ms ease-out both;
+  }
+
   .kill-screen-text {
     color: #c8161d;
     text-shadow: 0 0 0.25em rgb(160 0 0 / 0.6);

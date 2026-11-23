@@ -315,6 +315,90 @@ app.whenReady().then(async () => {
       await lib.saveSettings({ playerScreenDiagonal: before.playerScreenDiagonal });
     }
 
+    // ── Slideshow ────────────────────────────────────────────────────────────
+    check(
+      'the slideshow shows each picture for 20 seconds until changed',
+      (await lib.loadSnapshot()).settings.slideshowSeconds === 20,
+    );
+    check(
+      'only the offered picture times are taken',
+      (await lib.saveSettings({ slideshowSeconds: 15 })) === false &&
+        (await lib.saveSettings({ slideshowSeconds: 60 })) === true &&
+        (await lib.loadSnapshot()).settings.slideshowSeconds === 60,
+    );
+    check(
+      'a window can’t set the slideshow folder',
+      (await lib.saveSettings({ slideshowFolder: tmp })) === false &&
+        !('slideshowFolder' in (await lib.loadSnapshot()).settings),
+    );
+    {
+      const ownFolder = path.join(tmp, 'library', 'slideshow');
+      const empty = await lib.listSlideshow();
+      check(
+        'the library’s own slideshow folder is made when first listed',
+        empty.count === 0 && empty.folderName === 'slideshow' && (await exists(ownFolder)),
+        JSON.stringify(empty),
+      );
+      // Images by their first bytes, in name order with numbers counted; not
+      // other files, hidden ones or those in folders inside it
+      await fs.writeFile(path.join(ownFolder, '10 second.png'), makePng({ rgb: [200, 40, 40] }));
+      await fs.writeFile(path.join(ownFolder, '2 first.jpg'), makePng({ rgb: [40, 200, 40] }));
+      await fs.writeFile(path.join(ownFolder, 'notes.txt'), 'not a picture');
+      await fs.writeFile(path.join(ownFolder, '.hidden.png'), makePng());
+      await fs.mkdir(path.join(ownFolder, 'inner'));
+      await fs.writeFile(path.join(ownFolder, 'inner', 'deeper.png'), makePng());
+      const listed = await lib.listSlideshow();
+      const picture = (index) => lib.slideshowPicture(`s_${listed.listing}_${index}`);
+      check(
+        'the slideshow lists the pictures in its folder, in name order',
+        listed.count === 2 &&
+          picture(0)?.file.endsWith('2 first.jpg') &&
+          picture(1)?.file.endsWith('10 second.png') &&
+          picture(2) === null,
+        JSON.stringify([listed, picture(0), picture(1)]),
+      );
+      check('a picture is served as what its bytes say it is', picture(0)?.type === 'image/png');
+      check(
+        'only the latest listing is served',
+        lib.isCurrentListing(listed.listing, 2) &&
+          !lib.isCurrentListing(listed.listing, 3) &&
+          !lib.isCurrentListing(empty.listing, 0) &&
+          lib.isSlideshowId(`s_${listed.listing}_0`) &&
+          !lib.isSlideshowId(a.id),
+      );
+      const relisted = await lib.listSlideshow();
+      check(
+        'a new listing has a new name, and the old one is no longer served',
+        relisted.listing !== listed.listing &&
+          !lib.isCurrentListing(listed.listing, 2) &&
+          lib.slideshowPicture(`s_${listed.listing}_0`) === null,
+      );
+
+      // A folder the DM chose is kept, and survives other settings changes
+      const chosen = path.join(fixtures, 'Break pictures');
+      await fs.mkdir(chosen, { recursive: true });
+      await fs.writeFile(path.join(chosen, 'only.png'), makePng({ rgb: [40, 40, 200] }));
+      await lib.setSlideshowFolder(chosen);
+      await lib.saveSettings({ gridSize: 5 });
+      const fromChosen = await lib.listSlideshow();
+      check(
+        'the slideshow shows the folder the DM chose',
+        (await lib.slideshowFolder()) === chosen &&
+          (await lib.loadSnapshot()).settings.slideshowFolder === chosen &&
+          fromChosen.count === 1 &&
+          fromChosen.folderName === 'Break pictures',
+        JSON.stringify(fromChosen),
+      );
+      const gone = path.join(fixtures, 'Gone');
+      await lib.setSlideshowFolder(gone);
+      const fromGone = await lib.listSlideshow();
+      check(
+        'a chosen folder that is gone has no pictures, and isn’t made',
+        fromGone.count === 0 && !(await exists(gone)),
+      );
+      await lib.setSlideshowFolder(chosen);
+    }
+
     // ── Rename and reorder ───────────────────────────────────────────────────
     check('rename rejects a blank name', (await lib.renameMap(a.id, '   ')) === false);
     check('reorder accepts a full permutation', (await lib.reorderMaps([a.id, b.id])) === true);

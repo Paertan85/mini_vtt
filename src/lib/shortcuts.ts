@@ -40,6 +40,7 @@ export type Command =
   | 'measureTool'
   | 'markersTool'
   | 'blackout'
+  | 'slideshow'
   | 'killScreen';
 
 export interface KeyBinding {
@@ -101,6 +102,8 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
   // K for marKers: M is the Measure tool
   { command: 'markersTool', key: 'k', label: 'K' },
   { command: 'blackout', key: 'b', label: 'B' },
+  // P for pictures: S is the Spells tool
+  { command: 'slideshow', key: 'p', label: 'P' },
   { command: 'killScreen', key: 'k', ctrl: true, label: 'Ctrl+K' },
 ];
 
@@ -164,6 +167,11 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       ['Spells tool', [keys('shapesTool')]],
       ['Markers tool', [keys('markersTool')]],
       ['Blackout the player screen', [keys('blackout')]],
+      [
+        'Show or hide the slideshow',
+        [keys('slideshow')],
+        'Pictures from the slideshow folder in place of the map, while you get the next one ready',
+      ],
       ['Show or hide the kill screen', [keys('killScreen')], 'Red words on black, for a kill'],
       ['Hide or show everything but the map', [keys('toggleInterface')], 'For small screens'],
       ['Undo', [keys('undo')], 'Fog; effects or markers in their own tool'],

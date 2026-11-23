@@ -44,6 +44,16 @@ export function App() {
               {keyLabel('Players see the kill screen. Ctrl+K hides it.')}
             </span>
           </div>
+        ) : playerScreen.slideshow ? (
+          <div className="flex h-9 shrink-0 items-center gap-3 border-b border-crimson bg-crimson-deep px-3 text-[13px]">
+            <span className="h-2 w-2 rounded-full bg-crimson-bright" aria-hidden="true" />
+            <span className="flex-1 truncate text-ink">
+              {`Players see the slideshow: ${playerScreen.slideshow.count === 1 ? 'one picture' : `${playerScreen.slideshow.count} pictures`} from “${playerScreen.slideshow.folderName}”. Get the next map ready; they see it when you show the map.`}
+            </span>
+            <Button tone="quiet" className="h-7" onClick={playerScreen.toggleSlideshow}>
+              Show the map
+            </Button>
+          </div>
         ) : (
           (playerScreen.blackout || playerScreen.activeHandoutId) && (
             <div className="flex h-9 shrink-0 items-center gap-3 border-b border-crimson bg-crimson-deep px-3 text-[13px]">

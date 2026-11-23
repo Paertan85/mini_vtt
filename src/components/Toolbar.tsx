@@ -5,7 +5,8 @@
 //           colours and the spell areas to add, how the Measure tool counts
 //           diagonals, or the markers' colour, size and Clear
 //   centre  player view zoom, Fill screen and True scale
-//   right   player screen, blackout, the welcome screen, settings and the menu
+//   right   player screen, blackout, slideshow, the welcome screen, settings
+//           and the menu
 //
 // Solid gold marks the current tool; options and toggles that are on get a
 // gold outline (tone "on"), so the tool stands out (NN/g, "Modes in user
@@ -47,6 +48,7 @@ import {
 } from '../lib/markers';
 import { keyLabel } from '../lib/platform';
 import { OPACITY_MAX, OPACITY_MIN } from '../lib/settings';
+import { SLIDESHOW_SECONDS } from '../lib/slideshow';
 import {
   BRUSH_STEP,
   MAX_BRUSH,
@@ -624,6 +626,14 @@ export const Toolbar = memo(function Toolbar({
         Blackout
       </Button>
       <Button
+        tone={playerScreen.slideshow ? 'live' : 'default'}
+        aria-pressed={!!playerScreen.slideshow}
+        onClick={playerScreen.toggleSlideshow}
+        title="Slideshow (P): show the pictures in the slideshow folder in place of the map, while you get the next one ready. Choose the folder in the menu (☰)."
+      >
+        Slideshow
+      </Button>
+      <Button
         square
         tone="quiet"
         onClick={app.openWelcome}
@@ -676,6 +686,12 @@ export const Toolbar = memo(function Toolbar({
             onChange: (value: number, done: boolean) => settings.setOpacity(layer, value / 100, done),
             separated: index === 0,
           })),
+          ...SLIDESHOW_SECONDS.map((seconds, index) => ({
+            label: `Slideshow: ${slideshowTime(seconds)} a picture`,
+            onSelect: () => settings.setSlideshowSeconds(seconds),
+            checked: settings.slideshowSeconds === seconds,
+            separated: index === 0,
+          })),
         ]}
         trigger={(trigger) => (
           <Button {...trigger} square tone="quiet" aria-label="Settings" title="Settings">
@@ -690,6 +706,8 @@ export const Toolbar = memo(function Toolbar({
           { label: 'Export project…', onSelect: app.exportProject, separated: true },
           { label: 'Import project…', onSelect: app.importProject },
           { label: 'Open library folder', onSelect: app.revealLibraryFolder },
+          { label: 'Slideshow folder…', onSelect: app.chooseSlideshowFolder, separated: true },
+          { label: 'Open slideshow folder', onSelect: app.revealSlideshowFolder },
           {
             label: 'Full screen',
             onSelect: app.toggleFullScreen,
@@ -706,7 +724,7 @@ export const Toolbar = memo(function Toolbar({
             square
             tone="quiet"
             aria-label="Menu"
-            title="Menu: keyboard shortcuts, project files and the window"
+            title="Menu: keyboard shortcuts, project files, the slideshow folder and the window"
           >
             <MenuIcon className="h-4 w-4" />
           </Button>
@@ -715,6 +733,9 @@ export const Toolbar = memo(function Toolbar({
     </div>
   );
 });
+
+/** How long the slideshow shows a picture, as the settings menu says it: “20 seconds”, “1 minute”. */
+const slideshowTime = (seconds: number) => (seconds === 60 ? '1 minute' : `${seconds} seconds`);
 
 /** − [ 100 % ] +  The field accepts a typed percentage on Enter or blur. */
 function ZoomControl({

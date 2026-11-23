@@ -63,6 +63,15 @@ export {
   sniffVideoCodec,
 } from './mediaFiles';
 export { exportProject, importProject, ProjectError } from './project';
+export {
+  defaultSlideshowFolder,
+  isCurrentListing,
+  isSlideshowId,
+  listSlideshow,
+  setSlideshowFolder,
+  slideshowFolder,
+  slideshowPicture,
+} from './slideshow';
 
 // A removed map's or handout's folder is first renamed with this prefix, then
 // deleted. The dot keeps it from ever matching an id.

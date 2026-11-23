@@ -21,7 +21,6 @@ Have an idea? Open an [issue](https://github.com/Paertan85/mini_vtt/issues).
 - **Get the next map ready without showing it:** load and frame a map, cover it and reveal its first room in the DM window while the players still see the current one, then show it with one key. Each window would still hold one map, so it costs no more memory than now.
 - **Smaller copies of very large maps** (maybe): when a map much larger than the screens can show is added, offer to keep a smaller copy, as the app already suggests for videos too large to play smoothly. A 318-megapixel map uses 3 GB or more while it is shown (see Known limitations in the README), and on the game laptop (integrated graphics, player screen on a 4K TV) dragging the view lags with it, though play with a still view is fine.
 - **PDF handouts:** show a page of a PDF as a handout, with Chromium's built-in PDF viewer, which Electron has on every platform. For now, export the page as an image.
-- **A slideshow for breaks:** a folder of pictures (character art, the world map, whatever the group likes) that the player screen shows one after another while the DM is busy, in place of Blackout's black screen, so the players have something to look at while the DM prepares or waits. The folder sits in the library folder (**Menu (☰) → Open library folder**), or is one the DM picks. One picture shown at a time, changed on a single timer that stops with the slideshow, costs no more than a handout.
 
 ### Grid and measuring
 

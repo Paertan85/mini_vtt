@@ -2050,6 +2050,108 @@ app.whenReady().then(async () => {
     await press('k', { ctrlKey: true });
     await waitFor(async () => (await killScreen()) === null);
 
+    // The slideshow: pictures from the slideshow folder in place of the map,
+    // while the DM gets the next map ready
+    const dmText = (text) => js(`document.body.textContent.includes(${JSON.stringify(text)})`);
+    await press('p');
+    check(
+      'with no pictures in the slideshow folder, P says so',
+      (await waitFor(() => dmText('There are no pictures in the slideshow folder “slideshow”'))) === true &&
+        (await js(`!document.querySelector('[aria-label="Slideshow"]')`, player)) === true,
+    );
+    // The approved plain grey images, one taller than wide
+    const slideshowDir = path.join(libraryDir, 'slideshow');
+    fs.writeFileSync(path.join(slideshowDir, '1 tall.png'), makePng(300, 600));
+    fs.writeFileSync(path.join(slideshowDir, '2 wide.png'), makePng(800, 600));
+    // Picture `index` of the listing shown (Chromium adds a slash after the host)
+    const isPicture = (slide, index) => new RegExp(`^map-media://s_[a-z0-9]+_${index}/?$`).test(slide.src);
+    const slides = () =>
+      js(
+        `[...document.querySelectorAll('[aria-label="Slideshow"] img')].map((img) => ({
+          src: img.src, loaded: img.complete && img.naturalWidth > 0,
+          shown: !img.classList.contains('invisible'), transform: img.style.transform }))`,
+        player,
+      );
+    await press('b');
+    await press('p');
+    const firstSlide = await waitFor(async () => {
+      const shown = await slides();
+      return shown.length === 1 && shown[0].loaded && shown[0].shown && shown;
+    });
+    check(
+      'P shows the first picture, turned like a portrait handout',
+      !!firstSlide && isPicture(firstSlide[0], 0) && firstSlide[0].transform.includes('rotate(270deg)'),
+      JSON.stringify(firstSlide),
+    );
+    check(
+      'it replaces a blackout',
+      (await js(`!document.querySelector('[aria-label="Blackout"]')`, player)) === true,
+    );
+    check(
+      'and the DM window says so, in Blackout’s red',
+      (await dmText('Players see the slideshow: 2 pictures from “slideshow”')) &&
+        (await liveMark()).live?.includes('text-crimson-bright') === true,
+    );
+    // Getting the next map ready: players keep seeing the slideshow
+    const playerMap = async () =>
+      (await js(`document.querySelector('img[src^="map-media://m_"]')?.src ?? ''`, player)).replace(
+        /\/$/,
+        '',
+      );
+    await loadMap('Beta');
+    check(
+      'a map loaded during the slideshow goes to the player screen beneath it',
+      (await waitFor(async () => (await playerMap()) === 'map-media://m_beta')) === true &&
+        (await js(`!!document.querySelector('[aria-label="Slideshow"]')`, player)) === true,
+    );
+    // The shortest picture time, to see it change
+    await click('[aria-label="Settings"]');
+    await clickText('Slideshow: 10 seconds a picture');
+    check(
+      'the picture time is a setting',
+      (await waitFor(() => readIndex().settings.slideshowSeconds === 10)) === true,
+    );
+    const nextSlide = await waitFor(async () => {
+      const shown = await slides();
+      return shown.some((slide) => isPicture(slide, 1) && slide.loaded && slide.shown) && shown;
+    }, 15000);
+    check(
+      'the next picture comes after the picture time, not turned',
+      !!nextSlide && nextSlide.find((slide) => isPicture(slide, 1)).transform.includes('rotate(0deg)'),
+      JSON.stringify(nextSlide),
+    );
+    check(
+      'and the one before is let go once it has faded in',
+      (await waitFor(async () => (await slides()).length === 1)) === true,
+    );
+    // A folder the DM chooses takes over at once while the slideshow is on
+    const chosenSlides = path.join(userData, 'Chosen');
+    fs.mkdirSync(chosenSlides, { recursive: true });
+    fs.writeFileSync(path.join(chosenSlides, 'grey.png'), makePng(800, 600));
+    {
+      const showOpenDialog = dialog.showOpenDialog;
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [chosenSlides] });
+      try {
+        await click('[aria-label="Menu"]');
+        await clickText('Slideshow folder…');
+        check(
+          'a chosen slideshow folder is kept and shown at once',
+          (await waitFor(() => readIndex().settings.slideshowFolder === chosenSlides)) === true &&
+            (await waitFor(() => dmText('Players see the slideshow: one picture from “Chosen”'))) === true,
+        );
+      } finally {
+        dialog.showOpenDialog = showOpenDialog;
+      }
+    }
+    await clickText('Show the map');
+    check(
+      'Show the map ends the slideshow, and players see the map made ready',
+      (await waitFor(() => js(`!document.querySelector('[aria-label="Slideshow"]')`, player))) === true &&
+        (await playerMap()) === 'map-media://m_beta',
+    );
+    await loadMap('Alpha');
+    await waitFor(async () => (await zoomText()) === '250');
+
     // Zoom out to 150% on Alpha, switch to Beta and back
     for (let i = 0; i < 3; i++) await click('[aria-label="Zoom out"]');
     check('zoom steps down to 150%', (await zoomText()) === '150', `${await zoomText()}%`);

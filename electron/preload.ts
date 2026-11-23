@@ -18,6 +18,7 @@ import type {
   ProjectImportSummary,
   ProjectResult,
   RulerState,
+  SlideshowListing,
   VideoCodec,
 } from '../src/types/map';
 import type { SettingsPatch } from '../src/lib/settings';
@@ -83,6 +84,14 @@ const api = {
   rotateHandout: (id: string, rotation: number): Promise<boolean> =>
     ipcRenderer.invoke('library:rotateHandout', id, rotation),
   removeHandout: (id: string): Promise<boolean> => ipcRenderer.invoke('library:removeHandout', id),
+
+  // ─── Slideshow ──────────────────────────────────────────────────────────────
+
+  /** Lists the slideshow folder's pictures, for the player screen to show. */
+  listSlideshow: (): Promise<SlideshowListing> => ipcRenderer.invoke('slideshow:list'),
+  /** Opens a folder dialog and keeps the folder chosen; its listing, or null if cancelled. */
+  chooseSlideshowFolder: (): Promise<SlideshowListing | null> => ipcRenderer.invoke('slideshow:chooseFolder'),
+  revealSlideshowFolder: (): Promise<boolean> => ipcRenderer.invoke('slideshow:revealFolder'),
 
   // ─── Player window ──────────────────────────────────────────────────────────
 

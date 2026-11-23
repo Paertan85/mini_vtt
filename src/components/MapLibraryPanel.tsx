@@ -13,7 +13,7 @@ import type { DmLibrary, DmPlayerScreen, OrientationChange } from '../hooks/useD
 interface MapLibraryPanelProps {
   /** The maps and handouts, which are selected, and what can be done with them */
   library: DmLibrary;
-  /** Cards are marked Live only while the player screen is open, in Blackout's red during a blackout */
+  /** Cards are marked Live only while the player screen is open, in Blackout's red while it is covered */
   playerScreen: DmPlayerScreen;
   /** Hidden panels keep their state (such as the open tab) */
   hidden: boolean;
@@ -205,7 +205,7 @@ function MapList({ library, playerScreen }: ListProps) {
               name={map.name}
               selected={map.id === selectedMapId}
               live={playerScreen.playerOpen && isCurrent}
-              blackout={playerScreen.blackout}
+              covered={playerScreen.blackout || !!playerScreen.slideshow}
               details={details}
               thumb={<Thumb id={map.id} kind="map" image={map.mediaType === 'image'} width={map.width} />}
               renaming={renamingId === map.id}
@@ -248,7 +248,7 @@ function HandoutList({ library, playerScreen }: ListProps) {
               name={handout.name}
               selected={handout.id === selectedHandoutId}
               live={playerScreen.playerOpen && isActive}
-              blackout={playerScreen.blackout}
+              covered={playerScreen.blackout || !!playerScreen.slideshow}
               details={handout.rotation ? [`Rotated ${handout.rotation}°`] : []}
               thumb={<Thumb id={handout.id} kind="handout" image width={handout.width} />}
               onClick={() => library.selectHandout(handout.id)}
@@ -285,8 +285,8 @@ interface CardProps {
   selected: boolean;
   /** Visible to players right now: marked Live */
   live: boolean;
-  /** The player screen is blacked out, so Live is the Blackout button's red */
-  blackout: boolean;
+  /** A blackout or the slideshow covers the player screen, so Live is the Blackout button's red */
+  covered: boolean;
   details: Detail[];
   thumb: React.ReactNode;
   menu: MenuItem[];
@@ -326,7 +326,7 @@ function Card(props: CardProps) {
             <span className="line-clamp-2 text-xs text-muted">
               {/* Gold, like the border of the selected card */}
               {props.live && (
-                <span className={`font-medium ${props.blackout ? 'text-crimson-bright' : 'text-gold'}`}>
+                <span className={`font-medium ${props.covered ? 'text-crimson-bright' : 'text-gold'}`}>
                   Live
                 </span>
               )}

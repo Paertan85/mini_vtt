@@ -25,8 +25,10 @@ export function useSettings(): Settings {
     [],
   );
   const restore = useCallback(
-    // Everything but the loaded map and the map order, which useDmController and the library keep
-    ({ currentMapId: _current, mapOrder: _order, ...stored }: LibrarySettings) => setSettings(stored),
+    // Everything but the loaded map, the map order and the slideshow folder,
+    // which useDmController and the main process keep
+    ({ currentMapId: _current, mapOrder: _order, slideshowFolder: _folder, ...stored }: LibrarySettings) =>
+      setSettings(stored),
     [],
   );
   return { settings, update, preview, restore };

@@ -36,6 +36,8 @@ export interface MapState {
   blackout: boolean;
   /** Red words on black over everything after a kill, or null */
   killScreen: KillScreen | null;
+  /** Pictures shown one after another in place of the map, or null */
+  slideshow: Slideshow | null;
   /** Spell areas, drawn under the fog */
   areas: DrawnArea[];
   /** The map's grid, drawn under the fog when the DM shows it to players; null: no grid */
@@ -53,6 +55,33 @@ export interface KillScreen {
   text: string;
   /** Clockwise: 0, 90, 180 or 270 */
   rotation: number;
+}
+
+/**
+ * The slideshow on the player screen: pictures from the slideshow folder,
+ * shown one after another over the map while the DM gets the next one ready.
+ * The pictures are those of one listing of the folder (see SlideshowListing).
+ */
+export interface Slideshow {
+  /** The listing the pictures come from */
+  listing: string;
+  /** How many pictures it has, at least one */
+  count: number;
+  /** How long each picture is shown */
+  seconds: number;
+  /** How pictures taller than wide are turned: 0, 90 or 270, as portrait handouts */
+  portraitRotation: number;
+}
+
+/**
+ * The pictures the main process found in the slideshow folder. They are
+ * served by number (see slideshowPictureUrl), so no path leaves it.
+ */
+export interface SlideshowListing {
+  listing: string;
+  count: number;
+  /** The folder's name, to tell the DM where the pictures come from */
+  folderName: string;
 }
 
 /** The part of a map's grid the player screen needs to draw it (map natural pixels). */
@@ -249,6 +278,13 @@ export interface LibrarySettings {
   effectOpacity: number;
   /** How strongly spell areas are filled, 0.1 to 1, in both windows */
   areaOpacity: number;
+  /** How long the slideshow shows each picture, in seconds */
+  slideshowSeconds: number;
+  /**
+   * The folder the DM chose for the slideshow; the library's own slideshow
+   * folder when not set. Only the main process sets it, from its folder dialog.
+   */
+  slideshowFolder?: string;
 }
 
 /**

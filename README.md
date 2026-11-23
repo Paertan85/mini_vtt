@@ -45,6 +45,7 @@ It runs on Electron, which brings the same browser engine to every platform. I t
 - **True-scale grid.** Enter the player screen's diagonal and your grid size, and the frame shows a grid that matches the physical screen, so 1-inch minis line up with the map. **True scale** (next to **Fill screen**) zooms the player view so the map's own squares come out at that size. On a map without a grid, it has you measure the grid first. **Settings → Show grid on player screen** draws the map's measured grid for the players too.
 - **Fill screen.** Zooms the player view so the map fills the player screen with no black edges, and keeps the frame on the map. A player window that is not full screen first takes the shape of the screen it is on (16:9, 16:10, 4:3 or ultrawide).
 - **Blackout.** One key hides everything on the player screen while you set up the next scene.
+- **Slideshow.** While you get the next map ready, or during a break, P shows the players pictures in place of the map: character art, the world map, whatever the group likes. They come from the slideshow folder, one at a time, fitted to the screen and changing every 20 seconds (**Settings** has 10 seconds and a minute too); pictures taller than wide are turned like portrait handouts. Meanwhile you can load the next map, frame it and reveal its first room; P again, or **Show the map**, shows it. The folder is `slideshow` in the library folder (**Menu (☰) → Open slideshow folder**) until you choose another with **Menu (☰) → Slideshow folder…**. Put PNG, JPEG, GIF, WebP or BMP files directly in it; it is read each time the slideshow starts, so pictures added since are in it.
 - **Kill screen.** Ctrl+K fades the player screen to black and shows a random line in red, such as “FINISH IT!”, for the moment an enemy falls.
 - **Map library.** Maps, along with each map's fog, rooms, markers, effects, zoom, framing, rotation and mirroring, are saved automatically and restored when you switch maps or restart.
 - **Animated maps.** WebM videos work as maps alongside PNG, JPEG, GIF, WebP and BMP images. If a video is larger than your computer can decode in hardware, Mini VTT suggests a size that plays smoothly.
@@ -130,6 +131,7 @@ On a Mac, use Cmd for Ctrl and Option for Alt.
 | Zoom the player view                         | + and − keys, the toolbar buttons, mouse wheel over the frame in the View tool, or Alt + mouse wheel in 1% steps (any tool)                                                                                                                                                          |
 | Keep the player view zoom from changing      | The lock button next to the zoom, or Space: the mouse wheel, the + and − keys, the zoom buttons and **True scale** leave it alone until you unlock it                                                                                                                                |
 | Zoom so the map's squares fit your minis     | **True scale**, after Player screen setup, with the player screen open (a map without a grid gets it measured first)                                                                                                                                                                 |
+| Show the slideshow while you prepare         | P: pictures from the slideshow folder in place of the map; P again shows the map                                                                                                                                                                                                     |
 | Blackout the player screen                   | B                                                                                                                                                                                                                                                                                    |
 | Show the kill screen after a kill            | Ctrl+K: red words on black, turned like portrait handouts; Ctrl+K again hides it                                                                                                                                                                                                     |
 | Load a map / show a handout                  | Double-click it in the library (a selected map: Enter)                                                                                                                                                                                                                               |
@@ -145,7 +147,7 @@ All shortcuts are also listed under **Menu (☰) → Keyboard shortcuts…**.
 
 ### Where your library is stored
 
-Maps, fog masks and settings live in a `library` folder inside the app's user-data directory (typically `%APPDATA%\mini-vtt\library` on Windows, `~/Library/Application Support/mini-vtt/library` on macOS, and `~/.config/mini-vtt/library` on Linux). **Menu (☰) → Open library folder** opens it. Imported files are copied there, so moving or deleting the originals doesn't affect the library.
+Maps, fog masks and settings live in a `library` folder inside the app's user-data directory (typically `%APPDATA%\mini-vtt\library` on Windows, `~/Library/Application Support/mini-vtt/library` on macOS, and `~/.config/mini-vtt/library` on Linux). **Menu (☰) → Open library folder** opens it. Imported files are copied there, so moving or deleting the originals doesn't affect the library. The slideshow's pictures are not copied: they stay in the slideshow folder, and they aren't part of project files.
 
 ### Moving your library to another computer
 
@@ -199,6 +201,7 @@ electron/
   libraryStore.ts   The library folder and index.json (every change through mutateIndex)
   mediaFiles.ts     Reading media files: type, size, orientation, thumbnails
   project.ts        Project files: the whole library in one .minivtt file
+  slideshow.ts      The slideshow folder: listing its pictures, and which ones may be served
   delayedSave.ts    Saving fog and effects a moment after each change
 src/
   App.tsx                      DM window layout: library panel, toolbar, map area, dialogs
@@ -224,6 +227,7 @@ src/
   ui/                          Buttons, menus, dialogs, toasts and confirmations
   lib/                         Pure helpers shared by the windows and the main process:
                                grid, spell areas, rectangles, fog rooms, markers, settings, shortcuts, fog, geometry,
+                               the slideshow's picture times and URLs,
                                and PNG encoding in a worker (png.ts)
   types/                       Types shared by all processes
 scripts/            Tests and the Windows icon patch used by electron-builder

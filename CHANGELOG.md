@@ -6,6 +6,23 @@ All notable changes to this project are documented here. The format is based on
 
 ## Unreleased
 
+### Added
+
+- **Slideshow** (P): pictures in place of the map on the player screen, for
+  the players to look at while the DM gets the next map ready or the group
+  takes a break: character art, the world map, whatever the group likes. The
+  DM can load the next map, frame it and reveal its first room meanwhile; P
+  again, or **Show the map** in the bar that says the slideshow is on, shows
+  it. The pictures come from the `slideshow` folder in the library folder
+  (**Menu (☰) → Open slideshow folder**), or another one chosen with
+  **Menu (☰) → Slideshow folder…**, in name order (2 before 10). The folder
+  is read each time the slideshow starts, so pictures added since are in it.
+  One picture is shown at a time, fitted to the screen and fading in over
+  the one before; pictures taller than wide are turned like portrait
+  handouts. Each one stays 20 seconds, or 10 seconds or a minute
+  (**Settings**). The slideshow takes the place of Blackout: B and P swap
+  one for the other. A video map is paused beneath it, as under Blackout.
+
 ## 1.6.0 - 2026-11-22
 
 ### Added

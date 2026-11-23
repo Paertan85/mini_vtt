@@ -9,15 +9,22 @@
 import type { LibrarySettings } from '../types/map';
 import { DEFAULT_MOVEMENT_RULE, isMovementRule } from './grid';
 import { DEFAULT_FRAME_COLOR, isFrameColor } from './frameColors';
+import { DEFAULT_SLIDESHOW_SECONDS, isSlideshowSeconds } from './slideshow';
 
 /** Ids the library generates; anything else is refused, so no path can escape its folder. */
 export const LIBRARY_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
-/** The settings the DM sets: everything but the loaded map and the map order. */
-export type Preferences = Omit<LibrarySettings, 'currentMapId' | 'mapOrder'>;
+/** The settings the DM sets: everything but the loaded map, the map order and the slideshow folder. */
+export type Preferences = Omit<LibrarySettings, 'currentMapId' | 'mapOrder' | 'slideshowFolder'>;
 
-/** Settings that a change from the DM window may set. */
-export type SettingsPatch = Partial<Omit<LibrarySettings, 'mapOrder'>>;
+/**
+ * Settings that a change from the DM window may set. The slideshow folder is
+ * a path, so only the main process sets it, from the folder the DM chose.
+ */
+export type SettingsPatch = Partial<Omit<LibrarySettings, 'mapOrder' | 'slideshowFolder'>>;
+
+/** The longest folder path kept for the slideshow. */
+const MAX_FOLDER_PATH = 4096;
 
 interface Rule<T> {
   default: T;
@@ -76,6 +83,10 @@ const RULES: { [K in keyof SettingsPatch]-?: Rule<LibrarySettings[K]> } = {
   markerOpacity: { default: 0.55, parse: parseOpacity },
   effectOpacity: { default: 0.35, parse: parseOpacity },
   areaOpacity: { default: 0.35, parse: parseOpacity },
+  slideshowSeconds: {
+    default: DEFAULT_SLIDESHOW_SECONDS,
+    parse: (value) => (isSlideshowSeconds(value) ? value : undefined),
+  },
 };
 
 const KEYS = Object.keys(RULES) as (keyof SettingsPatch)[];
@@ -102,12 +113,17 @@ export function normalizeSettings(stored: unknown): LibrarySettings {
       (id): id is string => typeof id === 'string' && LIBRARY_ID.test(id),
     );
   }
+  const folder = raw.slideshowFolder;
+  if (typeof folder === 'string' && folder.length > 0 && folder.length <= MAX_FOLDER_PATH) {
+    settings.slideshowFolder = folder;
+  }
   return settings;
 }
 
 /**
  * The valid part of a change: unknown keys and invalid values are left out.
- * The map order is not a setting the DM sends; it goes through reorderMaps.
+ * The map order is not a setting the DM sends; it goes through reorderMaps,
+ * and the slideshow folder through the main process's folder dialog.
  */
 export function cleanSettingsPatch(patch: unknown): SettingsPatch {
   if (!patch || typeof patch !== 'object') return {};

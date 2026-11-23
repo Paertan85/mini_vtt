@@ -24,10 +24,13 @@ import type {
   ProjectResult,
   RulerState,
   PlayerGrid,
+  Slideshow,
+  SlideshowListing,
 } from '../src/types/map';
 import { mediaUrlOf } from '../src/lib/media';
 import { isKillPhrase } from '../src/lib/killScreen';
-import { DEFAULT_SETTINGS, parseOpacity } from '../src/lib/settings';
+import { DEFAULT_SETTINGS, parseOpacity, PORTRAIT_ROTATIONS } from '../src/lib/settings';
+import { isListingName, isSlideshowSeconds } from '../src/lib/slideshow';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -267,6 +270,7 @@ function normalizeMapState(value: unknown): MapState | null {
     handoutRotation,
     blackout: state.blackout === true,
     killScreen: normalizeKillScreen(state.killScreen),
+    slideshow: normalizeSlideshow(state.slideshow),
     areas: normalizeDrawnAreas(state.areas),
     grid: normalizePlayerGrid(state.grid),
     areaGrid: normalizeAreaGrid(state.areaGrid),
@@ -281,6 +285,16 @@ function normalizeKillScreen(value: unknown): KillScreen | null {
   const { text, rotation } = value as Record<string, unknown>;
   if (!isKillPhrase(text) || !isFiniteNumber(rotation) || !QUARTER_TURNS.includes(rotation)) return null;
   return { text, rotation };
+}
+
+/** A slideshow of the folder's latest listing, with a known picture time and turn, or null. */
+function normalizeSlideshow(value: unknown): Slideshow | null {
+  if (!value || typeof value !== 'object') return null;
+  const { listing, count, seconds, portraitRotation } = value as Record<string, unknown>;
+  if (!isListingName(listing) || !Number.isInteger(count)) return null;
+  if (!library.isCurrentListing(listing, count as number)) return null;
+  if (!isSlideshowSeconds(seconds) || !PORTRAIT_ROTATIONS.includes(portraitRotation as 0)) return null;
+  return { listing, count: count as number, seconds, portraitRotation: portraitRotation as number };
 }
 
 /** A grid the player screen can draw, or null: squares at least 4 map pixels wide, like a measured grid. */
@@ -526,6 +540,40 @@ ipcMain.handle('library:revealFolder', async () => {
   }
 });
 
+// ─── Slideshow ────────────────────────────────────────────────────────────────
+//
+// The DM window asks for a listing when the slideshow starts; the folder's path
+// never leaves this process (see slideshow.ts).
+
+ipcMain.handle('slideshow:list', async (): Promise<SlideshowListing> => library.listSlideshow());
+
+/** Choose the slideshow folder in a dialog; its listing, or null if cancelled. */
+ipcMain.handle('slideshow:chooseFolder', async (): Promise<SlideshowListing | null> => {
+  if (!isOpen(dmWindow)) return null;
+  const chosen = await dialog.showOpenDialog(dmWindow, {
+    title: 'Slideshow folder',
+    buttonLabel: 'Choose folder',
+    defaultPath: await library.slideshowFolder(),
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  const folder = chosen.filePaths[0];
+  if (chosen.canceled || !folder) return null;
+  await library.setSlideshowFolder(folder);
+  return library.listSlideshow(folder);
+});
+
+ipcMain.handle('slideshow:revealFolder', async () => {
+  try {
+    const folder = await library.slideshowFolder();
+    if (folder === library.defaultSlideshowFolder()) await fs.mkdir(folder, { recursive: true });
+    // An empty string when it opened; the error otherwise (a chosen folder that is gone)
+    return (await shell.openPath(folder)) === '';
+  } catch (err) {
+    console.error('Failed to open the slideshow folder:', err);
+    return false;
+  }
+});
+
 // ─── Project files (the whole library in one file) ────────────────────────────
 
 const PROJECT_FILTERS = [{ name: 'Mini VTT project', extensions: ['minivtt'] }];
@@ -588,6 +636,15 @@ ipcMain.handle('library:rotateHandout', async (_e, id: string, rotation: number)
 );
 ipcMain.handle('library:removeHandout', async (_e, id: string) => library.removeHandout(id));
 
+/** The file a map-media:// id names, and its content type: a map, a handout or a slideshow picture. */
+async function resolveMedia(id: string): Promise<{ file: string; type: string } | null> {
+  if (library.isSlideshowId(id)) return library.slideshowPicture(id);
+  const file = library.isHandoutId(id)
+    ? await library.resolveHandoutPath(id)
+    : await library.resolveMapMediaPath(id);
+  return file ? { file, type: library.mediaMimeType(file) } : null;
+}
+
 // ─── App lifecycle ────────────────────────────────────────────────────────────
 
 app.on('window-all-closed', () => {
@@ -628,18 +685,16 @@ app.whenReady().then(() => {
     ]),
   );
   protocol.handle('map-media', async (request) => {
-    const id = new URL(request.url).hostname;
-    const mediaPath = library.isHandoutId(id)
-      ? await library.resolveHandoutPath(id)
-      : await library.resolveMapMediaPath(id);
-    if (!mediaPath) return new Response('Not found', { status: 404 });
+    const media = await resolveMedia(new URL(request.url).hostname);
+    if (!media) return new Response('Not found', { status: 404 });
+    const mediaPath = media.file;
     // Streamed straight from the file rather than with net.fetch: when a
     // window drops the media (map switched or removed), this stream closes at
     // once and lets go of the file. A net.fetch of the file kept it open for
     // as long as it took to read it all, so a video map couldn't be deleted.
     const { size } = await fs.stat(mediaPath);
     const headers = {
-      'Content-Type': library.mediaMimeType(mediaPath),
+      'Content-Type': media.type,
       'Accept-Ranges': 'bytes',
       'Access-Control-Allow-Origin': '*',
     };

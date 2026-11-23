@@ -27,6 +27,8 @@ import type {
   MovementRule,
   Point,
   RulerState,
+  Slideshow,
+  SlideshowListing,
 } from '../types/map';
 import { forgetThumb } from '../components/MapLibraryPanel';
 import type { FogShape, MapStageProps, Tool, ViewControls } from '../components/MapStage';
@@ -194,6 +196,10 @@ export interface DmPlayerScreen {
   hideHandout: () => void;
   /** Whether players see the kill screen (shown and hidden with Ctrl+K) */
   killScreen: boolean;
+  /** The slideshow players see in place of the map, or null */
+  slideshow: { folderName: string; count: number } | null;
+  /** Starts the slideshow (it replaces a blackout), or stops it */
+  toggleSlideshow: () => void;
 }
 
 /** The DM's settings that the toolbar and its menu change; saved as they change. */
@@ -229,6 +235,9 @@ export interface DmSettings {
   areaOpacity: number;
   /** Shows a new opacity at once; `save` once the slider is let go */
   setOpacity: (layer: OpacityLayer, value: number, save: boolean) => void;
+  /** How long the slideshow shows each picture */
+  slideshowSeconds: number;
+  setSlideshowSeconds: (seconds: number) => void;
 }
 
 /** The layers with an opacity setting. */
@@ -242,6 +251,8 @@ export interface DmApp {
   exportProject: () => void;
   importProject: () => void;
   revealLibraryFolder: () => void;
+  chooseSlideshowFolder: () => void;
+  revealSlideshowFolder: () => void;
   toggleFullScreen: () => void;
   /** Sends what is still on its way first */
   reload: () => void;
@@ -431,6 +442,7 @@ export function useDmController(): DmController {
     markerOpacity,
     effectOpacity,
     areaOpacity,
+    slideshowSeconds,
   } = settings;
   const showRulerRef = useRef(false);
   showRulerRef.current = showRulerToPlayers;
@@ -453,6 +465,9 @@ export function useDmController(): DmController {
   const [viewportSize, setViewportSize] = useState<Size | null>(null);
   const [fillScreen, setFillScreen] = useState(false);
   const [blackout, setBlackout] = useState(false);
+  // The slideshow folder's pictures while players see them, in place of the map
+  const [slideshowListing, setSlideshowListing] = useState<SlideshowListing | null>(null);
+  const listingSlideshowRef = useRef(false);
   const [killScreen, setKillScreen] = useState<KillScreen | null>(null);
   // So the next kill screen says something else
   const lastKillPhraseRef = useRef<string | null>(null);
@@ -962,6 +977,18 @@ export function useDmController(): DmController {
     [showAreaSquares, grid, movementRule],
   );
 
+  // The same object until the listing or a setting changes, so other changes send it unchanged
+  const playerSlideshow = useMemo<Slideshow | null>(
+    () =>
+      slideshowListing && {
+        listing: slideshowListing.listing,
+        count: slideshowListing.count,
+        seconds: slideshowSeconds,
+        portraitRotation,
+      },
+    [slideshowListing, slideshowSeconds, portraitRotation],
+  );
+
   useEffect(() => {
     api?.sendMapState({
       mediaUrl,
@@ -974,6 +1001,7 @@ export function useDmController(): DmController {
       handoutRotation: activeHandout?.rotation ?? 0,
       blackout,
       killScreen,
+      slideshow: playerSlideshow,
       areas: playerAreas,
       grid: playerGrid,
       areaGrid,
@@ -982,6 +1010,7 @@ export function useDmController(): DmController {
     });
   }, [
     killScreen,
+    playerSlideshow,
     api,
     mediaUrl,
     mediaType,
@@ -1007,6 +1036,63 @@ export function useDmController(): DmController {
     const text = pickKillPhrase(lastKillPhraseRef.current);
     lastKillPhraseRef.current = text;
     setKillScreen({ text, rotation: portraitRotation });
+  };
+
+  // Blackout and the slideshow take each other's place: one key swaps them
+  const handleToggleBlackout = () => {
+    setSlideshowListing(null);
+    setBlackout((value) => !value);
+  };
+
+  /** Show a fresh listing of the slideshow folder, or say there is nothing in it. */
+  const showSlideshow = (listing: SlideshowListing) => {
+    if (listing.count === 0) {
+      setSlideshowListing(null);
+      notify(
+        `There are no pictures in the slideshow folder “${listing.folderName}”. Menu (☰) → Open slideshow folder to add some, or Slideshow folder… to choose another.`,
+        'error',
+        { durationMs: 9000 },
+      );
+      return;
+    }
+    setSlideshowListing(listing);
+    setBlackout(false);
+  };
+
+  // The folder is listed afresh each time, so pictures added since are in it
+  const handleToggleSlideshow = async () => {
+    if (slideshowListing) {
+      setSlideshowListing(null);
+      return;
+    }
+    if (!api || listingSlideshowRef.current) return;
+    listingSlideshowRef.current = true;
+    try {
+      showSlideshow(await api.listSlideshow());
+    } catch (err) {
+      console.error('Could not list the slideshow folder.', err);
+      notify('Couldn’t read the slideshow folder.', 'error');
+    } finally {
+      listingSlideshowRef.current = false;
+    }
+  };
+
+  // While the slideshow is on, it changes to the new folder's pictures at once
+  const handleChooseSlideshowFolder = async () => {
+    const listing = await api?.chooseSlideshowFolder();
+    if (!listing) return;
+    if (slideshowListing) showSlideshow(listing);
+    else if (listing.count === 0) {
+      notify(`There are no pictures in “${listing.folderName}” yet.`, 'info', { durationMs: 6000 });
+    } else {
+      notify(`The slideshow shows ${plural(listing.count, 'picture')} from “${listing.folderName}”.`, 'info');
+    }
+  };
+
+  const handleRevealSlideshowFolder = async () => {
+    if (!(await api?.revealSlideshowFolder())) {
+      notify('Couldn’t open the slideshow folder. Choose it again with Slideshow folder…', 'error');
+    }
   };
 
   const handleOpenPlayer = async () => {
@@ -1310,7 +1396,11 @@ export function useDmController(): DmController {
     shapesTool: () => hasMap && showEffectTools && changeTool('shapes'),
     measureTool: () => hasMap && changeTool('measure'),
     markersTool: () => hasMap && changeTool('markers'),
-    blackout: () => setBlackout((value) => !value),
+    blackout: () => handleToggleBlackout(),
+    // A held P toggles once
+    slideshow: (event) => {
+      if (!event.repeat) void handleToggleSlideshow();
+    },
     // A held Ctrl+K toggles once
     killScreen: (event) => {
       if (!event.repeat) handleToggleKillScreen();
@@ -1450,12 +1540,17 @@ export function useDmController(): DmController {
 
   const playerScreenActions = useHandlers({
     openPlayer: handleOpenPlayer,
-    toggleBlackout: () => setBlackout((value) => !value),
+    toggleBlackout: handleToggleBlackout,
     hideHandout: () => setActiveHandout(null),
+    toggleSlideshow: () => void handleToggleSlideshow(),
   });
   const activeHandoutId = activeHandout?.id ?? null;
   const activeHandoutName = handouts.find((entry) => entry.id === activeHandoutId)?.name ?? null;
   const killScreenShown = killScreen !== null;
+  const slideshow = useMemo(
+    () => slideshowListing && { folderName: slideshowListing.folderName, count: slideshowListing.count },
+    [slideshowListing],
+  );
   const playerScreen = useMemo<DmPlayerScreen>(
     () => ({
       playerOpen,
@@ -1463,9 +1558,18 @@ export function useDmController(): DmController {
       activeHandoutId,
       activeHandoutName,
       killScreen: killScreenShown,
+      slideshow,
       ...playerScreenActions,
     }),
-    [playerOpen, blackout, activeHandoutId, activeHandoutName, killScreenShown, playerScreenActions],
+    [
+      playerOpen,
+      blackout,
+      activeHandoutId,
+      activeHandoutName,
+      killScreenShown,
+      slideshow,
+      playerScreenActions,
+    ],
   );
 
   const settingsActions = useHandlers({
@@ -1479,6 +1583,7 @@ export function useDmController(): DmController {
     setMovementRule: handleMovementRuleChange,
     setShowRulerToPlayers: handleShowRulerToPlayers,
     setOpacity: handleOpacityChange,
+    setSlideshowSeconds: (seconds: number) => updateSettings({ slideshowSeconds: seconds }),
   });
   const settingsGroup = useMemo<DmSettings>(
     () => ({
@@ -1494,6 +1599,7 @@ export function useDmController(): DmController {
       markerOpacity,
       effectOpacity,
       areaOpacity,
+      slideshowSeconds,
       ...settingsActions,
     }),
     [
@@ -1509,6 +1615,7 @@ export function useDmController(): DmController {
       markerOpacity,
       effectOpacity,
       areaOpacity,
+      slideshowSeconds,
       settingsActions,
     ],
   );
@@ -1521,6 +1628,8 @@ export function useDmController(): DmController {
     exportProject: () => void handleExportProject(),
     importProject: () => void handleImportProject(),
     revealLibraryFolder: () => void api?.revealLibraryFolder(),
+    chooseSlideshowFolder: () => void handleChooseSlideshowFolder(),
+    revealSlideshowFolder: () => void handleRevealSlideshowFolder(),
     toggleFullScreen: () => void api?.toggleFullScreen(),
     reload: async () => {
       await settleSaves();
