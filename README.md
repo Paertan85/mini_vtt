@@ -128,7 +128,7 @@ On a Mac, use Cmd for Ctrl and Option for Alt.
 | Pan your zoomed view                         | Drag with the middle mouse button, or with the right one where it doesn't paint (all tools but Fog painting and Effects; a right-click without moving still works as before)                                                                                                         |
 | Move the player view while painting          | Alt + drag the frame, in any tool                                                                                                                                                                                                                                                    |
 | Keep the player view on the grid             | Ctrl + drag the frame, on a map with a grid: it moves a whole square at a time, with the squares lined up on the top and left edges of the player screen                                                                                                                             |
-| Zoom the player view                         | + and − keys, the toolbar buttons, mouse wheel over the frame in the View tool, or Alt + mouse wheel in 1% steps (any tool)                                                                                                                                                          |
+| Zoom the player view                         | + and − keys, the − and + buttons in the bar beneath the map, mouse wheel over the frame in the View tool, or Alt + mouse wheel in 1% steps (any tool)                                                                                                                               |
 | Keep the player view zoom from changing      | The lock button next to the zoom, or Space: the mouse wheel, the + and − keys, the zoom buttons and **True scale** leave it alone until you unlock it                                                                                                                                |
 | Zoom so the map's squares fit your minis     | **True scale**, once the player screen's size is in Settings, with the player screen open (a map without a grid gets it measured first)                                                                                                                                              |
 | Show the slideshow while you prepare         | P: pictures from the slideshow folder in place of the map; P again shows the map                                                                                                                                                                                                     |
@@ -137,7 +137,7 @@ On a Mac, use Cmd for Ctrl and Option for Alt.
 | Load a map / show a handout                  | Double-click it in the library (a selected map: Enter)                                                                                                                                                                                                                               |
 | Add maps                                     | Ctrl+O, **Add maps…**, or drop files on the library                                                                                                                                                                                                                                  |
 | Hide / show maps and handouts                | The panel button at the left of the toolbar, or Ctrl+B (more room for the map)                                                                                                                                                                                                       |
-| Hide / show everything but the map           | Ctrl+Shift+B hides the toolbar and the panel, for small screens such as the Steam Deck's; Ctrl+Shift+B or Ctrl+B brings them back                                                                                                                                                    |
+| Hide / show everything but the map           | Ctrl+Shift+B hides the toolbar, the tools, the bar beneath the map and the panel, for small screens such as the Steam Deck's; Ctrl+Shift+B or Ctrl+B brings them back                                                                                                                |
 | Rename, rotate, mirror or remove             | The ⋯ menu on the map or handout                                                                                                                                                                                                                                                     |
 | Move or zoom a handout                       | On the player screen: drag it or use the arrow keys (Shift: bigger steps); the mouse wheel or a pinch zooms at the pointer; Esc closes                                                                                                                                               |
 | Player screen fullscreen                     | F11, a double-click, or the corner button                                                                                                                                                                                                                                            |
@@ -205,7 +205,7 @@ electron/
   slideshow.ts      The slideshow folder: listing its pictures, and which ones may be served
   delayedSave.ts    Saving fog and effects a moment after each change
 src/
-  App.tsx                      DM window layout: library panel, toolbar, map area, dialogs
+  App.tsx                      DM window layout: library panel, toolbar, tools, map area, player bar, dialogs
   hooks/useDmController.ts     DM window state and actions: library, loaded map, player window, shortcuts
   hooks/useLoadedMap.ts        The loaded map's state, replaced whole on load and unload
   hooks/useFog.ts              Fog mask and painting
@@ -221,7 +221,9 @@ src/
   components/AreaHandles.tsx   Spell areas' handles and toolbar
   components/FogRoomsLayer.tsx Fog rooms: outlines, and in Rooms marking out and changing them (DM only)
   components/MarkersLayer.tsx  Markers: drawn over the fog, and put down and changed in the Markers tool (DM only)
-  components/Toolbar.tsx       Tools, zoom and player screen controls
+  components/Toolbar.tsx       The current tool's options, and the menu (☰)
+  components/ToolRail.tsx      The tools, down the left edge of the map
+  components/PlayerBar.tsx     Beneath the map: the player screen, Blackout, Slideshow and the player view's zoom
   components/MapLibraryPanel.tsx
   components/PlayerScreen.tsx  The player window
   components/Dialogs.tsx       Welcome screen and keyboard shortcuts

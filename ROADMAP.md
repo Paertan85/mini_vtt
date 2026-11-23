@@ -30,7 +30,7 @@ Have an idea? Open an [issue](https://github.com/Paertan85/mini_vtt/issues).
 ### Platforms
 
 - **Touch on the Steam Deck.** The Linux build runs on a Deck, and touch works, but not well enough to recommend: for now a keyboard and mouse are needed. Find what gets in the way (such as a finger dragged over the map scrolling the page instead of painting) and tune it.
-- **DM window on a small screen, such as the Steam Deck's.** Make the most of the map area on a small screen. Ctrl+Shift+B already hides the whole interface; the toolbar at the top still wraps onto two lines on the Deck (1280 × 800), so fit it on one line at that width. Then look for other places the interface takes more room than it needs at that size.
+- **DM window on a small screen, such as the Steam Deck's.** Make the most of the map area on a small screen. Ctrl+Shift+B already hides the whole interface, and the toolbar fits on one line at the Deck's 1280 × 800. Look for other places the interface takes more room than it needs at that size, such as the library panel's width.
 - **A Steam Deck without keyboard and mouse:** controller and trackpad bindings for the tools.
 - **Flatpak** for the Steam Deck's Discover store. The AppImage covers the Deck for now.
 - **Code-signed builds**, so Windows SmartScreen and macOS Gatekeeper stop warning on first launch. Needs paid certificates (Apple's costs $99 a year).

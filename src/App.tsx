@@ -1,10 +1,13 @@
 // The DM window's layout: the library panel, the toolbar, the banner while
-// players see something other than the map, the grid measuring bar, the map
-// area with the current tool's hint, and the dialogs. What they show and do comes from useDmController.
+// players see something other than the map, the grid measuring bar, the tool
+// rail beside the map area with the current tool's hint, the player bar beneath
+// it, and the dialogs. What they show and do comes from useDmController.
 
 import { MapLibraryPanel } from './components/MapLibraryPanel';
 import { MapStage } from './components/MapStage';
 import { Toolbar } from './components/Toolbar';
+import { ToolRail } from './components/ToolRail';
+import { PlayerBar } from './components/PlayerBar';
 import { ShortcutsDialog, WelcomeDialog } from './components/Dialogs';
 import { SettingsDialog } from './components/SettingsDialog';
 import { GridCalibrationBar } from './components/GridCalibrationBar';
@@ -29,13 +32,7 @@ export function App() {
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Hidden, not removed, so the toolbar keeps its state while the map fills the window */}
         <div className={dm.settings.interfaceHidden ? 'hidden' : 'contents'}>
-          <Toolbar
-            tools={dm.tools}
-            playerView={dm.playerView}
-            playerScreen={playerScreen}
-            settings={dm.settings}
-            app={dm.app}
-          />
+          <Toolbar tools={dm.tools} settings={dm.settings} app={dm.app} />
         </div>
 
         {playerScreen.killScreen ? (
@@ -87,12 +84,31 @@ export function App() {
           />
         )}
 
-        <div className="relative flex min-h-0 flex-1 flex-col">
-          <MapStage {...dm.stage} />
-          {dm.tools.hasMap && dm.settings.showToolHints && !dm.settings.interfaceHidden && !calibration && (
-            <ToolHint tool={dm.tools.tool} fogShape={dm.tools.fogShape} />
+        <div className="flex min-h-0 flex-1">
+          {!dm.settings.interfaceHidden && (
+            <ToolRail
+              tool={dm.tools.tool}
+              setTool={dm.tools.setTool}
+              hasMap={dm.tools.hasMap}
+              showEffectTools={dm.settings.showEffectTools}
+            />
           )}
+          <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+            <MapStage {...dm.stage} />
+            {dm.tools.hasMap && dm.settings.showToolHints && !dm.settings.interfaceHidden && !calibration && (
+              <ToolHint tool={dm.tools.tool} fogShape={dm.tools.fogShape} />
+            )}
+          </div>
         </div>
+
+        {!dm.settings.interfaceHidden && (
+          <PlayerBar
+            playerView={dm.playerView}
+            playerScreen={playerScreen}
+            hasMap={dm.tools.hasMap}
+            openSettings={dm.app.openSettings}
+          />
+        )}
       </div>
 
       {dialogs.open === 'settings' && (

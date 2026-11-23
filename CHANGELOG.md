@@ -25,9 +25,21 @@ All notable changes to this project are documented here. The format is based on
 
 ### Changed
 
-- **A calmer toolbar.** Toolbar buttons have no border of their own, and the
-  tools and each set of choices sit in a dark strip, so the current tool and
-  the options that are on stand out from the rest.
+- **A new layout for the DM window**, following image editors and other
+  VTTs, so the toolbar no longer holds everything at once:
+  - The **tools** are in a rail down the left edge of the map, each with an
+    icon and its name.
+  - The **toolbar** above the map holds the library button, undo and redo, the
+    current tool's options and the menu (☰). Effect and marker colours are
+    swatches, named in their tooltips. At 1280 pixels wide, with the library
+    open, every tool's options fit on one line.
+  - A **bar beneath the map** holds what the players see: the player screen,
+    **Blackout**, **Slideshow**, and the player view's zoom, lock, **Fill
+    screen** and **True scale**. It stays the same whatever the tool, so
+    nothing moves when the tool changes.
+  - Toolbar buttons have no border of their own, and each set of choices sits
+    in a dark strip, so the current tool and the options that are on stand
+    out from the rest.
 - **Settings is a dialog** (**Menu (☰) → Settings…**, or Ctrl+,) with every
   setting in one place: the player screen (what Player screen setup had, and
   the grid on the player screen), the tools, the opacity sliders and the

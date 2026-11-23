@@ -295,8 +295,8 @@ app.whenReady().then(async () => {
     await sleep(600);
     check('pre-1.1 settings are migrated', readIndex().settings.playerScreenDiagonal === 27);
 
-    // True scale before the player screen is open: a note right beneath the
-    // button says so, with a button that opens it
+    // True scale before the player screen is open: a note right above the
+    // button (it is in the bar beneath the map) says so, with a button that opens it
     await clickText('True scale');
     await sleep(200);
     const trueScaleNote = await js(`(() => {
@@ -304,11 +304,11 @@ app.whenReady().then(async () => {
       const button = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'True scale');
       if (!note) return null;
       const n = note.getBoundingClientRect(), b = button.getBoundingClientRect();
-      return { below: n.top >= b.bottom && n.top - b.bottom < 12 && n.left < b.right && n.right > b.left, text: note.textContent };
+      return { above: n.bottom <= b.top && b.top - n.bottom < 12 && n.left < b.right && n.right > b.left, text: note.textContent };
     })()`);
     check(
-      'True scale without the player screen shows a note right beneath it',
-      !!trueScaleNote?.below && trueScaleNote.text.includes('Open player screen'),
+      'True scale without the player screen shows a note right above it',
+      !!trueScaleNote?.above && trueScaleNote.text.includes('Open player screen'),
       JSON.stringify(trueScaleNote),
     );
     await press('Escape');
@@ -1260,7 +1260,7 @@ app.whenReady().then(async () => {
     mouse('mouseDown', circleDot.x, circleDot.y);
     mouse('mouseUp', circleDot.x, circleDot.y);
     await sleep(200);
-    await clickText('Poison');
+    await click('[aria-label="Effect"] [aria-label="Poison"]');
     await sleep(900);
     check(
       'a colour picked in the Spells tool recolours the selected shape',
@@ -1687,7 +1687,7 @@ app.whenReady().then(async () => {
       );
 
       // The colour picked goes to the selected marker and the next one
-      await clickText('Blue');
+      await click('[aria-label="Marker colour"] [aria-label="Blue"]');
       check(
         'picking a colour recolours the selected marker',
         (await waitFor(() => savedMarkers()[0]?.color === 'blue')) === true,
