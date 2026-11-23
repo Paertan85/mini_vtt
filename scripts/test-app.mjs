@@ -728,7 +728,7 @@ app.whenReady().then(async () => {
     check(
       'typing a name sets off no shortcuts',
       (await pressed('Rooms')) === 'true' &&
-        (await js(`!document.body.textContent.includes('The player screen is blacked out')`)) === true,
+        (await js(`!document.body.textContent.includes('Players see black')`)) === true,
     );
     await js(`document.activeElement.blur()`);
     check(
@@ -2141,12 +2141,32 @@ app.whenReady().then(async () => {
         dialog.showOpenDialog = showOpenDialog;
       }
     }
+    // The bar beneath the map says what players see, and with the interface
+    // hidden it stays, with a button to show the map
+    check(
+      'the bar beneath the map says the players see the slideshow',
+      (await js(`document.querySelector('[aria-label="Player screen"] [role="status"]')?.textContent`)) ===
+        'Players see the slideshow: one picture from “Chosen”',
+    );
+    await press('B', { ctrlKey: true, shiftKey: true });
+    await sleep(200);
+    check(
+      'with the interface hidden, only that line stays',
+      (await js(`!!document.querySelector('[aria-label="Player screen"] [role="status"]')`)) === true &&
+        (await js(`!document.querySelector('[aria-label="Zoom percentage"]')?.offsetParent`)) === true,
+    );
     await clickText('Show the map');
     check(
-      'Show the map ends the slideshow, and players see the map made ready',
+      'its Show the map ends the slideshow, and players see the map made ready',
       (await waitFor(() => js(`!document.querySelector('[aria-label="Slideshow"]')`, player))) === true &&
         (await playerMap()) === 'map-media://m_beta',
     );
+    check(
+      'and the line goes once players see the map',
+      (await js(`!document.querySelector('[aria-label="Player screen"]')`)) === true,
+    );
+    await press('B', { ctrlKey: true, shiftKey: true });
+    await sleep(200);
     await loadMap('Alpha');
     await waitFor(async () => (await zoomText()) === '250');
 

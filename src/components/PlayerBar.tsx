@@ -4,13 +4,21 @@
 // keeps the audience's controls apart from the speaker's.
 //   left    the player screen (open it, or bring it to the front), Blackout
 //           and Slideshow
+//   middle  while players see something other than the map (the kill screen,
+//           the slideshow, a blackout or a handout), what they see and how to
+//           go back; the bar turns crimson then. In the bar, not a banner above
+//           the map, so the map area keeps its size and the map doesn't jump
 //   right   the player view's zoom, its lock, Fill screen and True scale
+//
+// With the interface hidden (Ctrl+Shift+B) only that message stays, while there
+// is one, so the DM still sees that the players don't see the map.
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Lock, LockOpen, Minus, Plus } from 'lucide-react';
 import { Button, ButtonGroup, inputClass } from '../ui/controls';
 import { Popover } from '../ui/Popover';
 import { clampZoom, MAX_ZOOM, MIN_ZOOM, stepZoom } from '../lib/geometry';
+import { keyLabel } from '../lib/platform';
 import type { DmPlayerScreen, DmPlayerView, TrueScaleNeed } from '../hooks/useDmController';
 
 interface PlayerBarProps {
@@ -19,6 +27,74 @@ interface PlayerBarProps {
   hasMap: boolean;
   /** Where True scale sends the DM when the player screen's size isn't set */
   openSettings: () => void;
+  /** The interface is hidden: show only what players see instead of the map, if anything */
+  statusOnly: boolean;
+}
+
+/**
+ * What players see instead of the map: a short line for the bar, the whole
+ * sentence for its tooltip, and the button that brings the map back.
+ */
+interface PlayerStatus {
+  text: string;
+  detail: string;
+  action?: {
+    label: string;
+    onClick: () => void;
+    /** The bar's own crimson button does the same, so only the bare status line needs it */
+    inBar?: false;
+  };
+}
+
+function playerStatus(playerScreen: DmPlayerScreen): PlayerStatus | null {
+  const { killScreen, slideshow, blackout, activeHandoutId } = playerScreen;
+  if (killScreen) {
+    return {
+      text: keyLabel('Players see the kill screen (Ctrl+K hides it)'),
+      detail: keyLabel('Players see the kill screen. Ctrl+K hides it.'),
+    };
+  }
+  if (slideshow) {
+    const pictures = slideshow.count === 1 ? 'one picture' : `${slideshow.count} pictures`;
+    return {
+      text: `Players see the slideshow: ${pictures} from “${slideshow.folderName}”`,
+      detail: `Players see the slideshow: ${pictures} from “${slideshow.folderName}”. Get the next map ready; they see it when you show the map (Slideshow, or P).`,
+      action: { label: 'Show the map', onClick: playerScreen.toggleSlideshow, inBar: false },
+    };
+  }
+  if (blackout) {
+    return {
+      text: 'Players see black',
+      detail: 'The player screen is blacked out. Blackout, or B, shows the map again.',
+      action: { label: 'Show the map', onClick: playerScreen.toggleBlackout, inBar: false },
+    };
+  }
+  if (activeHandoutId) {
+    const name = playerScreen.activeHandoutName ?? 'Handout';
+    return {
+      text: `Players see the handout “${name}”`,
+      detail: `Players are looking at the handout “${name}”.`,
+      action: { label: 'Hide handout', onClick: playerScreen.hideHandout },
+    };
+  }
+  return null;
+}
+
+/** The status line, cut short where the bar is narrow (the tooltip has all of it), and its button. */
+function StatusMessage({ status, inBar }: { status: PlayerStatus; inBar: boolean }) {
+  const { action } = status;
+  return (
+    <>
+      <span role="status" className="min-w-0 truncate text-[13px] text-ink" title={status.detail}>
+        {status.text}
+      </span>
+      {action && (!inBar || action.inBar !== false) && (
+        <Button tone="plain" className="h-7 shrink-0" onClick={action.onClick}>
+          {action.label}
+        </Button>
+      )}
+    </>
+  );
 }
 
 /** What the note by True scale says, and its button, for each thing it needs. */
@@ -44,8 +120,10 @@ export const PlayerBar = memo(function PlayerBar({
   playerScreen,
   hasMap,
   openSettings,
+  statusOnly,
 }: PlayerBarProps) {
   const { zoom, zoomLocked, trueScaleNeeds } = playerView;
+  const status = playerStatus(playerScreen);
 
   // The note by True scale saying what it still needs
   const trueScaleRef = useRef<HTMLButtonElement>(null);
@@ -55,12 +133,20 @@ export const PlayerBar = memo(function PlayerBar({
     if (!trueScaleNeeds) setTrueScaleNote(false);
   }, [trueScaleNeeds]);
 
+  const barClass = `flex min-h-12 shrink-0 items-center gap-2 border-t px-3 py-2 ${
+    status ? 'border-crimson bg-crimson-deep' : 'border-line bg-panel'
+  }`;
+
+  if (statusOnly) {
+    return status ? (
+      <div role="group" aria-label="Player screen" className={barClass}>
+        <StatusMessage status={status} inBar={false} />
+      </div>
+    ) : null;
+  }
+
   return (
-    <div
-      role="group"
-      aria-label="Player screen"
-      className="flex min-h-12 shrink-0 flex-wrap items-center gap-2 border-t border-line bg-panel px-3 py-2"
-    >
+    <div role="group" aria-label="Player screen" className={`${barClass} flex-wrap`}>
       <Button
         tone="plain"
         onClick={playerScreen.openPlayer}
@@ -94,7 +180,9 @@ export const PlayerBar = memo(function PlayerBar({
         Slideshow
       </Button>
 
-      <div className="flex-1" />
+      <div className="flex min-w-0 flex-1 items-center gap-3 px-2">
+        {status && <StatusMessage status={status} inBar />}
+      </div>
 
       <ZoomControl zoom={zoom} onChange={playerView.setZoom} disabled={!hasMap || zoomLocked} />
       <Button

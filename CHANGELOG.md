@@ -12,8 +12,7 @@ All notable changes to this project are documented here. The format is based on
   the players to look at while the DM gets the next map ready or the group
   takes a break: character art, the world map, whatever the group likes. The
   DM can load the next map, frame it and reveal its first room meanwhile; P
-  again, or **Show the map** in the bar that says the slideshow is on, shows
-  it. The pictures come from the `slideshow` folder in the library folder
+  again, or **Slideshow** in the bar beneath the map, shows it. The pictures come from the `slideshow` folder in the library folder
   (**Settings → Slideshow → Open folder**), or another one chosen with
   **Choose folder…** there, in name order (2 before 10). The folder
   is read each time the slideshow starts, so pictures added since are in it.
@@ -37,6 +36,12 @@ All notable changes to this project are documented here. The format is based on
     **Blackout**, **Slideshow**, and the player view's zoom, lock, **Fill
     screen** and **True scale**. It stays the same whatever the tool, so
     nothing moves when the tool changes.
+  - While players see something other than the map (the kill screen, the
+    slideshow, a blackout or a handout), that bar turns crimson and says so,
+    in place of the banner above the map. The map area keeps its size, so the
+    map no longer jumps when Blackout or the slideshow goes on or off. With
+    the interface hidden (Ctrl+Shift+B), the bar stays as one line saying what
+    players see, with a button to show the map.
   - Toolbar buttons have no border of their own, and each set of choices sits
     in a dark strip, so the current tool and the options that are on stand
     out from the rest.
