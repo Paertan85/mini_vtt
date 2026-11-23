@@ -171,14 +171,14 @@ export const Toolbar = memo(function Toolbar({
           aria-label="Tool options"
           className="flex min-h-8 min-w-0 flex-auto flex-wrap items-center gap-2"
         >
-          {/* Only while something paints with it: the Effects tool, and the Fog
-          tool's brush (not its lasso, rectangle, circle or rooms). Shift-painting
-          fog in another tool still uses it, and the wheel with Shift or [ and ]
-          still size it */}
-          {(tool === 'effect' || (tool === 'fog' && tools.fogShape === 'brush')) && (
+          {/* In the Effects tool, and in the Fog tool whatever its way of drawing,
+          so the fog's options don't move when it changes (Shift paints fog with
+          the brush from any tool). Elsewhere the wheel with Shift, or [ and ],
+          still size it. No number: the brush outline on the map shows the size */}
+          {(tool === 'effect' || tool === 'fog') && (
             <label
               className="flex items-center gap-2 pl-1 text-[13px] text-muted"
-              title="Brush size: mouse wheel in the Fog and Effects tools (or while holding Shift), or [ and ]"
+              title={`Brush size ${tools.brushSize}: mouse wheel in the Fog and Effects tools (or while holding Shift), or [ and ]`}
             >
               Brush
               <input
@@ -191,7 +191,6 @@ export const Toolbar = memo(function Toolbar({
                 aria-label="Brush size"
                 className="w-24 accent-gold"
               />
-              <span className="w-7 text-right tabular-nums text-ink">{tools.brushSize}</span>
             </label>
           )}
 

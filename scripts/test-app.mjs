@@ -332,12 +332,12 @@ app.whenReady().then(async () => {
     );
     await js(`${playerButton}.click()`);
     await sleep(1500);
-    check('Open player screen opens the player window', BrowserWindow.getAllWindows().length === 2);
+    check('Player screen opens the player window', BrowserWindow.getAllWindows().length === 2);
     await js(`${playerButton}.click()`);
     check(
       'clicking Player screen again closes it',
       (await waitFor(() => BrowserWindow.getAllWindows().length === 1)) === true &&
-        (await waitFor(async () => (await js(`${playerButton}.textContent`)).includes('Open'))) === true,
+        (await waitFor(async () => (await js(`${playerButton}.title`)).startsWith('Open'))) === true,
     );
     await js(`${playerButton}.click()`);
     await sleep(1500);
@@ -2557,7 +2557,7 @@ app.whenReady().then(async () => {
     await sleep(800);
     check(
       'closing the player window resets the status',
-      (await js(`${playerButton}.textContent`)).includes('Open'),
+      (await js(`${playerButton}.title`)).startsWith('Open'),
     );
   } catch (err) {
     check('test run completed without throwing', false, err?.stack ?? String(err));

@@ -163,7 +163,7 @@ export const PlayerControls = memo(function PlayerControls({
           aria-hidden="true"
           className={`h-2 w-2 rounded-full ${playerScreen.playerOpen ? 'bg-crimson-bright' : 'border border-muted'}`}
         />
-        {playerScreen.playerOpen ? 'Player screen' : 'Open player screen'}
+        Player screen
         {playerScreen.playerOpen && <span className="sr-only">(live)</span>}
       </Button>
       <Button

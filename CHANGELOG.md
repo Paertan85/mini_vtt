@@ -30,8 +30,9 @@ All notable changes to this project are documented here. The format is based on
     icon and its name.
   - The **toolbar** above the map holds the library button, undo and redo, the
     current tool's options and the menu (☰). Effect and marker colours are
-    swatches, named in their tooltips. At 1280 pixels wide, with the library
-    open, every tool's options fit on one line.
+    swatches, named in their tooltips. The brush size slider stays in the Fog
+    tool whatever its way of drawing, so its options don't move, and has no
+    number beside it.
   - What the players see is at the **right of the toolbar**, so the map gets
     the rest of the window: the player screen, **Blackout**, **Slideshow**,
     and **True scale**, **Fill screen**, the zoom lock and the player view's
