@@ -1,13 +1,13 @@
-// The DM window's layout: the library panel, the toolbar, the grid measuring
-// bar, the tool rail beside the map area with the current tool's hint, the
-// player bar beneath it (which also says when players see something other than
-// the map), and the dialogs. What they show and do comes from useDmController.
+// The DM window's layout: the library panel, the toolbar (with what the players
+// see at its right), the grid measuring bar, the tool rail beside the map area
+// with the current tool's hint, and the dialogs. What they show and do comes
+// from useDmController.
 
 import { MapLibraryPanel } from './components/MapLibraryPanel';
 import { MapStage } from './components/MapStage';
 import { Toolbar } from './components/Toolbar';
 import { ToolRail } from './components/ToolRail';
-import { PlayerBar } from './components/PlayerBar';
+import { PlayerStatusBar } from './components/PlayerControls';
 import { ShortcutsDialog, WelcomeDialog } from './components/Dialogs';
 import { SettingsDialog } from './components/SettingsDialog';
 import { GridCalibrationBar } from './components/GridCalibrationBar';
@@ -30,8 +30,17 @@ export function App() {
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Hidden, not removed, so the toolbar keeps its state while the map fills the window */}
         <div className={dm.settings.interfaceHidden ? 'hidden' : 'contents'}>
-          <Toolbar tools={dm.tools} settings={dm.settings} app={dm.app} />
+          <Toolbar
+            tools={dm.tools}
+            settings={dm.settings}
+            app={dm.app}
+            playerView={dm.playerView}
+            playerScreen={playerScreen}
+          />
         </div>
+        {/* With the interface hidden, the toolbar's player controls are hidden
+          too: this line still says when players don't see the map */}
+        {dm.settings.interfaceHidden && <PlayerStatusBar playerScreen={playerScreen} />}
 
         {calibration && (
           <GridCalibrationBar
@@ -61,14 +70,6 @@ export function App() {
             )}
           </div>
         </div>
-
-        <PlayerBar
-          playerView={dm.playerView}
-          playerScreen={playerScreen}
-          hasMap={dm.tools.hasMap}
-          openSettings={dm.app.openSettings}
-          statusOnly={dm.settings.interfaceHidden}
-        />
       </div>
 
       {dialogs.open === 'settings' && (

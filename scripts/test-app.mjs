@@ -295,8 +295,8 @@ app.whenReady().then(async () => {
     await sleep(600);
     check('pre-1.1 settings are migrated', readIndex().settings.playerScreenDiagonal === 27);
 
-    // True scale before the player screen is open: a note right above the
-    // button (it is in the bar beneath the map) says so, with a button that opens it
+    // True scale before the player screen is open: a note right beneath the
+    // button (it is in the toolbar) says so, with a button that opens it
     await clickText('True scale');
     await sleep(200);
     const trueScaleNote = await js(`(() => {
@@ -304,11 +304,11 @@ app.whenReady().then(async () => {
       const button = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'True scale');
       if (!note) return null;
       const n = note.getBoundingClientRect(), b = button.getBoundingClientRect();
-      return { above: n.bottom <= b.top && b.top - n.bottom < 12 && n.left < b.right && n.right > b.left, text: note.textContent };
+      return { beneath: n.top >= b.bottom && n.top - b.bottom < 12 && n.left < b.right && n.right > b.left, text: note.textContent };
     })()`);
     check(
-      'True scale without the player screen shows a note right above it',
-      !!trueScaleNote?.above && trueScaleNote.text.includes('Open player screen'),
+      'True scale without the player screen shows a note right beneath it',
+      !!trueScaleNote?.beneath && trueScaleNote.text.includes('Open player screen'),
       JSON.stringify(trueScaleNote),
     );
     await press('Escape');
@@ -2151,10 +2151,10 @@ app.whenReady().then(async () => {
         dialog.showOpenDialog = showOpenDialog;
       }
     }
-    // The bar beneath the map says what players see, and with the interface
-    // hidden it stays, with a button to show the map
+    // The toolbar's player controls say what players see, and with the
+    // interface hidden that line stays, with a button to show the map
     check(
-      'the bar beneath the map says the players see the slideshow',
+      'the player controls say the players see the slideshow',
       (await js(`document.querySelector('[aria-label="Player screen"] [role="status"]')?.textContent`)) ===
         'Players see the slideshow: one picture from “Chosen”',
     );
@@ -2162,7 +2162,7 @@ app.whenReady().then(async () => {
     await sleep(200);
     check(
       'with the interface hidden, only that line stays',
-      (await js(`!!document.querySelector('[aria-label="Player screen"] [role="status"]')`)) === true &&
+      (await js(`!!document.querySelector('[aria-label="What players see"] [role="status"]')`)) === true &&
         (await js(`!document.querySelector('[aria-label="Zoom percentage"]')?.offsetParent`)) === true,
     );
     await clickText('Show the map');
@@ -2173,7 +2173,7 @@ app.whenReady().then(async () => {
     );
     check(
       'and the line goes once players see the map',
-      (await js(`!document.querySelector('[aria-label="Player screen"]')`)) === true,
+      (await js(`!document.querySelector('[aria-label="What players see"]')`)) === true,
     );
     await press('B', { ctrlKey: true, shiftKey: true });
     await sleep(200);

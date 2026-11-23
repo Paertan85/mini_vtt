@@ -1,14 +1,15 @@
 // The DM window's toolbar, above the map. The tools themselves are in the rail
-// beside the map (ToolRail), as in image editors and other VTTs, and what the
-// players see is in the bar beneath it (PlayerBar). Three parts:
+// beside the map (ToolRail), as in image editors and other VTTs. One bar, so
+// the map gets the rest of the window. Three parts:
 //   left    always the same: the library panel button, undo and redo
 //   middle  the current tool's options (Photoshop's options bar): brush size,
 //           the fog's ways of drawing and the whole-map menu, the effect
 //           colours and Clear, the spell areas to add, how the Measure tool
 //           counts, or the markers' colour, size, letter and Clear
-//   right   the menu (☰): Settings, the welcome screen, shortcuts, project
-//           files and the window, as GNOME's guidelines put them in an app's
-//           one primary menu
+//   right   always the same: what the players see (PlayerControls), and the
+//           menu (☰): Settings, the welcome screen, shortcuts, project files
+//           and the window, as GNOME's guidelines put them in an app's one
+//           primary menu
 //
 // Buttons are borderless and choices sit in dark tracks, so the bar is grouped
 // by spacing (Fluent's command bar). Solid gold marks the current tool; options
@@ -20,6 +21,7 @@ import { ChevronDown, Menu as MenuIcon, PanelLeftClose, PanelLeftOpen, Redo2, Un
 import { Button, ButtonGroup, Divider, inputClass } from '../ui/controls';
 import { Menu } from '../ui/Menu';
 import { Popover } from '../ui/Popover';
+import { PlayerControls } from './PlayerControls';
 import type { FogShape } from './MapStage';
 import type { AreaShape, EffectKind } from '../types/map';
 import { MOVEMENT_TITLES } from '../lib/grid';
@@ -41,6 +43,8 @@ import {
   MAX_BRUSH,
   MIN_BRUSH,
   type DmApp,
+  type DmPlayerScreen,
+  type DmPlayerView,
   type DmSettings,
   type DmTools,
 } from '../hooks/useDmController';
@@ -51,6 +55,8 @@ interface ToolbarProps {
   settings: DmSettings;
   /** The commands of the menu (☰) */
   app: DmApp;
+  playerView: DmPlayerView;
+  playerScreen: DmPlayerScreen;
 }
 
 /** The Fog tool's ways of drawing, as the toolbar offers them. */
@@ -87,7 +93,13 @@ const FOG_SHAPES: { shape: FogShape; label: string; title: string }[] = [
 
 // Memoized: the DM window re-renders on every frame of a drag, and the toolbar
 // never depends on that
-export const Toolbar = memo(function Toolbar({ tools, settings, app }: ToolbarProps) {
+export const Toolbar = memo(function Toolbar({
+  tools,
+  settings,
+  app,
+  playerView,
+  playerScreen,
+}: ToolbarProps) {
   const { hasMap, tool, shapesNeed } = tools;
   const layerName = tool === 'effect' ? 'effects' : tool === 'markers' ? 'marker' : 'fog';
 
@@ -100,8 +112,10 @@ export const Toolbar = memo(function Toolbar({ tools, settings, app }: ToolbarPr
   }, [shapesNeed]);
 
   return (
-    // Items keep to the top line: when the tool's options need a second line,
-    // they wrap within their own part and the player area stays where it is
+    // One line where there is room. Where there isn't (a narrow window, or the
+    // library open), the player controls go to a second line, at the right,
+    // and the tool's options keep the first; the library button, undo, redo
+    // and the menu stay on the first line whatever happens
     <div className="flex min-h-12 shrink-0 items-start gap-2 border-b border-line bg-panel px-3 py-2">
       {/* Always here, whatever the tool */}
       <div className="flex h-8 shrink-0 items-center gap-2">
@@ -148,286 +162,302 @@ export const Toolbar = memo(function Toolbar({ tools, settings, app }: ToolbarPr
         <Divider />
       </div>
 
-      {/* The current tool's options (the tools themselves are in ToolRail) */}
-      <div
-        role="group"
-        aria-label="Tool options"
-        className="flex min-w-0 flex-1 flex-wrap items-center gap-2"
-      >
-        {/* Only while something paints with it: the Effects tool, and the Fog
+      <div className="@container flex min-w-0 flex-1 flex-wrap items-start gap-2">
+        {/* The current tool's options (the tools themselves are in ToolRail). As
+        wide as they are, so the player controls wrap beneath them rather than
+        squeeze them; past a whole line they wrap within their own part */}
+        <div
+          role="group"
+          aria-label="Tool options"
+          className="flex min-h-8 min-w-0 flex-auto flex-wrap items-center gap-2"
+        >
+          {/* Only while something paints with it: the Effects tool, and the Fog
           tool's brush (not its lasso, rectangle, circle or rooms). Shift-painting
           fog in another tool still uses it, and the wheel with Shift or [ and ]
           still size it */}
-        {(tool === 'effect' || (tool === 'fog' && tools.fogShape === 'brush')) && (
-          <label
-            className="flex items-center gap-2 pl-1 text-[13px] text-muted"
-            title="Brush size: mouse wheel in the Fog and Effects tools (or while holding Shift), or [ and ]"
-          >
-            Brush
-            <input
-              type="range"
-              min={MIN_BRUSH}
-              max={MAX_BRUSH}
-              step={BRUSH_STEP}
-              value={tools.brushSize}
-              onChange={(event) => tools.setBrushSize(Number(event.target.value))}
-              aria-label="Brush size"
-              className="w-24 accent-gold"
-            />
-            <span className="w-7 text-right tabular-nums text-ink">{tools.brushSize}</span>
-          </label>
-        )}
-
-        {tool === 'effect' && (
-          <>
-            <EffectKindPicker
-              kind={tools.effectKind}
-              onChange={tools.setEffectKind}
-              title={(label) => `Paint ${label}`}
-            />
-            <Button
-              tone="plain"
-              onClick={tools.clearEffects}
-              disabled={!tools.canClearEffects}
-              title={keyLabel('Remove all effects from this map (undo with Ctrl+Z)')}
-            >
-              Clear
-            </Button>
-          </>
-        )}
-        {tool === 'shapes' && (
-          <>
-            <EffectKindPicker
-              kind={tools.effectKind}
-              onChange={tools.setEffectKind}
-              title={(label) => `Make new spell areas, and the selected one, ${label}`}
-            />
-            <ButtonGroup track label="Add a spell area">
-              {AREA_SHAPES.map((shape) => (
-                <Button
-                  tone="plain"
-                  key={shape}
-                  aria-haspopup={shapesNeed ? 'dialog' : undefined}
-                  aria-expanded={shapesNeed ? shapeNote === shape : undefined}
-                  onClick={(event) => {
-                    if (!shapesNeed) {
-                      tools.addArea(shape);
-                      return;
-                    }
-                    shapeAnchorRef.current = event.currentTarget;
-                    setShapeNote((open) => (open === shape ? null : shape));
-                  }}
-                  title={`Add a ${DEFAULT_AREA_FT[shape]} ft ${AREA_LABELS[shape].toLowerCase()} in the middle of the player view. Drag its dot to move it; the mouse wheel over it resizes it, or type the size.`}
-                >
-                  {AREA_LABELS[shape]}
-                </Button>
-              ))}
-            </ButtonGroup>
-            <Button
-              tone={settings.showAreaSquares ? 'on' : 'plain'}
-              aria-pressed={settings.showAreaSquares}
-              onClick={settings.toggleAreaSquares}
-              title="Affected squares: outline the grid squares each spell area covers, on the player screen too. A square counts when at least half of it is covered. An emanation counts out from its creature's square as movement is, and leaves that square out."
-            >
-              Affected squares
-            </Button>
-            <Popover
-              open={shapeNote !== null && shapesNeed !== null}
-              onClose={closeShapeNote}
-              anchorRef={shapeAnchorRef}
-              label="Add a spell area"
-            >
-              {shapeNote && shapesNeed === 'grid' && (
-                <>
-                  <p>
-                    Spell areas are sized in feet, so this map needs its grid first. Click two corners of a
-                    square and save it, and the {AREA_LABELS[shapeNote].toLowerCase()} is added.
-                  </p>
-                  <div className="mt-3 flex justify-end">
-                    <Button
-                      tone="active"
-                      onClick={() => {
-                        setShapeNote(null);
-                        tools.addArea(shapeNote);
-                      }}
-                    >
-                      Measure grid
-                    </Button>
-                  </div>
-                </>
-              )}
-              {shapesNeed === 'full' && (
-                <p>A map can have at most {MAX_AREAS} spell areas. Delete one to add another.</p>
-              )}
-            </Popover>
-          </>
-        )}
-        {tool === 'markers' && (
-          <>
-            <ButtonGroup track label="Marker colour">
-              {MARKER_COLORS.map((color) => (
-                <Button
-                  key={color}
-                  square
-                  tone={tools.markerColor === color ? 'on' : 'plain'}
-                  aria-pressed={tools.markerColor === color}
-                  aria-label={MARKER_STYLES[color].label}
-                  onClick={() => tools.setMarkerColor(color)}
-                  title={`${MARKER_STYLES[color].label}: make new markers, and the selected one, ${MARKER_STYLES[color].label.toLowerCase()}`}
-                >
-                  <span
-                    aria-hidden="true"
-                    className="h-4 w-4 rounded-full border border-black/40"
-                    style={{ backgroundColor: `rgb(${MARKER_STYLES[color].rgb})` }}
-                  />
-                </Button>
-              ))}
-            </ButtonGroup>
-            {/* Squares on a map with a grid, else pixels of the map like the fog brush */}
+          {(tool === 'effect' || (tool === 'fog' && tools.fogShape === 'brush')) && (
             <label
               className="flex items-center gap-2 pl-1 text-[13px] text-muted"
-              title={
-                tools.measureNeedsGrid
-                  ? 'Marker size, in pixels of the map like the fog brush, so it zooms with the map. Mouse wheel: over a marker sizes it, elsewhere the next one.'
-                  : 'Marker size in squares: 1 Medium or smaller, 2 Large, 3 Huge, 4 Gargantuan. Mouse wheel: over a marker sizes it, elsewhere the next one.'
-              }
+              title="Brush size: mouse wheel in the Fog and Effects tools (or while holding Shift), or [ and ]"
             >
-              Size
+              Brush
               <input
                 type="range"
-                min={tools.measureNeedsGrid ? MIN_MARKER_RADIUS : MIN_MARKER_SQUARES}
-                max={tools.measureNeedsGrid ? MAX_MARKER_RADIUS : MAX_MARKER_SQUARES}
-                step={tools.measureNeedsGrid ? MARKER_RADIUS_STEP : 1}
-                value={tools.markerSize}
-                onChange={(event) => tools.setMarkerSize(Number(event.target.value))}
-                aria-label="Marker size"
+                min={MIN_BRUSH}
+                max={MAX_BRUSH}
+                step={BRUSH_STEP}
+                value={tools.brushSize}
+                onChange={(event) => tools.setBrushSize(Number(event.target.value))}
+                aria-label="Brush size"
                 className="w-24 accent-gold"
               />
-              <span className="w-8 text-right tabular-nums text-ink">
-                {tools.measureNeedsGrid ? tools.markerSize : `${tools.markerSize}×${tools.markerSize}`}
-              </span>
+              <span className="w-7 text-right tabular-nums text-ink">{tools.brushSize}</span>
             </label>
-            <label
-              className="flex items-center gap-2 pl-1 text-[13px] text-muted"
-              title={
-                tools.markerSelected
-                  ? 'Letter: type a capital A to Z to show in the selected marker, so you know what it stands for. Empty: no letter.'
-                  : 'Letter: a new marker gets the first letter not yet on the map. Select a marker to change its letter.'
-              }
-            >
-              Letter
-              <input
-                type="text"
-                aria-label="Marker letter"
-                value={tools.markerLetter}
-                disabled={!tools.markerSelected}
-                onFocus={(event) => event.currentTarget.select()}
-                onChange={(event) => {
-                  const letter = typedMarkerLetter(event.target.value);
-                  if (letter !== null) tools.setMarkerLetter(letter);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === 'Escape') event.currentTarget.blur();
-                }}
-                autoComplete="off"
-                spellCheck={false}
-                className={`${inputClass} w-9 text-center font-semibold uppercase disabled:opacity-40`}
-              />
-            </label>
-            <Button
-              tone="plain"
-              onClick={tools.clearMarkers}
-              disabled={!tools.canClearMarkers}
-              title={keyLabel('Remove all markers from this map (undo with Ctrl+Z)')}
-            >
-              Clear
-            </Button>
-          </>
-        )}
-        {tool === 'measure' &&
-          (tools.measureNeedsGrid ? (
-            <span className="flex items-center gap-2 text-[13px] text-muted">
-              Measuring needs this map’s grid.
-              <Button onClick={tools.measureGrid}>Measure grid</Button>
-            </span>
-          ) : (
+          )}
+
+          {tool === 'effect' && (
             <>
-              <ButtonGroup track label="Measure">
-                <Button
-                  tone={tools.measureStraight ? 'plain' : 'on'}
-                  aria-pressed={!tools.measureStraight}
-                  onClick={() => tools.setMeasureStraight(false)}
-                  title={`Movement: counted in squares, from the middle of one to the middle of another; ${MOVEMENT_TITLES[settings.movementRule]}. Settings switches how diagonals count.`}
-                >
-                  Movement
-                </Button>
-                <Button
-                  tone={tools.measureStraight ? 'on' : 'plain'}
-                  aria-pressed={tools.measureStraight}
-                  onClick={() => tools.setMeasureStraight(true)}
-                  title={keyLabel(
-                    'Straight line: the distance as the crow flies, not counted in squares. Ctrl snaps the ends to square centres.',
-                  )}
-                >
-                  Straight line
-                </Button>
-              </ButtonGroup>
+              <EffectKindPicker
+                kind={tools.effectKind}
+                onChange={tools.setEffectKind}
+                title={(label) => `Paint ${label}`}
+              />
               <Button
-                tone={settings.showRulerToPlayers ? 'on' : 'plain'}
-                aria-pressed={settings.showRulerToPlayers}
-                onClick={() => settings.setShowRulerToPlayers(!settings.showRulerToPlayers)}
-                title="Show players: the ruler appears on the player screen too, as you drag it."
+                tone="plain"
+                onClick={tools.clearEffects}
+                disabled={!tools.canClearEffects}
+                title={keyLabel('Remove all effects from this map (undo with Ctrl+Z)')}
               >
-                Show players
+                Clear
               </Button>
             </>
-          ))}
-        {(tool === 'view' || tool === 'fog') && (
-          <>
-            {tool === 'fog' && (
-              <ButtonGroup track label="Fog drawing">
-                {FOG_SHAPES.map(({ shape, label, title }) => (
+          )}
+          {tool === 'shapes' && (
+            <>
+              <EffectKindPicker
+                kind={tools.effectKind}
+                onChange={tools.setEffectKind}
+                title={(label) => `Make new spell areas, and the selected one, ${label}`}
+              />
+              <ButtonGroup track label="Add a spell area">
+                {AREA_SHAPES.map((shape) => (
                   <Button
+                    tone="plain"
                     key={shape}
-                    tone={tools.fogShape === shape ? 'on' : 'plain'}
-                    aria-pressed={tools.fogShape === shape}
-                    onClick={() => tools.setFogShape(shape)}
-                    title={keyLabel(title)}
+                    aria-haspopup={shapesNeed ? 'dialog' : undefined}
+                    aria-expanded={shapesNeed ? shapeNote === shape : undefined}
+                    onClick={(event) => {
+                      if (!shapesNeed) {
+                        tools.addArea(shape);
+                        return;
+                      }
+                      shapeAnchorRef.current = event.currentTarget;
+                      setShapeNote((open) => (open === shape ? null : shape));
+                    }}
+                    title={`Add a ${DEFAULT_AREA_FT[shape]} ft ${AREA_LABELS[shape].toLowerCase()} in the middle of the player view. Drag its dot to move it; the mouse wheel over it resizes it, or type the size.`}
                   >
-                    {label}
+                    {AREA_LABELS[shape]}
                   </Button>
                 ))}
               </ButtonGroup>
-            )}
-            {tool === 'fog' && tools.fogShape === 'circle' && tools.measureNeedsGrid && (
+              <Button
+                tone={settings.showAreaSquares ? 'on' : 'plain'}
+                aria-pressed={settings.showAreaSquares}
+                onClick={settings.toggleAreaSquares}
+                title="Affected squares: outline the grid squares each spell area covers, on the player screen too. A square counts when at least half of it is covered. An emanation counts out from its creature's square as movement is, and leaves that square out."
+              >
+                Affected squares
+              </Button>
+              <Popover
+                open={shapeNote !== null && shapesNeed !== null}
+                onClose={closeShapeNote}
+                anchorRef={shapeAnchorRef}
+                label="Add a spell area"
+              >
+                {shapeNote && shapesNeed === 'grid' && (
+                  <>
+                    <p>
+                      Spell areas are sized in feet, so this map needs its grid first. Click two corners of a
+                      square and save it, and the {AREA_LABELS[shapeNote].toLowerCase()} is added.
+                    </p>
+                    <div className="mt-3 flex justify-end">
+                      <Button
+                        tone="active"
+                        onClick={() => {
+                          setShapeNote(null);
+                          tools.addArea(shapeNote);
+                        }}
+                      >
+                        Measure grid
+                      </Button>
+                    </div>
+                  </>
+                )}
+                {shapesNeed === 'full' && (
+                  <p>A map can have at most {MAX_AREAS} spell areas. Delete one to add another.</p>
+                )}
+              </Popover>
+            </>
+          )}
+          {tool === 'markers' && (
+            <>
+              <ButtonGroup track label="Marker colour">
+                {MARKER_COLORS.map((color) => (
+                  <Button
+                    key={color}
+                    square
+                    tone={tools.markerColor === color ? 'on' : 'plain'}
+                    aria-pressed={tools.markerColor === color}
+                    aria-label={MARKER_STYLES[color].label}
+                    onClick={() => tools.setMarkerColor(color)}
+                    title={`${MARKER_STYLES[color].label}: make new markers, and the selected one, ${MARKER_STYLES[color].label.toLowerCase()}`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="h-4 w-4 rounded-full border border-black/40"
+                      style={{ backgroundColor: `rgb(${MARKER_STYLES[color].rgb})` }}
+                    />
+                  </Button>
+                ))}
+              </ButtonGroup>
+              {/* Squares on a map with a grid, else pixels of the map like the fog brush */}
+              <label
+                className="flex items-center gap-2 pl-1 text-[13px] text-muted"
+                title={
+                  tools.measureNeedsGrid
+                    ? 'Marker size, in pixels of the map like the fog brush, so it zooms with the map. Mouse wheel: over a marker sizes it, elsewhere the next one.'
+                    : 'Marker size in squares: 1 Medium or smaller, 2 Large, 3 Huge, 4 Gargantuan. Mouse wheel: over a marker sizes it, elsewhere the next one.'
+                }
+              >
+                Size
+                <input
+                  type="range"
+                  min={tools.measureNeedsGrid ? MIN_MARKER_RADIUS : MIN_MARKER_SQUARES}
+                  max={tools.measureNeedsGrid ? MAX_MARKER_RADIUS : MAX_MARKER_SQUARES}
+                  step={tools.measureNeedsGrid ? MARKER_RADIUS_STEP : 1}
+                  value={tools.markerSize}
+                  onChange={(event) => tools.setMarkerSize(Number(event.target.value))}
+                  aria-label="Marker size"
+                  className="w-24 accent-gold"
+                />
+                <span className="w-8 text-right tabular-nums text-ink">
+                  {tools.measureNeedsGrid ? tools.markerSize : `${tools.markerSize}×${tools.markerSize}`}
+                </span>
+              </label>
+              <label
+                className="flex items-center gap-2 pl-1 text-[13px] text-muted"
+                title={
+                  tools.markerSelected
+                    ? 'Letter: type a capital A to Z to show in the selected marker, so you know what it stands for. Empty: no letter.'
+                    : 'Letter: a new marker gets the first letter not yet on the map. Select a marker to change its letter.'
+                }
+              >
+                Letter
+                <input
+                  type="text"
+                  aria-label="Marker letter"
+                  value={tools.markerLetter}
+                  disabled={!tools.markerSelected}
+                  onFocus={(event) => event.currentTarget.select()}
+                  onChange={(event) => {
+                    const letter = typedMarkerLetter(event.target.value);
+                    if (letter !== null) tools.setMarkerLetter(letter);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === 'Escape') event.currentTarget.blur();
+                  }}
+                  autoComplete="off"
+                  spellCheck={false}
+                  className={`${inputClass} w-9 text-center font-semibold uppercase disabled:opacity-40`}
+                />
+              </label>
+              <Button
+                tone="plain"
+                onClick={tools.clearMarkers}
+                disabled={!tools.canClearMarkers}
+                title={keyLabel('Remove all markers from this map (undo with Ctrl+Z)')}
+              >
+                Clear
+              </Button>
+            </>
+          )}
+          {tool === 'measure' &&
+            (tools.measureNeedsGrid ? (
               <span className="flex items-center gap-2 text-[13px] text-muted">
-                A circle in feet needs this map’s grid.
+                Measuring needs this map’s grid.
                 <Button onClick={tools.measureGrid}>Measure grid</Button>
               </span>
-            )}
-            <Menu
-              items={[
-                { label: 'Reveal entire map', onSelect: tools.revealAll },
-                { label: 'Cover entire map', onSelect: tools.coverAll },
-              ]}
-              trigger={(trigger) => (
+            ) : (
+              <>
+                <ButtonGroup track label="Measure">
+                  <Button
+                    tone={tools.measureStraight ? 'plain' : 'on'}
+                    aria-pressed={!tools.measureStraight}
+                    onClick={() => tools.setMeasureStraight(false)}
+                    title={`Movement: counted in squares, from the middle of one to the middle of another; ${MOVEMENT_TITLES[settings.movementRule]}. Settings switches how diagonals count.`}
+                  >
+                    Movement
+                  </Button>
+                  <Button
+                    tone={tools.measureStraight ? 'on' : 'plain'}
+                    aria-pressed={tools.measureStraight}
+                    onClick={() => tools.setMeasureStraight(true)}
+                    title={keyLabel(
+                      'Straight line: the distance as the crow flies, not counted in squares. Ctrl snaps the ends to square centres.',
+                    )}
+                  >
+                    Straight line
+                  </Button>
+                </ButtonGroup>
                 <Button
-                  {...trigger}
-                  tone="plain"
-                  disabled={!hasMap}
-                  title="Whole map: reveal or cover all of it"
+                  tone={settings.showRulerToPlayers ? 'on' : 'plain'}
+                  aria-pressed={settings.showRulerToPlayers}
+                  onClick={() => settings.setShowRulerToPlayers(!settings.showRulerToPlayers)}
+                  title="Show players: the ruler appears on the player screen too, as you drag it."
                 >
-                  Whole map
-                  <ChevronDown className="h-3.5 w-3.5 text-muted" />
+                  Show players
                 </Button>
+              </>
+            ))}
+          {(tool === 'view' || tool === 'fog') && (
+            <>
+              {tool === 'fog' && (
+                <ButtonGroup track label="Fog drawing">
+                  {FOG_SHAPES.map(({ shape, label, title }) => (
+                    <Button
+                      key={shape}
+                      tone={tools.fogShape === shape ? 'on' : 'plain'}
+                      aria-pressed={tools.fogShape === shape}
+                      onClick={() => tools.setFogShape(shape)}
+                      title={keyLabel(title)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </ButtonGroup>
               )}
-            />
-          </>
-        )}
+              {tool === 'fog' && tools.fogShape === 'circle' && tools.measureNeedsGrid && (
+                <span className="flex items-center gap-2 text-[13px] text-muted">
+                  A circle in feet needs this map’s grid.
+                  <Button onClick={tools.measureGrid}>Measure grid</Button>
+                </span>
+              )}
+              <Menu
+                items={[
+                  { label: 'Reveal entire map', onSelect: tools.revealAll },
+                  { label: 'Cover entire map', onSelect: tools.coverAll },
+                ]}
+                trigger={(trigger) => (
+                  <Button
+                    {...trigger}
+                    tone="plain"
+                    disabled={!hasMap}
+                    title="Whole map: reveal or cover all of it"
+                  >
+                    Whole map
+                    <ChevronDown className="h-3.5 w-3.5 text-muted" />
+                  </Button>
+                )}
+              />
+            </>
+          )}
+        </div>
+
+        {/* What the players see: at the right, whatever the tool. It shrinks
+          only by shortening the line saying what players see */}
+        <div className="ml-auto flex h-8 min-w-0 items-center gap-2">
+          <Divider />
+          <PlayerControls
+            playerView={playerView}
+            playerScreen={playerScreen}
+            hasMap={hasMap}
+            openSettings={app.openSettings}
+          />
+        </div>
       </div>
 
-      {/* Always at the right, whatever the tool */}
-      <div className="flex h-8 shrink-0 items-center">
+      <div className="flex h-8 shrink-0 items-center gap-2">
+        <Divider />
         <Menu
           align="right"
           items={[

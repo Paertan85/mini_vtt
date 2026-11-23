@@ -74,7 +74,7 @@ export function ButtonGroup({
 }
 
 /** A thin vertical rule between toolbar groups. */
-export const Divider = () => <span aria-hidden="true" className="mx-1 h-5 w-px bg-line" />;
+export const Divider = () => <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-line" />;
 
 /** A keyboard shortcut hint, e.g. <Kbd>F</Kbd>. */
 export const Kbd = ({ children }: { children: React.ReactNode }) => (

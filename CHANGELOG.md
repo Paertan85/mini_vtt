@@ -32,17 +32,18 @@ All notable changes to this project are documented here. The format is based on
     current tool's options and the menu (☰). Effect and marker colours are
     swatches, named in their tooltips. At 1280 pixels wide, with the library
     open, every tool's options fit on one line.
-  - A **bar beneath the map** holds what the players see: the player screen,
-    **Blackout**, **Slideshow**, and **True scale**, **Fill screen**, the zoom
-    lock and the player view's zoom. It stays the same whatever the tool, so
-    nothing moves when the tool changes. Its **Player screen** button opens
-    the player window, and closes it again.
+  - What the players see is at the **right of the toolbar**, so the map gets
+    the rest of the window: the player screen, **Blackout**, **Slideshow**,
+    and **True scale**, **Fill screen**, the zoom lock and the player view's
+    zoom. Where the toolbar is too narrow for all of it (a smaller window, or
+    the library open), these go on a second line, at the right. Its **Player
+    screen** button opens the player window, and closes it again.
   - While players see something other than the map (the kill screen, the
-    slideshow, a blackout or a handout), that bar turns crimson and says so,
-    in place of the banner above the map. The map area keeps its size, so the
-    map no longer jumps when Blackout or the slideshow goes on or off. With
-    the interface hidden (Ctrl+Shift+B), the bar stays as one line saying what
-    players see, with a button to show the map.
+    slideshow, a blackout or a handout), those controls turn crimson and say
+    so, in place of the banner above the map. The map area keeps its size, so
+    the map no longer jumps when Blackout or the slideshow goes on or off.
+    With the interface hidden (Ctrl+Shift+B), one line at the top still says
+    what players see, with a button to show the map.
   - Toolbar buttons have no border of their own, and each set of choices sits
     in a dark strip, so the current tool and the options that are on stand
     out from the rest.

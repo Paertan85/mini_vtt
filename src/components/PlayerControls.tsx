@@ -1,33 +1,31 @@
-// The bar beneath the map: everything about what the players see, in one place
-// that never moves, whatever the tool. The toolbar above the map is for the
-// DM's own tools; this one is the player screen's, much as a presenter view
-// keeps the audience's controls apart from the speaker's.
-//   left    the player screen (open or close it), Blackout and Slideshow
-//   middle  while players see something other than the map (the kill screen,
-//           the slideshow, a blackout or a handout), what they see and how to
-//           go back; the bar turns crimson then. In the bar, not a banner above
-//           the map, so the map area keeps its size and the map doesn't jump
-//   right   True scale, Fill screen, the zoom lock and the player view's zoom
+// What the players see, at the right of the toolbar: in one place that never
+// moves, whatever the tool. The tools' options are the DM's own; these are the
+// player screen's, much as a presenter view keeps the audience's controls
+// apart from the speaker's. In order: the player screen (open or close it),
+// Blackout and Slideshow, then True scale, Fill screen, the zoom lock and the
+// player view's zoom.
 //
-// With the interface hidden (Ctrl+Shift+B) only that message stays, while there
-// is one, so the DM still sees that the players don't see the map.
+// While players see something other than the map (the kill screen, the
+// slideshow, a blackout or a handout), the group turns crimson and says what
+// they see and how to go back. In the toolbar, not a banner above the map, so
+// the map area keeps its size and the map doesn't jump. With the interface
+// hidden (Ctrl+Shift+B) only that message stays, in PlayerStatusBar, so the DM
+// still sees that the players don't see the map.
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Lock, LockOpen, Minus, Plus } from 'lucide-react';
-import { Button, ButtonGroup, inputClass } from '../ui/controls';
+import { Button, ButtonGroup, Divider, inputClass } from '../ui/controls';
 import { Popover } from '../ui/Popover';
 import { clampZoom, MAX_ZOOM, MIN_ZOOM, stepZoom } from '../lib/geometry';
 import { keyLabel } from '../lib/platform';
 import type { DmPlayerScreen, DmPlayerView, TrueScaleNeed } from '../hooks/useDmController';
 
-interface PlayerBarProps {
+interface PlayerControlsProps {
   playerView: DmPlayerView;
   playerScreen: DmPlayerScreen;
   hasMap: boolean;
   /** Where True scale sends the DM when the player screen's size isn't set */
   openSettings: () => void;
-  /** The interface is hidden: show only what players see instead of the map, if anything */
-  statusOnly: boolean;
 }
 
 /**
@@ -79,12 +77,16 @@ function playerStatus(playerScreen: DmPlayerScreen): PlayerStatus | null {
   return null;
 }
 
-/** The status line, cut short where the bar is narrow (the tooltip has all of it), and its button. */
+/** The status line, cut short in the toolbar (the tooltip has all of it), and its button. */
 function StatusMessage({ status, inBar }: { status: PlayerStatus; inBar: boolean }) {
   const { action } = status;
   return (
     <>
-      <span role="status" className="min-w-0 truncate text-[13px] text-ink" title={status.detail}>
+      <span
+        role="status"
+        className={`min-w-0 truncate px-1 text-[13px] text-ink ${inBar ? 'max-w-64' : ''}`}
+        title={status.detail}
+      >
         {status.text}
       </span>
       {action && (!inBar || action.inBar !== false) && (
@@ -112,15 +114,14 @@ const TRUE_SCALE_NOTES: Record<TrueScaleNeed, { text: string; action: string }> 
   },
 };
 
-// Memoized: the DM window re-renders on every frame of a drag, and the bar
-// never depends on that
-export const PlayerBar = memo(function PlayerBar({
+// Memoized: the DM window re-renders on every frame of a drag, and these
+// never depend on that
+export const PlayerControls = memo(function PlayerControls({
   playerView,
   playerScreen,
   hasMap,
   openSettings,
-  statusOnly,
-}: PlayerBarProps) {
+}: PlayerControlsProps) {
   const { zoom, zoomLocked, trueScaleNeeds } = playerView;
   const status = playerStatus(playerScreen);
 
@@ -132,20 +133,23 @@ export const PlayerBar = memo(function PlayerBar({
     if (!trueScaleNeeds) setTrueScaleNote(false);
   }, [trueScaleNeeds]);
 
-  const barClass = `flex min-h-12 shrink-0 items-center gap-2 border-t px-3 py-2 ${
-    status ? 'border-crimson bg-crimson-deep' : 'border-line bg-panel'
-  }`;
-
-  if (statusOnly) {
-    return status ? (
-      <div role="group" aria-label="Player screen" className={barClass}>
-        <StatusMessage status={status} inBar={false} />
-      </div>
-    ) : null;
-  }
-
   return (
-    <div role="group" aria-label="Player screen" className={`${barClass} flex-wrap`}>
+    <div
+      role="group"
+      aria-label="Player screen"
+      title={status?.detail}
+      // An outline, not a border, so the group keeps its size when it turns crimson
+      className={`flex h-8 min-w-0 items-center gap-1 rounded-sm ${
+        status ? 'bg-crimson-deep outline outline-crimson' : ''
+      }`}
+    >
+      {/* Only where the toolbar has room for it; the crimson still says
+        players don't see the map, and the group's tooltip what they see */}
+      {status && (
+        <span className="hidden min-w-0 items-center gap-2 @min-[60rem]:flex">
+          <StatusMessage status={status} inBar />
+        </span>
+      )}
       <Button
         tone="plain"
         onClick={playerScreen.togglePlayer}
@@ -178,11 +182,7 @@ export const PlayerBar = memo(function PlayerBar({
       >
         Slideshow
       </Button>
-
-      <div className="flex min-w-0 flex-1 items-center gap-3 px-2">
-        {status && <StatusMessage status={status} inBar />}
-      </div>
-
+      <Divider />
       <Button
         ref={trueScaleRef}
         tone={playerView.atTrueScale ? 'on' : 'plain'}
@@ -249,6 +249,25 @@ export const PlayerBar = memo(function PlayerBar({
   );
 });
 
+/** With the interface hidden, a line at the top saying what players see instead of the map, if anything. */
+export const PlayerStatusBar = memo(function PlayerStatusBar({
+  playerScreen,
+}: {
+  playerScreen: DmPlayerScreen;
+}) {
+  const status = playerStatus(playerScreen);
+  if (!status) return null;
+  return (
+    <div
+      role="group"
+      aria-label="What players see"
+      className="flex min-h-12 shrink-0 items-center gap-2 border-b border-crimson bg-crimson-deep px-3 py-2"
+    >
+      <StatusMessage status={status} inBar={false} />
+    </div>
+  );
+});
+
 /** Player zoom − [ 100 % ] +  The field accepts a typed percentage on Enter or blur. */
 function ZoomControl({
   zoom,
@@ -277,7 +296,7 @@ function ZoomControl({
       className="flex items-center gap-2"
       title="Player view zoom: + and − keys, mouse wheel over the player frame in the View tool, or Alt + mouse wheel in 1% steps"
     >
-      <span className="text-[13px] text-muted">Player zoom</span>
+      <span className="whitespace-nowrap text-[13px] text-muted">Player zoom</span>
       <ButtonGroup track label="Player view zoom">
         <Button
           square
