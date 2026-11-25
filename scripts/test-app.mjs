@@ -2673,7 +2673,10 @@ app.whenReady().then(async () => {
       await sleep(200);
       await clickText('Rotate right');
       main.close();
-      const rotation = await atExit;
+      // A Mac app stays open with no windows: quit it, as Cmd+Q would
+      if (process.platform === 'darwin') app.quit();
+      // A quit that never comes fails the check instead of hanging the run
+      const rotation = await Promise.race([atExit, sleep(20000).then(() => 'no quit within 20 s')]);
       check(
         'a change made as the DM window closes is saved before the app quits',
         rotation === (loaded.rotation + 90) % 360,
