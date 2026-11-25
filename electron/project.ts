@@ -286,6 +286,24 @@ async function openProject(sourcePath: string): Promise<ProjectSource> {
   }
 }
 
+/**
+ * What an import may take from a project file: each stored file once, and no
+ * more stored bytes in all than the file holds. A file written by hand could
+ * otherwise name one file (or files sharing their bytes) in thousands of
+ * records, and a project of a few kilobytes would write it out again for
+ * each, until the disk is full. Returns whether `key`, `bytes` long, may be read.
+ */
+function readBudget(fileBytes: number) {
+  const taken = new Set<unknown>();
+  let left = fileBytes;
+  return (key: unknown, bytes: number) => {
+    if (taken.has(key) || bytes > left) return false;
+    taken.add(key);
+    left -= bytes;
+    return true;
+  };
+}
+
 /** File system errors (a full disk, no access) are failures, not a damaged file in the archive. */
 const isFileSystemError = (err: unknown) => !!err && typeof err === 'object' && 'syscall' in err;
 
@@ -337,9 +355,10 @@ async function openZipProject(sourcePath: string, looksLikeZip: boolean): Promis
       throw new ProjectError(DAMAGED);
     }
     const entryFor = (ref: unknown) => (typeof ref === 'string' ? entries.get(ref) : undefined);
+    const take = readBudget(zip.fileSize);
     const read = async (ref: unknown, maxBytes: number) => {
       const entry = entryFor(ref);
-      if (!entry || entry.uncompressedSize > maxBytes) return null;
+      if (!entry || entry.uncompressedSize > maxBytes || !take(entry, entry.compressedSize)) return null;
       const chunks: Buffer[] = [];
       const sink = new Writable({
         write(chunk: Buffer, _encoding, done) {
@@ -366,7 +385,7 @@ async function openZipProject(sourcePath: string, looksLikeZip: boolean): Promis
       sizeOf: (ref) => entryFor(ref)?.uncompressedSize ?? null,
       extract: async (ref, dest) => {
         const entry = entryFor(ref);
-        return !!entry && pipeEntry(zip, entry, createWriteStream(dest));
+        return !!entry && take(entry, entry.compressedSize) && pipeEntry(zip, entry, createWriteStream(dest));
       },
       read,
       close: async () => zip.close(),
@@ -453,13 +472,16 @@ async function openLegacyProject(file: FileHandle): Promise<ProjectSource> {
     return { offset, size };
   };
   const chunk = Buffer.alloc(COPY_CHUNK_BYTES);
+  const budget = readBudget(dataSize);
+  const take = (found: { offset: number; size: number }) =>
+    budget(`${found.offset}+${found.size}`, found.size);
   return {
     manifest,
     maxVersion: 1,
     sizeOf: (ref) => range(ref)?.size ?? null,
     extract: async (ref, dest) => {
       const found = range(ref);
-      if (!found) return false;
+      if (!found || !take(found)) return false;
       const out = await fs.open(dest, 'w');
       try {
         await copyBytes(file, dataStart + found.offset, found.size, out, 0, chunk);
@@ -470,7 +492,9 @@ async function openLegacyProject(file: FileHandle): Promise<ProjectSource> {
     },
     read: async (ref, maxBytes) => {
       const found = range(ref);
-      return found && found.size <= maxBytes ? readExactly(file, dataStart + found.offset, found.size) : null;
+      return found && found.size <= maxBytes && take(found)
+        ? readExactly(file, dataStart + found.offset, found.size)
+        : null;
     },
     close: () => file.close(),
   };

@@ -2333,6 +2333,53 @@ app.whenReady().then(async () => {
       tooBig.message,
     );
 
+    // A file named by many records is read for the first only: a small file
+    // can't write one picture out thousands of times and fill the disk
+    {
+      const mapsBefore = (await lib.loadSnapshot()).maps.length;
+      const reused = await lib.importProject(
+        await fixture(
+          'reused.minivtt',
+          await makeZip({
+            'manifest.json': {
+              ...forkManifest,
+              maps: Array.from({ length: 50 }, (_, n) => ({ name: `copy ${n}`, media: 'maps/1/media.png' })),
+            },
+            'maps/1/media.png': mapPng,
+          }),
+        ),
+      );
+      check(
+        'a file named by many records is imported once',
+        reused.maps === 1 &&
+          reused.skipped === 49 &&
+          (await lib.loadSnapshot()).maps.length === mapsBefore + 1,
+        JSON.stringify(reused),
+      );
+      const shared = { offset: 0, size: mapPng.length };
+      const sharedManifest = Buffer.from(
+        JSON.stringify({
+          format: 'mini-vtt-project',
+          version: 1,
+          maps: [
+            { name: 'first', media: shared },
+            { name: 'second', media: shared },
+          ],
+          handouts: [],
+        }),
+      );
+      const sharedHeader = Buffer.from(hostileHeader);
+      sharedHeader.writeUInt32LE(sharedManifest.length, 8);
+      const fromShared = await lib.importProject(
+        await fixture('shared.minivtt', Buffer.concat([sharedHeader, sharedManifest, mapPng])),
+      );
+      check(
+        'and so is one that a 1.1 or 1.2 file names twice',
+        fromShared.maps === 1 && fromShared.skipped === 1,
+        JSON.stringify(fromShared),
+      );
+    }
+
     // ── The examples in docs/project-format.md ──────────────────────────────
     const formatDoc = await fs.readFile(new URL('../docs/project-format.md', import.meta.url), 'utf8');
     const examples = [...formatDoc.matchAll(/```json\r?\n([\s\S]*?)\r?\n\s*```/g)]

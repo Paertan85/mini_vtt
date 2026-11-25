@@ -66,6 +66,9 @@ All notable changes to this project are documented here. The format is based on
   players saw the new map through the revealed parts of the one before, or
   with no fog at all when the player screen had just opened or reloaded. A
   map now stays hidden until its fog is in place.
+- A project file made by hand could name one picture for thousands of maps,
+  and importing it wrote a copy for each, until the disk was nearly full. A
+  file in a project is now read once; a map that names it again is skipped.
 
 ## 1.6.0 - 2026-11-22
 

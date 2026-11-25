@@ -265,6 +265,7 @@ Mini VTT reads up to 10,000 maps and 10,000 handouts, a manifest of up to 16 MB,
 - Files are found only through the paths in the manifest. Other files in the archive are ignored.
 - Mini VTT checks each file's size and CRC-32 checksum. A map or handout whose file fails either check, or isn't a supported type, is skipped.
 - A file that is encrypted, or compressed in a way other than deflate, counts as missing.
+- Each file in the archive is read once: a path the manifest names a second time counts as missing there. So does a file that would take the bytes read past the size of the archive, as happens only when entries share their bytes. Give each map and handout files of its own.
 - An archive with a name that points outside it (`..`, or starting with `/`) is refused.
 - Importing only ever adds to the library. Every map and handout gets a new id, so importing a file twice gives two copies.
 
