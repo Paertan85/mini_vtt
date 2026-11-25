@@ -2057,50 +2057,95 @@ app.whenReady().then(async () => {
       (await js(`!!document.querySelector('[aria-label="Blackout"]')`, player)) === true,
     );
     check('and Live turns red', (await liveMark()).live?.includes('text-crimson-bright') === true);
-    // With a rule hint along the bottom edge, turned with the view
+    // With a rule hint along the bottom edge, on a dark band, turned like
+    // portrait maps and handouts: Rotate left (the default) puts it along the right edge
     const ruleHint = () =>
       js(
         `(() => { const el = document.querySelector('[aria-label="Rule hint"]'); if (!el) return null;
           const r = el.getBoundingClientRect();
           return { text: el.textContent, transform: el.parentElement.style.transform,
+            background: getComputedStyle(el).backgroundColor,
             left: r.left, right: r.right, top: r.top, bottom: r.bottom,
             width: innerWidth, height: innerHeight }; })()`,
         player,
       );
     const blackoutHint = await waitFor(ruleHint);
     check(
-      'the blackout shows a rule hint along the bottom edge',
+      'the blackout shows a rule hint on a dark band, turned left along the right edge',
       !!blackoutHint?.text &&
-        blackoutHint.transform.includes('rotate(0deg)') &&
-        blackoutHint.top > blackoutHint.height * 0.75 &&
-        blackoutHint.bottom <= blackoutHint.height,
+        blackoutHint.transform.includes('rotate(270deg)') &&
+        blackoutHint.left > blackoutHint.width * 0.75 &&
+        blackoutHint.right <= blackoutHint.width &&
+        // Black, partly see-through (Chromium gives Tailwind's colours as oklab)
+        /^(rgba\(0, 0, 0, |oklab\(0 0 0 \/ )0\.[1-9]/.test(blackoutHint.background),
       JSON.stringify(blackoutHint),
     );
+    // Turning the map leaves it as it is
     await click('[aria-label="Options for Alpha"]');
     await sleep(200);
     await clickText('Rotate right');
-    const turnedHint = await waitFor(async () => {
-      const hint = await ruleHint();
-      return hint?.transform.includes('rotate(90deg)') && hint;
-    });
+    await waitFor(() => readIndex().maps.find((m) => m.id === 'm_alpha').rotation === 90);
+    await sleep(400);
     check(
-      'turned with the view: a quarter turn right puts it along the left edge',
-      !!turnedHint && turnedHint.right < turnedHint.width * 0.25 && turnedHint.left >= 0,
-      JSON.stringify(turnedHint),
+      'turning the map doesn’t turn it',
+      (await ruleHint())?.transform.includes('rotate(270deg)') === true,
+      (await ruleHint())?.transform,
     );
     await click('[aria-label="Options for Alpha"]');
     await sleep(200);
     await clickText('Rotate left');
-    await waitFor(async () => (await ruleHint())?.transform.includes('rotate(0deg)'));
-    // The main process lets only a known hint through, and only over the blackout or slideshow
-    const shownHint = (await ruleHint())?.text;
-    ipcMain.emit('player:state', {}, { ...lastPlayerState, hint: '<b>Not a rule</b>' });
+    await waitFor(() => readIndex().maps.find((m) => m.id === 'm_alpha').rotation === 0);
+    // The portrait setting does
+    await openSettings();
+    await clickText('Don’t rotate');
+    const uprightHint = await waitFor(async () => {
+      const hint = await ruleHint();
+      return hint?.transform.includes('rotate(0deg)') && hint;
+    });
     check(
-      'a hint that isn’t one of the rule hints never reaches the player screen',
-      (await waitFor(async () => (await ruleHint()) === null)) === true &&
-        (await js(`!!document.querySelector('[aria-label="Blackout"]')`, player)) === true,
+      'with Don’t rotate it lies along the bottom edge',
+      !!uprightHint &&
+        uprightHint.top > uprightHint.height * 0.75 &&
+        uprightHint.bottom <= uprightHint.height,
+      JSON.stringify(uprightHint),
     );
-    ipcMain.emit('player:state', {}, { ...lastPlayerState, blackout: false, hint: shownHint });
+    await clickText('Rotate right');
+    const rightHint = await waitFor(async () => {
+      const hint = await ruleHint();
+      return hint?.transform.includes('rotate(90deg)') && hint;
+    });
+    check(
+      'and with Rotate right along the left edge',
+      !!rightHint && rightHint.right < rightHint.width * 0.25 && rightHint.left >= 0,
+      JSON.stringify(rightHint),
+    );
+    await clickText('Rotate left');
+    await waitFor(() => readIndex().settings.portraitRotation === 270);
+    await closeSettings();
+    await waitFor(async () => (await ruleHint())?.transform.includes('rotate(270deg)'));
+    // The main process lets only a known hint through, turned a known way, and
+    // only over the blackout or slideshow
+    const shownHint = (await ruleHint())?.text;
+    const forged = [
+      [
+        'a hint that isn’t one of the rule hints never reaches the player screen',
+        { hint: { text: '<b>Not a rule</b>', rotation: 270 } },
+      ],
+      ['nor one turned some other way', { hint: { text: shownHint, rotation: 45 } }],
+      ['nor a bare string', { hint: shownHint }],
+    ];
+    for (const [name, change] of forged) {
+      ipcMain.emit('player:state', {}, { ...lastPlayerState, ...change });
+      check(
+        name,
+        (await waitFor(async () => (await ruleHint()) === null)) === true &&
+          (await js(`!!document.querySelector('[aria-label="Blackout"]')`, player)) === true,
+      );
+      // The DM window's own state again
+      ipcMain.emit('player:state', {}, { ...lastPlayerState, hint: { text: shownHint, rotation: 270 } });
+      await waitFor(ruleHint);
+    }
+    ipcMain.emit('player:state', {}, { ...lastPlayerState, blackout: false });
     check(
       'nor one with nothing covering the map',
       (await waitFor(() => js(`!document.querySelector('[aria-label="Blackout"]')`, player))) === true &&

@@ -38,11 +38,8 @@ export interface MapState {
   killScreen: KillScreen | null;
   /** Pictures shown one after another in place of the map, or null */
   slideshow: Slideshow | null;
-  /**
-   * A rule hint along the bottom of the blackout or slideshow, turned with
-   * the view: one of LOADING_HINTS (src/lib/loadingHints.ts), or null
-   */
-  hint: string | null;
+  /** A rule hint along the bottom of the blackout or slideshow, or null */
+  hint: LoadingHint | null;
   /** Spell areas, drawn under the fog */
   areas: DrawnArea[];
   /** The map's grid, drawn under the fog when the DM shows it to players; null: no grid */
@@ -59,6 +56,16 @@ export interface MapState {
 export interface KillScreen {
   text: string;
   /** Clockwise: 0, 90, 180 or 270 */
+  rotation: number;
+}
+
+/**
+ * A rule hint: one of LOADING_HINTS (src/lib/loadingHints.ts), turned like
+ * portrait maps and handouts, so Rotate left puts it along the screen's right edge.
+ */
+export interface LoadingHint {
+  text: string;
+  /** Clockwise: 0, 90 or 270, as portraitRotation */
   rotation: number;
 }
 

@@ -17,6 +17,7 @@ import type {
   HandoutMeta,
   ImportResult,
   KillScreen,
+  LoadingHint,
   LibrarySnapshot,
   MapEntryMeta,
   MapGrid,
@@ -1030,7 +1031,12 @@ export function useDmController(): DmController {
       },
     [slideshowListing, slideshowSeconds, portraitRotation],
   );
-  const playerHint = showRuleHints && (blackout || playerSlideshow) ? loadingHint : null;
+  // Turned like portrait maps and handouts; the same object until it changes
+  const hintShown = showRuleHints && (blackout || !!playerSlideshow);
+  const playerHint = useMemo<LoadingHint | null>(
+    () => (hintShown && loadingHint ? { text: loadingHint, rotation: portraitRotation } : null),
+    [hintShown, loadingHint, portraitRotation],
+  );
 
   // The next picture of the slideshow on screen: a new hint under it
   useEffect(() => {

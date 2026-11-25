@@ -15,6 +15,7 @@ import type {
   FogSnapshot,
   ImportResult,
   KillScreen,
+  LoadingHint,
   LibrarySnapshot,
   MapGrid,
   MapState,
@@ -275,8 +276,8 @@ function normalizeMapState(value: unknown): MapState | null {
     blackout,
     killScreen: normalizeKillScreen(state.killScreen),
     slideshow,
-    // Only a known hint, and only over the blackout or slideshow
-    hint: (blackout || slideshow) && isLoadingHint(state.hint) ? state.hint : null,
+    // Only over the blackout or slideshow
+    hint: blackout || slideshow ? normalizeLoadingHint(state.hint) : null,
     areas: normalizeDrawnAreas(state.areas),
     grid: normalizePlayerGrid(state.grid),
     areaGrid: normalizeAreaGrid(state.areaGrid),
@@ -291,6 +292,14 @@ function normalizeKillScreen(value: unknown): KillScreen | null {
   const { text, rotation } = value as Record<string, unknown>;
   if (!isKillPhrase(text) || !isFiniteNumber(rotation) || !QUARTER_TURNS.includes(rotation)) return null;
   return { text, rotation };
+}
+
+/** A rule hint with one of the known texts and a portrait turn, or null. */
+function normalizeLoadingHint(value: unknown): LoadingHint | null {
+  if (!value || typeof value !== 'object') return null;
+  const { text, rotation } = value as Record<string, unknown>;
+  if (!isLoadingHint(text) || !PORTRAIT_ROTATIONS.includes(rotation as 0)) return null;
+  return { text, rotation: rotation as number };
 }
 
 /** A slideshow of the folder's latest listing, with a known picture time and turn, or null. */

@@ -12,6 +12,7 @@ import type {
   EffectSnapshot,
   FogSnapshot,
   KillScreen,
+  LoadingHint,
   MapState,
   PlayerGrid,
   RulerState,
@@ -417,7 +418,7 @@ export function PlayerScreen() {
         />
       )}
 
-      {state.hint && <LoadingHint text={state.hint} rotation={state.rotation} />}
+      {state.hint && <LoadingHintLine hint={state.hint} />}
 
       {(state.killScreen ?? leavingKillScreen) && (
         <KillScreenOverlay
@@ -574,10 +575,12 @@ function SlideshowPicture({
 
 /**
  * A rule hint in small text along the bottom edge of the blackout or
- * slideshow, turned with the view so it reads the same way up as the map.
- * Keyed on its text, so each new hint fades in once (CSS; nothing runs after).
+ * slideshow, on a dark band so it reads over a light picture too. Turned like
+ * portrait maps and handouts: with Rotate left its bottom is the screen's
+ * right edge. Keyed on its text, so each new hint fades in once (CSS;
+ * nothing runs after).
  */
-function LoadingHint({ text, rotation }: { text: string; rotation: number }) {
+function LoadingHintLine({ hint: { text, rotation } }: { hint: LoadingHint }) {
   const sideways = rotation % 180 !== 0;
   return (
     <div
@@ -591,7 +594,7 @@ function LoadingHint({ text, rotation }: { text: string; rotation: number }) {
       <p
         key={text}
         aria-label="Rule hint"
-        className="loading-hint max-w-[90%] px-[4vmin] pb-[3vmin] text-center text-[max(13px,2.2vmin)] leading-snug"
+        className="loading-hint mb-[3vmin] max-w-[85%] rounded-md bg-black/70 px-[2.4vmin] py-[1vmin] text-center text-[max(13px,2.2vmin)] leading-snug"
       >
         {text}
       </p>

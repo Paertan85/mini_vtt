@@ -22,10 +22,12 @@ All notable changes to this project are documented here. The format is based on
   (**Settings**). The slideshow takes the place of Blackout: B and P swap
   one for the other. A video map is paused beneath it, as under Blackout.
 - **Rule hints** on the blackout and the slideshow: a short D&D 5e (2024)
-  rules reminder in small text along the bottom of the player screen, turned
-  with the player view. Each blackout gets a new one, and the slideshow a new
-  one with each picture. **Settings → Slideshow → Show rule hints** turns
-  them off.
+  rules reminder in small text on a dark band, so it reads over any picture.
+  It is turned like portrait maps and handouts (**Settings → New maps and
+  handouts taller than wide**): with Rotate left it runs along the right edge
+  of the screen. Each blackout gets a new one, and the slideshow a new one
+  with each picture. **Settings → Slideshow → Show rule hints** turns them
+  off.
 
 ### Changed
 
