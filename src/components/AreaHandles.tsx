@@ -3,7 +3,7 @@
 // the size label, and the selected area's outline and toolbar. The areas
 // themselves are drawn by DrawnAreas, the same way in both windows.
 
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Copy, Trash2 } from 'lucide-react';
 import type { AreaShape, SpellArea, DrawnArea, EffectKind, MapGrid, Point } from '../types/map';
 import { EFFECT_KINDS, EFFECT_STYLES } from '../lib/effects';
@@ -100,6 +100,18 @@ export function AreaHandles({
     areaDragRef.current = null;
     onDrag(false);
   };
+
+  // The handles go away mid-drag when Alt is let go, or Shift or a tool key
+  // pressed. The drag still ends, or the player screen would keep showing the
+  // areas as they were when it started, and miss every change after it.
+  useEffect(
+    () => () => {
+      if (!areaDragRef.current) return;
+      areaDragRef.current = null;
+      onDrag(false);
+    },
+    [onDrag],
+  );
 
   return (
     <>

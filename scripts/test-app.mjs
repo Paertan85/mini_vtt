@@ -1295,6 +1295,28 @@ app.whenReady().then(async () => {
       (await js(`document.querySelector('button[aria-label^="Circle,"]').getAttribute('aria-label')`)) ===
         'Circle, 20 ft',
     );
+    // Shift mid-drag hides the handles; the drag still ends, for players too
+    {
+      const playerX = () =>
+        js(`Number(document.querySelector('circle[data-origin="0"]')?.getAttribute('cx'))`, player);
+      const before = await playerX();
+      const dot = await centerOf('button[aria-label^="Circle,"]');
+      mouse('mouseDown', dot.x, dot.y);
+      for (let i = 1; i <= 4; i++) {
+        mouse('mouseMove', dot.x + i * 10, dot.y);
+        await sleep(30);
+      }
+      await press('Shift', { shiftKey: true });
+      await sleep(100);
+      mouse('mouseUp', dot.x + 40, dot.y);
+      await js(`window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Shift' }))`);
+      await sleep(900);
+      check(
+        'a drag cut short by Shift still reaches the player screen',
+        (await playerX()) !== before && Math.abs((await playerX()) - alpha().circles[0]?.x) < 0.5,
+        `${before} → ${await playerX()}, DM ${alpha().circles[0]?.x}`,
+      );
+    }
     // Typing a radius, arrow nudges, Ctrl+D, and Alt + drag (no copy)
     await js(`(() => {
       const input = document.querySelector('input[aria-label="Radius in feet"]');

@@ -72,6 +72,10 @@ All notable changes to this project are documented here. The format is based on
 - A change made just before closing Mini VTT, such as moving the player
   view, placing a marker or turning a map, could be lost: the app quit while
   it was still being saved. Quitting now waits for it.
+- Letting go of Alt, or pressing Shift or a tool key, while dragging a spell
+  area left the player screen showing the area where the drag started, and
+  missing later changes to spell areas, such as their size, until the next
+  drag or an area was added or removed. The player screen now follows.
 
 ## 1.6.0 - 2026-11-22
 
