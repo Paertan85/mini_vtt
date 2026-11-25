@@ -418,7 +418,7 @@ export function PlayerScreen() {
         />
       )}
 
-      {state.hint && <LoadingHintLine hint={state.hint} />}
+      {state.hint && <LoadingHintLine hint={state.hint} centered={!state.slideshow} />}
 
       {(state.killScreen ?? leavingKillScreen) && (
         <KillScreenOverlay
@@ -574,17 +574,17 @@ function SlideshowPicture({
 // ─── Rule hint ────────────────────────────────────────────────────────────────
 
 /**
- * A rule hint in small text along the bottom edge of the blackout or
- * slideshow, on a dark band so it reads over a light picture too. Turned like
- * portrait maps and handouts: with Rotate left its bottom is the screen's
- * right edge. Keyed on its text, so each new hint fades in once (CSS;
- * nothing runs after).
+ * A rule hint in small text: in the middle of the blackout, and along the
+ * bottom edge of the slideshow, on a dark band so it reads over a light
+ * picture too. Turned like portrait maps and handouts: with Rotate left its
+ * bottom is the screen's right edge. Keyed on its text, so each new hint
+ * fades in once (CSS; nothing runs after).
  */
-function LoadingHintLine({ hint: { text, rotation } }: { hint: LoadingHint }) {
+function LoadingHintLine({ hint: { text, rotation }, centered }: { hint: LoadingHint; centered: boolean }) {
   const sideways = rotation % 180 !== 0;
   return (
     <div
-      className="pointer-events-none absolute left-1/2 top-1/2 z-20 flex items-end justify-center"
+      className={`pointer-events-none absolute left-1/2 top-1/2 z-20 flex justify-center ${centered ? 'items-center' : 'items-end'}`}
       style={{
         width: sideways ? '100vh' : '100vw',
         height: sideways ? '100vw' : '100vh',
@@ -594,7 +594,7 @@ function LoadingHintLine({ hint: { text, rotation } }: { hint: LoadingHint }) {
       <p
         key={text}
         aria-label="Rule hint"
-        className="loading-hint mb-[3vmin] max-w-[85%] rounded-md bg-black/70 px-[2.4vmin] py-[1vmin] text-center text-[max(13px,2.2vmin)] leading-snug"
+        className={`loading-hint ${centered ? '' : 'mb-[3vmin]'} max-w-[85%] rounded-md bg-black/70 px-[2.4vmin] py-[1vmin] text-center text-[max(13px,2.2vmin)] leading-snug`}
       >
         {text}
       </p>

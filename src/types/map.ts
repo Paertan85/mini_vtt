@@ -38,7 +38,7 @@ export interface MapState {
   killScreen: KillScreen | null;
   /** Pictures shown one after another in place of the map, or null */
   slideshow: Slideshow | null;
-  /** A rule hint along the bottom of the blackout or slideshow, or null */
+  /** A rule hint: in the middle of the blackout, along the bottom of the slideshow; or null */
   hint: LoadingHint | null;
   /** Spell areas, drawn under the fog */
   areas: DrawnArea[];

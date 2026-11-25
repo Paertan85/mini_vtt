@@ -2057,8 +2057,8 @@ app.whenReady().then(async () => {
       (await js(`!!document.querySelector('[aria-label="Blackout"]')`, player)) === true,
     );
     check('and Live turns red', (await liveMark()).live?.includes('text-crimson-bright') === true);
-    // With a rule hint along the bottom edge, on a dark band, turned like
-    // portrait maps and handouts: Rotate left (the default) puts it along the right edge
+    // With a rule hint on a dark band, in the middle of the blackout, turned
+    // like portrait maps and handouts (Rotate left, the default)
     const ruleHint = () =>
       js(
         `(() => { const el = document.querySelector('[aria-label="Rule hint"]'); if (!el) return null;
@@ -2069,13 +2069,17 @@ app.whenReady().then(async () => {
             width: innerWidth, height: innerHeight }; })()`,
         player,
       );
+    // Its middle is the screen's, and it reads across (wide) or up and down (tall)
+    const centred = (hint, sideways) =>
+      Math.abs((hint.left + hint.right) / 2 - hint.width / 2) < hint.width * 0.05 &&
+      Math.abs((hint.top + hint.bottom) / 2 - hint.height / 2) < hint.height * 0.05 &&
+      hint.bottom - hint.top > hint.right - hint.left === sideways;
     const blackoutHint = await waitFor(ruleHint);
     check(
-      'the blackout shows a rule hint on a dark band, turned left along the right edge',
+      'the blackout shows a rule hint on a dark band in the middle, turned left',
       !!blackoutHint?.text &&
         blackoutHint.transform.includes('rotate(270deg)') &&
-        blackoutHint.left > blackoutHint.width * 0.75 &&
-        blackoutHint.right <= blackoutHint.width &&
+        centred(blackoutHint, true) &&
         // Black, partly see-through (Chromium gives Tailwind's colours as oklab)
         /^(rgba\(0, 0, 0, |oklab\(0 0 0 \/ )0\.[1-9]/.test(blackoutHint.background),
       JSON.stringify(blackoutHint),
@@ -2103,10 +2107,8 @@ app.whenReady().then(async () => {
       return hint?.transform.includes('rotate(0deg)') && hint;
     });
     check(
-      'with Don’t rotate it lies along the bottom edge',
-      !!uprightHint &&
-        uprightHint.top > uprightHint.height * 0.75 &&
-        uprightHint.bottom <= uprightHint.height,
+      'with Don’t rotate it reads across, still in the middle',
+      !!uprightHint && centred(uprightHint, false),
       JSON.stringify(uprightHint),
     );
     await clickText('Rotate right');
@@ -2115,8 +2117,8 @@ app.whenReady().then(async () => {
       return hint?.transform.includes('rotate(90deg)') && hint;
     });
     check(
-      'and with Rotate right along the left edge',
-      !!rightHint && rightHint.right < rightHint.width * 0.25 && rightHint.left >= 0,
+      'and with Rotate right it is turned right',
+      !!rightHint && centred(rightHint, true),
       JSON.stringify(rightHint),
     );
     await clickText('Rotate left');
@@ -2253,8 +2255,22 @@ app.whenReady().then(async () => {
       (await dmText('Players see the slideshow: 2 pictures from “slideshow”')) &&
         (await liveMark()).live?.includes('text-crimson-bright') === true,
     );
-    const firstSlideHint = (await waitFor(ruleHint))?.text;
-    check('the slideshow shows a rule hint too', !!firstSlideHint);
+    // Along the edge here, out of the picture's way: with Rotate left, the right edge
+    const atRightEdge = (hint) =>
+      !!hint?.text &&
+      hint.transform.includes('rotate(270deg)') &&
+      hint.left > hint.width * 0.75 &&
+      hint.right <= hint.width;
+    const slideHint = await waitFor(async () => {
+      const hint = await ruleHint();
+      return atRightEdge(hint) && hint;
+    });
+    const firstSlideHint = slideHint?.text;
+    check(
+      'the slideshow shows a rule hint too, along the right edge',
+      !!slideHint,
+      JSON.stringify(await ruleHint()),
+    );
     // Getting the next map ready: players keep seeing the slideshow
     const playerMap = async () =>
       (await js(`document.querySelector('img[src^="map-media://m_"]')?.src ?? ''`, player)).replace(
