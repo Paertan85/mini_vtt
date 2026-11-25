@@ -377,7 +377,13 @@ app.whenReady().then(async () => {
 
     // A reloaded player window (Ctrl+R on it) reports the same size as
     // before, so the DM window sends no new pan: it must still show the map
-    const playerShowsMap = () => js(`!!document.querySelector('main img')`, player);
+    // Shown, not just there: the map stays hidden until its fog is in place
+    const playerShowsMap = () =>
+      js(
+        `(() => { const img = document.querySelector('main img');
+          return !!img && getComputedStyle(img).visibility === 'visible'; })()`,
+        player,
+      );
     check('the player screen shows the map', await waitFor(playerShowsMap));
     player.webContents.reload();
     await new Promise((resolve) => player.webContents.once('did-finish-load', resolve));
@@ -2494,8 +2500,31 @@ app.whenReady().then(async () => {
         ))
       );
     };
+    // Each map the player screen puts in place: whether it was hidden then. An
+    // image is drawn as its bytes arrive, before its fog is sized and filled.
+    await js(
+      `window.__mapsShown = [];
+       window.__mapObserver = new MutationObserver((records) => {
+         for (const record of records)
+           for (const node of record.addedNodes)
+             for (const media of node instanceof Element ? [node, ...node.querySelectorAll('img, video')] : [])
+               if (media.matches('main img, main video'))
+                 window.__mapsShown.push(getComputedStyle(media).visibility);
+       });
+       window.__mapObserver.observe(document.querySelector('main'), { childList: true, subtree: true });`,
+      player,
+    );
     try {
       check('Add maps… loads the new map', await addFromDialog());
+      {
+        const shown = await js(`window.__mapObserver.disconnect(); window.__mapsShown`, player);
+        check(
+          'the player screen keeps the new map hidden until its fog is in place',
+          shown.length > 0 && shown.every((visibility) => visibility === 'hidden'),
+          JSON.stringify(shown),
+        );
+        check('and then shows it', await waitFor(playerShowsMap));
+      }
       // Time for the fog to be drawn: the resized canvas is clear until it is
       await sleep(800);
       check(

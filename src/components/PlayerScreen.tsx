@@ -290,6 +290,12 @@ export function PlayerScreen() {
     return { x: (at.x - pan.x) * state.zoom, y: (at.y - pan.y) * state.zoom };
   };
   const oriented = mediaSize && (state.rotation % 180 === 0 ? mediaSize : { w: mediaSize.h, h: mediaSize.w });
+  // A map stays hidden until its fog is sized and filled (handleMediaLoad sets
+  // mediaSize in the same step). An image is drawn as its bytes arrive, so it
+  // would otherwise show unfogged, or through the last map's revealed areas.
+  const mediaStyle = mediaSize
+    ? { width: mediaSize.w, height: mediaSize.h }
+    : { visibility: 'hidden' as const };
   const controlClass = `absolute z-30 flex h-9 w-9 items-center justify-center rounded border border-white/15 bg-black/60 text-white/80 transition-opacity duration-300 hover:text-white ${
     controlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
   }`;
@@ -336,7 +342,7 @@ export function PlayerScreen() {
                 playsInline
                 onLoadedMetadata={handleMediaLoad}
                 className="block"
-                style={mediaSize ? { width: mediaSize.w, height: mediaSize.h } : undefined}
+                style={mediaStyle}
               />
             ) : (
               <img
@@ -346,7 +352,7 @@ export function PlayerScreen() {
                 draggable={false}
                 onLoad={handleMediaLoad}
                 className="block"
-                style={mediaSize ? { width: mediaSize.w, height: mediaSize.h } : undefined}
+                style={mediaStyle}
               />
             )}
             {/* Draw order: map, effects, spell areas, fog, so neither shows through unrevealed areas */}

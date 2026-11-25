@@ -59,6 +59,14 @@ All notable changes to this project are documented here. The format is based on
 - The library panel no longer has a title row above its tabs, which leaves
   more room for maps.
 
+### Fixed
+
+- The player screen could show a map before its fog covered it. A picture
+  is drawn as it loads, so for a moment, or for seconds on a slow laptop,
+  players saw the new map through the revealed parts of the one before, or
+  with no fog at all when the player screen had just opened or reloaded. A
+  map now stays hidden until its fog is in place.
+
 ## 1.6.0 - 2026-11-22
 
 ### Added
