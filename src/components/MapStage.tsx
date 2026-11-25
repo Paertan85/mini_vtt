@@ -208,6 +208,8 @@ const MIN_WHEEL_TARGET = 24;
 const MAX_VIEW_ZOOM = 8;
 /** A press on the Fog tool's circle moved less than this (screen px) is a click, at the circle's size */
 const MIN_CIRCLE_DRAG_PX = 6;
+/** The player frame's border (screen px), drawn inside its outline */
+const FRAME_BORDER_PX = 2;
 
 interface ViewZoom {
   zoom: number;
@@ -941,12 +943,13 @@ export function MapStage(props: MapStageProps) {
           {pan && viewportSize && (
             <div
               aria-label="Player view"
-              className={`absolute z-10 border-2 ${frameDraggable ? 'cursor-move' : 'pointer-events-none'}`}
+              className={`absolute z-10 ${frameDraggable ? 'cursor-move' : 'pointer-events-none'}`}
               style={{
                 left: pan.x * displayScale,
                 top: pan.y * displayScale,
                 width: (viewportSize.w / zoom) * displayScale,
                 height: (viewportSize.h / zoom) * displayScale,
+                borderWidth: FRAME_BORDER_PX,
                 borderColor: `rgb(${frameRgb})`,
                 backgroundColor: `rgb(${frameRgb} / 0.1)`,
               }}
@@ -955,7 +958,16 @@ export function MapStage(props: MapStageProps) {
               onPointerUp={endFrameDrag}
               onPointerCancel={endFrameDrag}
             >
-              {gridPx > 2 && <GridLines cell={gridPx} color={`rgb(${frameRgb} / 0.35)`} />}
+              {/* Inside the border, so moved back by its width: the lines start at
+                  the frame's outer corner, the player screen's edge */}
+              {gridPx > 2 && (
+                <GridLines
+                  cell={gridPx}
+                  color={`rgb(${frameRgb} / 0.35)`}
+                  offsetX={-FRAME_BORDER_PX}
+                  offsetY={-FRAME_BORDER_PX}
+                />
+              )}
               {/* A locked zoom shows as a padlock, like a locked layer in an image editor */}
               {props.zoomLocked && (
                 <span

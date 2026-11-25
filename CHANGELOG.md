@@ -85,6 +85,10 @@ All notable changes to this project are documented here. The format is based on
   nothing. The list is now on the disk before it replaces the old one, and
   the one before it is kept: a damaged list goes back to that copy, and the
   DM is told either way.
+- The squares drawn in the player view frame sat 2 pixels right of and below
+  where they should be, inside the frame's border. A frame snapped to the
+  map's grid with Ctrl at true scale looked slightly off the map's squares.
+  They now start at the frame's outer corner, the player screen's edge.
 
 ## 1.6.0 - 2026-11-22
 
