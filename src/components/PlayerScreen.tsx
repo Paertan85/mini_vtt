@@ -48,6 +48,7 @@ const INITIAL_STATE: MapState = {
   blackout: false,
   killScreen: null,
   slideshow: null,
+  hint: null,
   areas: [],
   grid: null,
   areaGrid: null,
@@ -264,6 +265,10 @@ export function PlayerScreen() {
   }, []);
 
   const toggleFullScreen = useCallback(() => void window.electronAPI?.toggleFullScreen(), []);
+  const reportPictureShown = useCallback(
+    (listing: string) => window.electronAPI?.sendSlideshowPictureShown(listing),
+    [],
+  );
 
   // A replaced or unloaded video lets go of its file and decoder straight away
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -407,8 +412,12 @@ export function PlayerScreen() {
           // A new listing starts again from its first picture
           key={state.slideshow.listing}
           {...state.slideshow}
+          // Only while a hint shows: the DM window then picks the next one
+          onPictureShown={state.hint ? reportPictureShown : undefined}
         />
       )}
+
+      {state.hint && <LoadingHint text={state.hint} rotation={state.rotation} />}
 
       {(state.killScreen ?? leavingKillScreen) && (
         <KillScreenOverlay
@@ -450,7 +459,11 @@ const SlideshowOverlay = memo(function SlideshowOverlay({
   count,
   seconds,
   portraitRotation,
-}: Slideshow) {
+  onPictureShown,
+}: Slideshow & {
+  /** Each time the next picture has loaded and starts to fade in, not for the first */
+  onPictureShown?: (listing: string) => void;
+}) {
   const [index, setIndex] = useState(0);
   // The picture shown before, kept under this one until it has faded in
   const [previous, setPrevious] = useState<number | null>(null);
@@ -478,6 +491,7 @@ const SlideshowOverlay = memo(function SlideshowOverlay({
   const handleLoad = () => {
     failuresRef.current = 0;
     setLoaded(true);
+    if (previous !== null) onPictureShown?.(listing);
   };
   // A picture removed or damaged since the folder was listed: on to the next,
   // keeping the one before on screen
@@ -553,6 +567,35 @@ function SlideshowPicture({
         transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
       }}
     />
+  );
+}
+
+// ─── Rule hint ────────────────────────────────────────────────────────────────
+
+/**
+ * A rule hint in small text along the bottom edge of the blackout or
+ * slideshow, turned with the view so it reads the same way up as the map.
+ * Keyed on its text, so each new hint fades in once (CSS; nothing runs after).
+ */
+function LoadingHint({ text, rotation }: { text: string; rotation: number }) {
+  const sideways = rotation % 180 !== 0;
+  return (
+    <div
+      className="pointer-events-none absolute left-1/2 top-1/2 z-20 flex items-end justify-center"
+      style={{
+        width: sideways ? '100vh' : '100vw',
+        height: sideways ? '100vw' : '100vh',
+        transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+      }}
+    >
+      <p
+        key={text}
+        aria-label="Rule hint"
+        className="loading-hint max-w-[90%] px-[4vmin] pb-[3vmin] text-center text-[max(13px,2.2vmin)] leading-snug"
+      >
+        {text}
+      </p>
+    </div>
   );
 }
 

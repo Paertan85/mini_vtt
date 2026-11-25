@@ -30,7 +30,12 @@ app.on('browser-window-created', (_event, window) => window.webContents.setBackg
 
 // Player-state messages from the DM window, to see what reaches the player screen
 let playerStates = 0;
-ipcMain.on('player:state', () => (playerStates += 1));
+// The last one as sent, to send a changed copy as if from the DM window
+let lastPlayerState = null;
+ipcMain.on('player:state', (_event, state) => {
+  playerStates += 1;
+  lastPlayerState = state;
+});
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const results = [];
@@ -2052,12 +2057,87 @@ app.whenReady().then(async () => {
       (await js(`!!document.querySelector('[aria-label="Blackout"]')`, player)) === true,
     );
     check('and Live turns red', (await liveMark()).live?.includes('text-crimson-bright') === true);
+    // With a rule hint along the bottom edge, turned with the view
+    const ruleHint = () =>
+      js(
+        `(() => { const el = document.querySelector('[aria-label="Rule hint"]'); if (!el) return null;
+          const r = el.getBoundingClientRect();
+          return { text: el.textContent, transform: el.parentElement.style.transform,
+            left: r.left, right: r.right, top: r.top, bottom: r.bottom,
+            width: innerWidth, height: innerHeight }; })()`,
+        player,
+      );
+    const blackoutHint = await waitFor(ruleHint);
+    check(
+      'the blackout shows a rule hint along the bottom edge',
+      !!blackoutHint?.text &&
+        blackoutHint.transform.includes('rotate(0deg)') &&
+        blackoutHint.top > blackoutHint.height * 0.75 &&
+        blackoutHint.bottom <= blackoutHint.height,
+      JSON.stringify(blackoutHint),
+    );
+    await click('[aria-label="Options for Alpha"]');
+    await sleep(200);
+    await clickText('Rotate right');
+    const turnedHint = await waitFor(async () => {
+      const hint = await ruleHint();
+      return hint?.transform.includes('rotate(90deg)') && hint;
+    });
+    check(
+      'turned with the view: a quarter turn right puts it along the left edge',
+      !!turnedHint && turnedHint.right < turnedHint.width * 0.25 && turnedHint.left >= 0,
+      JSON.stringify(turnedHint),
+    );
+    await click('[aria-label="Options for Alpha"]');
+    await sleep(200);
+    await clickText('Rotate left');
+    await waitFor(async () => (await ruleHint())?.transform.includes('rotate(0deg)'));
+    // The main process lets only a known hint through, and only over the blackout or slideshow
+    const shownHint = (await ruleHint())?.text;
+    ipcMain.emit('player:state', {}, { ...lastPlayerState, hint: '<b>Not a rule</b>' });
+    check(
+      'a hint that isn’t one of the rule hints never reaches the player screen',
+      (await waitFor(async () => (await ruleHint()) === null)) === true &&
+        (await js(`!!document.querySelector('[aria-label="Blackout"]')`, player)) === true,
+    );
+    ipcMain.emit('player:state', {}, { ...lastPlayerState, blackout: false, hint: shownHint });
+    check(
+      'nor one with nothing covering the map',
+      (await waitFor(() => js(`!document.querySelector('[aria-label="Blackout"]')`, player))) === true &&
+        (await ruleHint()) === null,
+    );
+    // Show rule hints in Settings turns them off and on again (the DM window sends its state anew)
+    await openSettings();
+    await settingsCheck('Show rule hints');
+    check(
+      'Show rule hints is a setting, and turned off the blackout shows none',
+      (await waitFor(() => readIndex().settings.showRuleHints === false)) === true &&
+        (await waitFor(() => js(`!!document.querySelector('[aria-label="Blackout"]')`, player))) === true &&
+        (await ruleHint()) === null,
+    );
+    await settingsCheck('Show rule hints');
+    check(
+      'turned on again, the hint is back',
+      (await waitFor(() => readIndex().settings.showRuleHints === true)) === true &&
+        (await waitFor(async () => (await ruleHint())?.text === shownHint)) === true,
+    );
+    await closeSettings();
     await press('b');
     await sleep(400);
     check(
       'blackout can be lifted',
-      (await js(`!document.querySelector('[aria-label="Blackout"]')`, player)) === true,
+      (await js(`!document.querySelector('[aria-label="Blackout"]')`, player)) === true &&
+        (await ruleHint()) === null,
     );
+    await press('b');
+    const nextBlackoutHint = await waitFor(ruleHint);
+    check(
+      'the next blackout has another hint',
+      !!nextBlackoutHint?.text && nextBlackoutHint.text !== shownHint,
+      nextBlackoutHint?.text,
+    );
+    await press('b');
+    await waitFor(() => js(`!document.querySelector('[aria-label="Blackout"]')`, player));
 
     // Ctrl+K shows the kill screen with a random phrase, turned like a portrait handout
     const killScreen = () =>
@@ -2128,6 +2208,8 @@ app.whenReady().then(async () => {
       (await dmText('Players see the slideshow: 2 pictures from “slideshow”')) &&
         (await liveMark()).live?.includes('text-crimson-bright') === true,
     );
+    const firstSlideHint = (await waitFor(ruleHint))?.text;
+    check('the slideshow shows a rule hint too', !!firstSlideHint);
     // Getting the next map ready: players keep seeing the slideshow
     const playerMap = async () =>
       (await js(`document.querySelector('img[src^="map-media://m_"]')?.src ?? ''`, player)).replace(
@@ -2160,6 +2242,15 @@ app.whenReady().then(async () => {
     check(
       'and the one before is let go once it has faded in',
       (await waitFor(async () => (await slides()).length === 1)) === true,
+    );
+    const nextSlideHint = await waitFor(async () => {
+      const text = (await ruleHint())?.text;
+      return text && text !== firstSlideHint && text;
+    });
+    check(
+      'the next picture brings another rule hint',
+      !!nextSlideHint,
+      `${firstSlideHint} → ${nextSlideHint}`,
     );
     // A folder the DM chooses takes over at once while the slideshow is on
     const chosenSlides = path.join(userData, 'Chosen');

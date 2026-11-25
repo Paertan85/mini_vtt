@@ -132,6 +132,12 @@ export function SettingsDialog({ settings, app, viewportSize, onClose }: Setting
           <section aria-label="Slideshow">
             <h3 className={heading}>Slideshow</h3>
             <div className="mt-3 flex flex-col gap-3">
+              <Check
+                label="Show rule hints"
+                note="A short rules reminder along the bottom of the slideshow and the blackout, a new one with each picture."
+                checked={settings.showRuleHints}
+                onChange={settings.toggleRuleHints}
+              />
               <div>
                 <p className="text-[13px] text-ink">Each picture shows for</p>
                 <div className="mt-1.5">

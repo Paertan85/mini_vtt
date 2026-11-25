@@ -44,6 +44,7 @@ import { useRoomEdits } from './useRoomEdits';
 import { useMarkers } from './useMarkers';
 import { commandFor, type Command } from '../lib/shortcuts';
 import { pickKillPhrase } from '../lib/killScreen';
+import { pickLoadingHint } from '../lib/loadingHints';
 import {
   clamp,
   clampZoom,
@@ -240,6 +241,9 @@ export interface DmSettings {
   /** How long the slideshow shows each picture */
   slideshowSeconds: number;
   setSlideshowSeconds: (seconds: number) => void;
+  /** Whether the blackout and slideshow show players a rule hint along the bottom */
+  showRuleHints: boolean;
+  toggleRuleHints: () => void;
   /** The player screen's diagonal, for the true-scale grid; null when not set */
   screenDiagonal: number | null;
   setScreenDiagonal: (diagonal: number | null) => void;
@@ -452,6 +456,7 @@ export function useDmController(): DmController {
     effectOpacity,
     areaOpacity,
     slideshowSeconds,
+    showRuleHints,
   } = settings;
   const showRulerRef = useRef(false);
   showRulerRef.current = showRulerToPlayers;
@@ -480,6 +485,15 @@ export function useDmController(): DmController {
   const [killScreen, setKillScreen] = useState<KillScreen | null>(null);
   // So the next kill screen says something else
   const lastKillPhraseRef = useRef<string | null>(null);
+  // The rule hint for the blackout or slideshow: a new one each time either
+  // starts, and each time the player screen says the next picture is shown
+  const [loadingHint, setLoadingHint] = useState<string | null>(null);
+  const lastLoadingHintRef = useRef<string | null>(null);
+  const nextLoadingHint = useCallback(() => {
+    const hint = pickLoadingHint(lastLoadingHintRef.current);
+    lastLoadingHintRef.current = hint;
+    setLoadingHint(hint);
+  }, []);
   const [activeHandout, setActiveHandout] = useState<{ id: string; url: string; rotation: number } | null>(
     null,
   );
@@ -1016,6 +1030,16 @@ export function useDmController(): DmController {
       },
     [slideshowListing, slideshowSeconds, portraitRotation],
   );
+  const playerHint = showRuleHints && (blackout || playerSlideshow) ? loadingHint : null;
+
+  // The next picture of the slideshow on screen: a new hint under it
+  useEffect(() => {
+    const listing = slideshowListing?.listing;
+    if (!listing) return;
+    return api?.onSlideshowPictureShown((shown) => {
+      if (shown === listing) nextLoadingHint();
+    });
+  }, [api, slideshowListing, nextLoadingHint]);
 
   useEffect(() => {
     api?.sendMapState({
@@ -1030,6 +1054,7 @@ export function useDmController(): DmController {
       blackout,
       killScreen,
       slideshow: playerSlideshow,
+      hint: playerHint,
       areas: playerAreas,
       grid: playerGrid,
       areaGrid,
@@ -1039,6 +1064,7 @@ export function useDmController(): DmController {
   }, [
     killScreen,
     playerSlideshow,
+    playerHint,
     api,
     mediaUrl,
     mediaType,
@@ -1069,6 +1095,8 @@ export function useDmController(): DmController {
   // Blackout and the slideshow take each other's place: one key swaps them
   const handleToggleBlackout = () => {
     setSlideshowListing(null);
+    // A new hint for the next blackout (picked when lifting it too, which shows nothing)
+    nextLoadingHint();
     setBlackout((value) => !value);
   };
 
@@ -1083,6 +1111,8 @@ export function useDmController(): DmController {
       );
       return;
     }
+    // Its first picture, so a new hint too
+    nextLoadingHint();
     setSlideshowListing(listing);
     setBlackout(false);
   };
@@ -1327,6 +1357,7 @@ export function useDmController(): DmController {
   const handleToggleToolHints = () => updateSettings({ showToolHints: !showToolHints });
   const handleToggleAreaSquares = () => updateSettings({ showAreaSquares: !showAreaSquares });
   const handleToggleFogNewMaps = () => updateSettings({ fogNewMaps: !fogNewMaps });
+  const handleToggleRuleHints = () => updateSettings({ showRuleHints: !showRuleHints });
 
   const handleMovementRuleChange = (rule: MovementRule) => updateSettings({ diagonalRule: rule });
   const handleOpacityChange = (layer: OpacityLayer, value: number, save: boolean) =>
@@ -1607,6 +1638,7 @@ export function useDmController(): DmController {
     setShowRulerToPlayers: handleShowRulerToPlayers,
     setOpacity: handleOpacityChange,
     setSlideshowSeconds: (seconds: number) => updateSettings({ slideshowSeconds: seconds }),
+    toggleRuleHints: handleToggleRuleHints,
     setScreenDiagonal: (diagonal: number | null) => updateSettings({ playerScreenDiagonal: diagonal }),
     setGridSize: (size: number) => updateSettings({ gridSize: size }),
     setPortraitRotation: (value: number) => updateSettings({ portraitRotation: value }),
@@ -1627,6 +1659,7 @@ export function useDmController(): DmController {
       effectOpacity,
       areaOpacity,
       slideshowSeconds,
+      showRuleHints,
       screenDiagonal,
       gridSize,
       portraitRotation,
@@ -1647,6 +1680,7 @@ export function useDmController(): DmController {
       effectOpacity,
       areaOpacity,
       slideshowSeconds,
+      showRuleHints,
       screenDiagonal,
       gridSize,
       portraitRotation,

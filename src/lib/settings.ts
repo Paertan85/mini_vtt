@@ -87,6 +87,7 @@ const RULES: { [K in keyof SettingsPatch]-?: Rule<LibrarySettings[K]> } = {
     default: DEFAULT_SLIDESHOW_SECONDS,
     parse: (value) => (isSlideshowSeconds(value) ? value : undefined),
   },
+  showRuleHints: { default: true, parse: boolean },
 };
 
 const KEYS = Object.keys(RULES) as (keyof SettingsPatch)[];

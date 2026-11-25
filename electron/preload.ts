@@ -92,6 +92,10 @@ const api = {
   /** Opens a folder dialog and keeps the folder chosen; its listing, or null if cancelled. */
   chooseSlideshowFolder: (): Promise<SlideshowListing | null> => ipcRenderer.invoke('slideshow:chooseFolder'),
   revealSlideshowFolder: (): Promise<boolean> => ipcRenderer.invoke('slideshow:revealFolder'),
+  /** Player window → DM window: the next picture of this listing is on screen, for a new rule hint. */
+  sendSlideshowPictureShown: (listing: string): void => ipcRenderer.send('slideshow:pictureShown', listing),
+  onSlideshowPictureShown: (callback: (listing: string) => void) =>
+    subscribe('slideshow:pictureShown', callback),
 
   // ─── Player window ──────────────────────────────────────────────────────────
 

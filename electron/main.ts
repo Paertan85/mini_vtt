@@ -30,6 +30,7 @@ import type {
 } from '../src/types/map';
 import { mediaUrlOf } from '../src/lib/media';
 import { isKillPhrase } from '../src/lib/killScreen';
+import { isLoadingHint } from '../src/lib/loadingHints';
 import { DEFAULT_SETTINGS, parseOpacity, PORTRAIT_ROTATIONS } from '../src/lib/settings';
 import { isListingName, isSlideshowSeconds } from '../src/lib/slideshow';
 
@@ -260,6 +261,8 @@ function normalizeMapState(value: unknown): MapState | null {
   if (!isFiniteNumber(zoom) || zoom <= 0) return null;
   if (!isFiniteNumber(rotation) || !QUARTER_TURNS.includes(rotation)) return null;
   if (!isFiniteNumber(handoutRotation) || !QUARTER_TURNS.includes(handoutRotation)) return null;
+  const blackout = state.blackout === true;
+  const slideshow = normalizeSlideshow(state.slideshow);
   return {
     mediaUrl,
     mediaType,
@@ -269,9 +272,11 @@ function normalizeMapState(value: unknown): MapState | null {
     mirrorVertical: state.mirrorVertical === true,
     handoutUrl,
     handoutRotation,
-    blackout: state.blackout === true,
+    blackout,
     killScreen: normalizeKillScreen(state.killScreen),
-    slideshow: normalizeSlideshow(state.slideshow),
+    slideshow,
+    // Only a known hint, and only over the blackout or slideshow
+    hint: (blackout || slideshow) && isLoadingHint(state.hint) ? state.hint : null,
     areas: normalizeDrawnAreas(state.areas),
     grid: normalizePlayerGrid(state.grid),
     areaGrid: normalizeAreaGrid(state.areaGrid),
@@ -394,6 +399,14 @@ ipcMain.on('ruler:update', (_event, value: unknown) => {
 });
 
 ipcMain.on('handout:close', () => sendToDm('handout:close'));
+
+// The player screen says when a slideshow showing a hint moves on to the next
+// picture, so the DM window picks the next hint; only for the slideshow on screen
+ipcMain.on('slideshow:pictureShown', (_event, listing: unknown) => {
+  if (isListingName(listing) && latest.state?.hint && latest.state.slideshow?.listing === listing) {
+    sendToDm('slideshow:pictureShown', listing);
+  }
+});
 
 ipcMain.on('fog:reset', () => {
   latest.fog = null;

@@ -113,6 +113,15 @@
     animation: kill-fade 700ms ease-out 450ms both;
   }
 
+  /* A rule hint over the blackout or slideshow: readable on a light picture too; fades in with it */
+  .loading-hint {
+    color: rgb(255 255 255 / 0.78);
+    text-shadow:
+      0 0 0.2em rgb(0 0 0 / 0.9),
+      0 0 0.6em rgb(0 0 0 / 0.7);
+    animation: kill-fade 800ms ease-out both;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,

@@ -38,6 +38,11 @@ export interface MapState {
   killScreen: KillScreen | null;
   /** Pictures shown one after another in place of the map, or null */
   slideshow: Slideshow | null;
+  /**
+   * A rule hint along the bottom of the blackout or slideshow, turned with
+   * the view: one of LOADING_HINTS (src/lib/loadingHints.ts), or null
+   */
+  hint: string | null;
   /** Spell areas, drawn under the fog */
   areas: DrawnArea[];
   /** The map's grid, drawn under the fog when the DM shows it to players; null: no grid */
@@ -280,6 +285,8 @@ export interface LibrarySettings {
   areaOpacity: number;
   /** How long the slideshow shows each picture, in seconds */
   slideshowSeconds: number;
+  /** Whether the blackout and slideshow show a rule hint along the bottom of the player screen */
+  showRuleHints: boolean;
   /**
    * The folder the DM chose for the slideshow; the library's own slideshow
    * folder when not set. Only the main process sets it, from its folder dialog.

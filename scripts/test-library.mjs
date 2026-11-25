@@ -61,6 +61,7 @@ app.whenReady().then(async () => {
   const geometryLib = await import('../dist-electron/geometry.test.mjs');
   const shortcutsLib = await import('../dist-electron/shortcuts.test.mjs');
   const killLib = await import('../dist-electron/killScreen.test.mjs');
+  const hintsLib = await import('../dist-electron/loadingHints.test.mjs');
   const placementLib = await import('../dist-electron/playerPlacement.test.mjs');
   const fixtures = path.join(tmp, 'fixtures');
   await fs.mkdir(fixtures, { recursive: true });
@@ -340,6 +341,14 @@ app.whenReady().then(async () => {
       (await lib.saveSettings({ slideshowSeconds: 15 })) === false &&
         (await lib.saveSettings({ slideshowSeconds: 60 })) === true &&
         (await lib.loadSnapshot()).settings.slideshowSeconds === 60,
+    );
+    check(
+      'rule hints show until turned off, and only on or off is taken',
+      (await lib.loadSnapshot()).settings.showRuleHints === true &&
+        (await lib.saveSettings({ showRuleHints: 'no' })) === false &&
+        (await lib.saveSettings({ showRuleHints: false })) === true &&
+        (await lib.loadSnapshot()).settings.showRuleHints === false &&
+        (await lib.saveSettings({ showRuleHints: true })) === true,
     );
     check(
       'a window can’t set the slideshow folder',
@@ -1269,6 +1278,33 @@ app.whenReady().then(async () => {
       check(
         'only known phrases count',
         isKillPhrase(KILL_PHRASES[0]) && !isKillPhrase('<b>hi</b>') && !isKillPhrase(null),
+      );
+    }
+
+    // Rule hints, the same way: random, never twice in a row, and only known ones pass
+    {
+      const { LOADING_HINTS, isLoadingHint, pickLoadingHint } = hintsLib;
+      check(
+        'a rule hint is never the one just shown',
+        LOADING_HINTS.every((previous) =>
+          [0, 0.5, 0.999999].every((r) => {
+            const next = pickLoadingHint(previous, () => r);
+            return next !== previous && LOADING_HINTS.includes(next);
+          }),
+        ),
+      );
+      check(
+        'the first rule hint can be any of them',
+        LOADING_HINTS.every(
+          (hint, i) => pickLoadingHint(null, () => (i + 0.5) / LOADING_HINTS.length) === hint,
+        ),
+      );
+      check(
+        'only known hints count',
+        isLoadingHint(LOADING_HINTS[0]) &&
+          !isLoadingHint(`${LOADING_HINTS[0]} `) &&
+          !isLoadingHint('<b>hi</b>') &&
+          !isLoadingHint(null),
       );
     }
 
