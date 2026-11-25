@@ -148,7 +148,7 @@ All shortcuts are also listed under **Menu (☰) → Keyboard shortcuts…**.
 
 ### Where your library is stored
 
-Maps, fog masks and settings live in a `library` folder inside the app's user-data directory (typically `%APPDATA%\mini-vtt\library` on Windows, `~/Library/Application Support/mini-vtt/library` on macOS, and `~/.config/mini-vtt/library` on Linux). **Menu (☰) → Open library folder** opens it. Imported files are copied there, so moving or deleting the originals doesn't affect the library. The slideshow's pictures are not copied: they stay in the slideshow folder, and they aren't part of project files.
+Maps, fog masks and settings live in a `library` folder inside the app's user-data directory (typically `%APPDATA%\mini-vtt\library` on Windows, `~/Library/Application Support/mini-vtt/library` on macOS, and `~/.config/mini-vtt/library` on Linux). **Menu (☰) → Open library folder** opens it. Imported files are copied there, so moving or deleting the originals doesn't affect the library. The slideshow's pictures are not copied: they stay in the slideshow folder, and they aren't part of project files. The list of maps and handouts is `index.json`, with the one before the last save kept as `index.json.prev`. If `index.json` is ever damaged, Mini VTT goes back to that copy and keeps the damaged file as `index.json.corrupt-<time>`.
 
 ### Moving your library to another computer
 

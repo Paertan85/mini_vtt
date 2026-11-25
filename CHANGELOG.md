@@ -80,6 +80,11 @@ All notable changes to this project are documented here. The format is based on
   stopped the loading map's changes from being saved (its framing, spell
   areas, fog rooms and markers) until another map was loaded. They are saved
   again.
+- A power cut or crash just after a save could leave the library's list of
+  maps damaged, and Mini VTT then started with an empty library and said
+  nothing. The list is now on the disk before it replaces the old one, and
+  the one before it is kept: a damaged list goes back to that copy, and the
+  DM is told either way.
 
 ## 1.6.0 - 2026-11-22
 

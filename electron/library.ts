@@ -58,6 +58,7 @@ export {
   loadSnapshot,
   resolveHandoutPath,
   resolveMapMediaPath,
+  takeIndexDamage,
   whenIndexIdle,
 } from './libraryStore';
 export {

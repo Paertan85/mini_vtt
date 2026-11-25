@@ -15,6 +15,7 @@ import type {
   FogSnapshot,
   ImportResult,
   KillScreen,
+  LibrarySnapshot,
   MapGrid,
   MapState,
   MapView,
@@ -503,7 +504,12 @@ async function importFromDialog(kind: 'map' | 'handout'): Promise<ImportResult |
   return importFiles(chosen.filePaths, kind);
 }
 
-ipcMain.handle('library:load', async () => library.loadSnapshot());
+// A damaged index is reported with the first load after it was found
+ipcMain.handle('library:load', async (): Promise<LibrarySnapshot> => {
+  const snapshot = await library.loadSnapshot();
+  const indexDamage = library.takeIndexDamage();
+  return indexDamage ? { ...snapshot, indexDamage } : snapshot;
+});
 ipcMain.handle('library:importMapsFromDialog', async () => importFromDialog('map'));
 ipcMain.handle('library:importMaps', async (_e, paths: unknown) => importFiles(paths, 'map'));
 ipcMain.handle('library:loadMapMedia', async (_e, id: string) => library.loadMapMediaUrl(id));

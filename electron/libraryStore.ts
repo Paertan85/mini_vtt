@@ -13,7 +13,13 @@
 import { app } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import type { HandoutMeta, LibrarySettings, LibrarySnapshot, MapEntryMeta } from '../src/types/map';
+import type {
+  HandoutMeta,
+  IndexDamage,
+  LibrarySettings,
+  LibrarySnapshot,
+  MapEntryMeta,
+} from '../src/types/map';
 import { DEFAULT_SETTINGS, LIBRARY_ID, normalizeSettings } from '../src/lib/settings';
 import { EXTENSIONS } from './mediaFiles';
 import { normalizeAreas } from '../src/lib/areas';
@@ -60,13 +66,28 @@ async function renameOver(from: string, to: string): Promise<void> {
 }
 
 /**
+ * Write `file` and wait until its bytes are on the disk, not only in the
+ * system's cache. Renamed into place before that, a power cut can leave the
+ * new name with no bytes behind it.
+ */
+async function writeToDisk(file: string, data: string | Buffer): Promise<void> {
+  const handle = await fs.open(file, 'w');
+  try {
+    await handle.writeFile(data);
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+}
+
+/**
  * Replace `file` with `bytes` in one step: written next to it, then renamed
  * over it, so a reader or a crash never meets a half-written file.
  */
 export async function writeFileAtomic(file: string, bytes: Buffer): Promise<void> {
   const tmp = tempPath(file);
   try {
-    await fs.writeFile(tmp, bytes);
+    await writeToDisk(tmp, bytes);
     await renameOver(tmp, file);
   } catch (err) {
     await fs.rm(tmp, { force: true });
@@ -88,7 +109,21 @@ export const CORRUPT_INDEX_SUFFIX = '.corrupt-';
 /** Tries after the first at reading an index another program holds (0.1 + 0.2 + 0.3 s). */
 const INDEX_READ_RETRIES = 3;
 
-async function readIndex(): Promise<IndexShape> {
+/** The index as it was before the last save, to fall back on if index.json is damaged. */
+const PREVIOUS_INDEX = () => `${INDEX_FILE()}.prev`;
+
+const emptyIndex = (): IndexShape => ({ settings: { ...DEFAULT_SETTINGS }, maps: [], handouts: [] });
+
+/** What the last damaged index was replaced with, until the DM window is told. */
+let indexDamage: IndexDamage | null = null;
+
+/** An index read from disk; `sound` is false when index.json couldn't be parsed. */
+interface IndexRead {
+  index: IndexShape;
+  sound: boolean;
+}
+
+async function readIndex(): Promise<IndexRead> {
   let raw: string | null = null;
   for (let attempt = 0; raw === null; attempt++) {
     try {
@@ -96,7 +131,7 @@ async function readIndex(): Promise<IndexShape> {
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code;
       // No index yet (first run): start with an empty library
-      if (code === 'ENOENT') return { settings: { ...DEFAULT_SETTINGS }, maps: [], handouts: [] };
+      if (code === 'ENOENT') return { index: emptyIndex(), sound: true };
       // Anything else must never look like an empty library: the next save
       // would write it, and removeLeftovers would then delete every folder.
       // A virus scanner or backup holds a file for a moment: try again first.
@@ -106,33 +141,7 @@ async function readIndex(): Promise<IndexShape> {
     }
   }
   try {
-    const parsed = JSON.parse(raw) as Partial<IndexShape>;
-    return {
-      settings: normalizeSettings(parsed.settings),
-      handouts: (parsed.handouts ?? [])
-        .filter((entry) => entry && typeof entry.id === 'string' && SAFE_ID.test(entry.id))
-        .map((entry) => ({
-          ...entry,
-          rotation: Number.isInteger(entry.rotation) ? ((entry.rotation % 360) + 360) % 360 : 0,
-        })),
-      // Drop entries with a malformed id so a bad file can't escape the dir
-      maps: (parsed.maps ?? [])
-        .filter((m) => m && typeof m.id === 'string' && SAFE_ID.test(m.id))
-        .map((m) => {
-          const normalizedRotation = Number.isInteger(m.rotation) ? ((m.rotation % 360) + 360) % 360 : 0;
-          return {
-            ...m,
-            mediaType: m.mediaType === 'video' ? 'video' : 'image',
-            rotation: normalizedRotation % 90 === 0 ? normalizedRotation : 0,
-            mirrorHorizontal: m.mirrorHorizontal === true,
-            mirrorVertical: m.mirrorVertical === true,
-            grid: normalizeGrid(m.grid),
-            circles: normalizeAreas(m.circles),
-            rooms: normalizeRooms(m.rooms),
-            markers: normalizeMarkers(m.markers),
-          };
-        }),
-    };
+    return { index: parseIndex(raw), sound: true };
   } catch (err) {
     // Unparseable index: keep a copy before the next save replaces it, so the
     // library can be recovered by hand instead of being silently lost. While
@@ -146,17 +155,77 @@ async function readIndex(): Promise<IndexShape> {
       console.error('Library index is unreadable and couldn’t be backed up:', copyErr);
       throw err;
     }
-    console.error(`Library index is unreadable; backed up to ${backup}:`, err);
-    return { settings: { ...DEFAULT_SETTINGS }, maps: [], handouts: [] };
+    // The index from before the last save lacks only that save's change
+    let previous: IndexShape | null = null;
+    try {
+      previous = parseIndex(await fs.readFile(PREVIOUS_INDEX(), 'utf8'));
+    } catch {
+      // None, or damaged too: start empty
+    }
+    indexDamage = previous ? 'restored' : 'lost';
+    console.error(
+      `Library index is unreadable; backed up to ${backup}${previous ? ', the one before it used instead' : ''}:`,
+      err,
+    );
+    return { index: previous ?? emptyIndex(), sound: false };
   }
 }
 
-async function writeIndex(index: IndexShape): Promise<void> {
+/** The index in `raw`, checked and tidied; throws when it isn't JSON. */
+function parseIndex(raw: string): IndexShape {
+  const parsed = JSON.parse(raw) as Partial<IndexShape>;
+  return {
+    settings: normalizeSettings(parsed.settings),
+    handouts: (parsed.handouts ?? [])
+      .filter((entry) => entry && typeof entry.id === 'string' && SAFE_ID.test(entry.id))
+      .map((entry) => ({
+        ...entry,
+        rotation: Number.isInteger(entry.rotation) ? ((entry.rotation % 360) + 360) % 360 : 0,
+      })),
+    // Drop entries with a malformed id so a bad file can't escape the dir
+    maps: (parsed.maps ?? [])
+      .filter((m) => m && typeof m.id === 'string' && SAFE_ID.test(m.id))
+      .map((m) => {
+        const normalizedRotation = Number.isInteger(m.rotation) ? ((m.rotation % 360) + 360) % 360 : 0;
+        return {
+          ...m,
+          mediaType: m.mediaType === 'video' ? 'video' : 'image',
+          rotation: normalizedRotation % 90 === 0 ? normalizedRotation : 0,
+          mirrorHorizontal: m.mirrorHorizontal === true,
+          mirrorVertical: m.mirrorVertical === true,
+          grid: normalizeGrid(m.grid),
+          circles: normalizeAreas(m.circles),
+          rooms: normalizeRooms(m.rooms),
+          markers: normalizeMarkers(m.markers),
+        };
+      }),
+  };
+}
+
+/**
+ * Save `index`. The one it replaces is kept as index.json.prev when it was
+ * `sound`, so a damaged index.json can fall back on it; a damaged one must
+ * never take the place of the last good copy.
+ */
+async function writeIndex(index: IndexShape, sound: boolean): Promise<void> {
   await fs.mkdir(LIBRARY_DIR(), { recursive: true });
+  if (sound) {
+    const tmp = tempPath(PREVIOUS_INDEX());
+    try {
+      await fs.copyFile(INDEX_FILE(), tmp);
+      await renameOver(tmp, PREVIOUS_INDEX());
+    } catch (err) {
+      await fs.rm(tmp, { force: true });
+      // No index yet (the first save); anything else only costs the fallback
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+        console.error('Couldn’t keep the previous library index:', err);
+      }
+    }
+  }
   // Write to a temp file then rename, so an interrupted write can't truncate it
   const tmp = tempPath(INDEX_FILE());
   try {
-    await fs.writeFile(tmp, JSON.stringify(index, null, 2), 'utf8');
+    await writeToDisk(tmp, JSON.stringify(index, null, 2));
     await renameOver(tmp, INDEX_FILE());
   } catch (err) {
     await fs.rm(tmp, { force: true });
@@ -198,7 +267,7 @@ export const whenIndexIdle = (): Promise<void> => indexQueue.then(() => undefine
 
 /** Read the index without modifying it (ordered after pending writes). */
 export function withIndex<T>(fn: (index: IndexShape) => T | Promise<T>): Promise<T> {
-  return enqueue(async () => fn(await readIndex()));
+  return enqueue(async () => fn((await readIndex()).index));
 }
 
 /**
@@ -207,9 +276,9 @@ export function withIndex<T>(fn: (index: IndexShape) => T | Promise<T>): Promise
  */
 export function mutateIndex<T>(fn: (index: IndexShape) => T | Promise<T>): Promise<T> {
   return enqueue(async () => {
-    const index = await readIndex();
+    const { index, sound } = await readIndex();
     const result = await fn(index);
-    if (result !== false) await writeIndex(index);
+    if (result !== false) await writeIndex(index, sound);
     return result;
   });
 }
@@ -240,6 +309,17 @@ export async function loadSnapshot(): Promise<LibrarySnapshot> {
   sortMaps(maps, settings);
   handouts.sort((a, b) => b.addedAt - a.addedAt);
   return { maps, handouts, settings };
+}
+
+/**
+ * How the index was replaced since this was last asked, if it was found
+ * damaged. Asked once per load of the DM window's library, so the DM hears
+ * of it once, however often the library is loaded again.
+ */
+export function takeIndexDamage(): IndexDamage | null {
+  const damage = indexDamage;
+  indexDamage = null;
+  return damage;
 }
 
 export const normalizeRotation = (rotation: number) => {

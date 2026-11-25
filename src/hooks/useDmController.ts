@@ -511,6 +511,17 @@ export function useDmController(): DmController {
       return null;
     }
     if (!snapshot) return null;
+    if (snapshot.indexDamage === 'restored') {
+      notify(
+        'The library’s list of maps was damaged. Mini VTT went back to the copy from before the last change, so that change may be missing.',
+        'error',
+      );
+    } else if (snapshot.indexDamage === 'lost') {
+      notify(
+        'The library’s list of maps was damaged, and there was no copy to go back to. Your maps are still in the library folder (Menu → Open library folder), with the damaged list kept beside them.',
+        'error',
+      );
+    }
     setMaps(snapshot.maps);
     setHandouts(snapshot.handouts);
     return snapshot;

@@ -305,10 +305,19 @@ export interface RulerState {
 }
 
 /** The library plus settings, as returned on startup. */
+/**
+ * How an index.json that couldn't be parsed was replaced: by the copy kept
+ * from before the last save (`restored`), or by an empty library (`lost`).
+ * Either way the damaged file is kept as index.json.corrupt-<time>.
+ */
+export type IndexDamage = 'restored' | 'lost';
+
 export interface LibrarySnapshot {
   maps: MapEntryMeta[];
   handouts: HandoutMeta[];
   settings: LibrarySettings;
+  /** Set on the first load after the index was found damaged */
+  indexDamage?: IndexDamage;
 }
 
 /** Video codecs a WebM map can use. */

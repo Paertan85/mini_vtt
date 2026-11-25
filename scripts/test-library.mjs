@@ -2481,7 +2481,43 @@ app.whenReady().then(async () => {
       JSON.stringify(migrated),
     );
 
-    // ── Corrupt index recovery ───────────────────────────────────────────────
+    // ── A damaged index falls back on the one before it ──────────────────────
+    const previousPath = path.join(libraryDir, 'index.json.prev');
+    const dropBackups = async () => {
+      for (const name of await fs.readdir(libraryDir)) {
+        if (name.startsWith('index.json.corrupt-')) await fs.rm(path.join(libraryDir, name));
+      }
+    };
+    await lib.saveSettings({ gridSize: 7 });
+    const mapsBefore = (await lib.loadSnapshot()).maps.length;
+    await lib.saveSettings({ gridSize: 8 });
+    check(
+      'each save keeps the index it replaces',
+      JSON.parse(await fs.readFile(previousPath, 'utf8')).settings.gridSize === 7,
+    );
+    lib.takeIndexDamage();
+    // What a power cut can leave of a file whose bytes never reached the disk
+    await fs.writeFile(indexPath, Buffer.alloc(200));
+    const fallen = await lib.loadSnapshot();
+    check(
+      'a damaged index falls back on the one before the last save',
+      mapsBefore > 0 && fallen.maps.length === mapsBefore && fallen.settings.gridSize === 7,
+      `${fallen.maps.length} of ${mapsBefore} maps, grid ${fallen.settings.gridSize}`,
+    );
+    check(
+      'and the DM window is told so, once',
+      lib.takeIndexDamage() === 'restored' && lib.takeIndexDamage() === null,
+    );
+    await lib.saveSettings({ gridSize: 9 });
+    const afterFallback = (await lib.loadSnapshot()).settings.gridSize;
+    check(
+      'the damaged index never takes the place of the copy before it',
+      afterFallback === 9 && JSON.parse(await fs.readFile(previousPath, 'utf8')).settings.gridSize === 7,
+    );
+    await dropBackups();
+
+    // ── Corrupt index recovery, with no copy to fall back on ────────────────
+    await fs.rm(previousPath);
     await fs.writeFile(path.join(tmp, 'library', 'index.json'), '{ this is not json');
     const keptDir = await leftover('m_unlisted_again');
     await lib.removeLeftovers();
@@ -2495,15 +2531,14 @@ app.whenReady().then(async () => {
       f.startsWith('index.json.corrupt-'),
     );
     check('the corrupt index is backed up, not discarded', backups.length === 1, backups.join(', '));
+    check('the DM window is told the library was lost', lib.takeIndexDamage() === 'lost');
     // The next save writes a valid index listing none of the old maps; their
     // folders must still survive the next start's clean-up
     await lib.saveSettings({ gridSize: 10 });
     await lib.removeLeftovers();
     check('after a corrupt index, saving and restarting keeps the folders it listed', await exists(keptDir));
     // The save read the damaged index too, and backed it up again
-    for (const name of await fs.readdir(path.join(tmp, 'library'))) {
-      if (name.startsWith('index.json.corrupt-')) await fs.rm(path.join(tmp, 'library', name));
-    }
+    await dropBackups();
     await lib.removeLeftovers();
     check('without the backup, an unlisted folder is deleted again', !(await exists(keptDir)));
 
