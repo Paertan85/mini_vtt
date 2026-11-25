@@ -52,7 +52,14 @@ import {
 } from './mediaFiles';
 
 // The library's API, for main.ts and the tests, in one place
-export { isHandoutId, loadSnapshot, resolveHandoutPath, resolveMapMediaPath } from './libraryStore';
+export {
+  isHandoutId,
+  isIndexBusy,
+  loadSnapshot,
+  resolveHandoutPath,
+  resolveMapMediaPath,
+  whenIndexIdle,
+} from './libraryStore';
 export {
   byteRange,
   mediaMimeType,

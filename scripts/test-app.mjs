@@ -2588,6 +2588,30 @@ app.whenReady().then(async () => {
       'closing the player window resets the status',
       (await js(`${playerButton}.title`)).startsWith('Open'),
     );
+
+    // Last, as it ends the app: a change made just before the DM window closes
+    // reaches the disk before the app exits. The index is read the moment the
+    // process would exit (will-quit), and the exit is held off for the summary.
+    {
+      const loadedId = readIndex().settings.currentMapId;
+      const loaded = readIndex().maps.find((m) => m.id === loadedId);
+      const atExit = new Promise((resolve) =>
+        app.once('will-quit', (event) => {
+          event.preventDefault();
+          resolve(readIndex().maps.find((m) => m.id === loadedId)?.rotation);
+        }),
+      );
+      await click(`[aria-label="Options for ${loaded.name}"]`);
+      await sleep(200);
+      await clickText('Rotate right');
+      main.close();
+      const rotation = await atExit;
+      check(
+        'a change made as the DM window closes is saved before the app quits',
+        rotation === (loaded.rotation + 90) % 360,
+        `${loaded.rotation} → ${rotation}`,
+      );
+    }
   } catch (err) {
     check('test run completed without throwing', false, err?.stack ?? String(err));
   }

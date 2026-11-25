@@ -276,6 +276,21 @@ app.whenReady().then(async () => {
     const leftovers = (await fs.readdir(path.join(tmp, 'library'))).filter((f) => f.endsWith('.tmp'));
     check('no temp files left behind', leftovers.length === 0, leftovers.join(', '));
 
+    // Quitting waits for an index write on its way: the DM window's last view
+    // save arrives as it closes, and nothing else would wait for it
+    {
+      check('the index is idle between saves', !lib.isIndexBusy());
+      const saving = lib.saveMapView(a.id, { ...concA, zoom: 3.5 });
+      const busy = lib.isIndexBusy();
+      await lib.whenIndexIdle();
+      const onDisk = JSON.parse(await fs.readFile(path.join(tmp, 'library', 'index.json'), 'utf8'));
+      check(
+        'a save just sent counts as busy until it is on disk',
+        busy && !lib.isIndexBusy() && onDisk.maps.find((m) => m.id === a.id)?.zoom === 3.5,
+      );
+      await saving;
+    }
+
     // ── Settings whitelist ───────────────────────────────────────────────────
     await lib.saveSettings({ gridSize: 5, mapOrder: ['bogus'], somethingElse: 1 });
     const settings = (await lib.loadSnapshot()).settings;

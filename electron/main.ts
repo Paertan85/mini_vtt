@@ -662,13 +662,16 @@ app.on('activate', () => {
 });
 
 // Write any waiting fog or effects save, and finish one being written, before
-// the process exits: cut short, the file would be lost
+// the process exits: cut short, the file would be lost. The same goes for an
+// index write, such as the view save the DM window sends as it closes.
 let quitAfterFlush = false;
 app.on('before-quit', (event) => {
-  if (quitAfterFlush || (!fogSaves.isBusy() && !effectSaves.isBusy())) return;
+  if (quitAfterFlush || (!fogSaves.isBusy() && !effectSaves.isBusy() && !library.isIndexBusy())) return;
   event.preventDefault();
   quitAfterFlush = true;
-  void flushAllSaves().finally(() => app.quit());
+  void flushAllSaves()
+    .then(library.whenIndexIdle)
+    .finally(() => app.quit());
 });
 
 app.whenReady().then(() => {

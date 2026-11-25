@@ -177,13 +177,24 @@ export const tempPath = (file: string) => `${file}.${process.pid}.${++tmpCounter
 // through this queue so they run strictly one after another.
 
 let indexQueue: Promise<unknown> = Promise.resolve();
+// Tasks waiting or running, so quitting can tell whether a write is on its way
+let queuedTasks = 0;
 
 function enqueue<T>(task: () => Promise<T>): Promise<T> {
-  const run = indexQueue.then(task);
+  queuedTasks += 1;
+  const run = indexQueue.then(task).finally(() => {
+    queuedTasks -= 1;
+  });
   // Keep the queue alive after a failed task; the caller still sees the error
   indexQueue = run.catch(() => undefined);
   return run;
 }
+
+/** Whether an index read or write is waiting or running. */
+export const isIndexBusy = () => queuedTasks > 0;
+
+/** Resolves once every index access started so far is done; never rejects. */
+export const whenIndexIdle = (): Promise<void> => indexQueue.then(() => undefined);
 
 /** Read the index without modifying it (ordered after pending writes). */
 export function withIndex<T>(fn: (index: IndexShape) => T | Promise<T>): Promise<T> {

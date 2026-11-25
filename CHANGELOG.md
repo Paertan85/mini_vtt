@@ -69,6 +69,9 @@ All notable changes to this project are documented here. The format is based on
 - A project file made by hand could name one picture for thousands of maps,
   and importing it wrote a copy for each, until the disk was nearly full. A
   file in a project is now read once; a map that names it again is skipped.
+- A change made just before closing Mini VTT, such as moving the player
+  view, placing a marker or turning a map, could be lost: the app quit while
+  it was still being saved. Quitting now waits for it.
 
 ## 1.6.0 - 2026-11-22
 
