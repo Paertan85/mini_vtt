@@ -1249,6 +1249,8 @@ app.whenReady().then(async () => {
         mouse('mouseMove', spot.x + (tenFeet * i) / 4, spot.y);
         await sleep(20);
       }
+      // A slow machine may still be handling the moves
+      await waitFor(async () => (await circleSize()) === '10 ft', 3000);
       check('a drag shows the size it sets', (await circleSize()) === '10 ft', String(await circleSize()));
       mouse('mouseUp', spot.x + tenFeet, spot.y);
       await sleep(900);
@@ -2672,9 +2674,10 @@ app.whenReady().then(async () => {
       await click(`[aria-label="Options for ${loaded.name}"]`);
       await sleep(200);
       await clickText('Rotate right');
+      // A Mac app stays open with no windows: quit it, as Cmd+Q would, once
+      // the window is gone, when other systems quit by themselves
+      if (process.platform === 'darwin') main.once('closed', () => app.quit());
       main.close();
-      // A Mac app stays open with no windows: quit it, as Cmd+Q would
-      if (process.platform === 'darwin') app.quit();
       // A quit that never comes fails the check instead of hanging the run
       const rotation = await Promise.race([atExit, sleep(20000).then(() => 'no quit within 20 s')]);
       check(
