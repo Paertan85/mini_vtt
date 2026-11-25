@@ -76,6 +76,10 @@ All notable changes to this project are documented here. The format is based on
   area left the player screen showing the area where the drag started, and
   missing later changes to spell areas, such as their size, until the next
   drag or an area was added or removed. The player screen now follows.
+- Picking a map whose file is missing while another map was still loading
+  stopped the loading map's changes from being saved (its framing, spell
+  areas, fog rooms and markers) until another map was loaded. They are saved
+  again.
 
 ## 1.6.0 - 2026-11-22
 

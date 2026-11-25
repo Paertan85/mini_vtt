@@ -491,6 +491,10 @@ export function useDmController(): DmController {
   const pendingRestoreRef = useRef<PendingRestore | null>(null);
   // Bumped by every load and unload, so only the latest of quick loads applies
   const loadTokenRef = useRef(0);
+  // The load whose map is in place. Its restore ends the suppression: a load
+  // started since that never put its map in place (its file is missing)
+  // mustn't leave view saves off for the map that stays loaded.
+  const shownTokenRef = useRef(0);
 
   const reloadLibrary = useCallback(async () => {
     let snapshot: LibrarySnapshot | null | undefined;
@@ -660,7 +664,10 @@ export function useDmController(): DmController {
           { durationMs: 10000 },
         );
       }
+      // A change to the map on screen since settleSaves goes to that map
+      flushViewSave();
       restoringRef.current = true;
+      shownTokenRef.current = token;
       pendingRestoreRef.current = {
         token,
         mapId: meta.id,
@@ -676,7 +683,7 @@ export function useDmController(): DmController {
       setCalibration(null);
       return true;
     },
-    [api, settleSaves, loadAreas, loadMapState],
+    [api, settleSaves, flushViewSave, loadAreas, loadMapState],
   );
 
   const handleMediaLoad = useCallback(
@@ -692,8 +699,8 @@ export function useDmController(): DmController {
       setMediaSize(size);
       await fog.initialize(restore.mapId, size, restore.fog);
       await effects.initialize(restore.mapId, size, restore.effects);
-      // A newer load started meanwhile; it ends the restore when it is done
-      if (restore.token !== loadTokenRef.current) return;
+      // Another map was put in place meanwhile; its restore ends the suppression
+      if (restore.token !== shownTokenRef.current) return;
       restoringRef.current = false;
       if (restore.mediaType === 'video') void adviseOnVideo(restore.mapId, restore.name, size);
     },
@@ -787,6 +794,7 @@ export function useDmController(): DmController {
   /** Show no map, in either window. */
   const unloadMap = () => {
     loadTokenRef.current += 1; // a load still reading its files must not apply
+    shownTokenRef.current = loadTokenRef.current; // nor one still restoring
     pendingRestoreRef.current = null;
     restoringRef.current = false;
     loadedMap.unload();

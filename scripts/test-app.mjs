@@ -2611,6 +2611,52 @@ app.whenReady().then(async () => {
       (await js(`${playerButton}.title`)).startsWith('Open'),
     );
 
+    // A map whose file is missing, picked while another is still loading,
+    // leaves the one that loads saving its changes. Beta is picked the moment
+    // the new map is put in place, before its picture can have loaded.
+    {
+      const known = new Set(readIndex().maps.map((m) => m.id));
+      fs.rmSync(path.join(libraryDir, 'm_beta', 'image.png'));
+      await js(
+        `(() => {
+          const before = document.querySelector('main img')?.getAttribute('src');
+          window.__pickBeta = new MutationObserver(() => {
+            const src = document.querySelector('main img')?.getAttribute('src');
+            if (!src || src === before) return;
+            window.__pickBeta.disconnect();
+            window.__pickedBetaWhileLoading = !document.querySelector('main img').complete;
+            document.querySelector('button[aria-label="Beta"]').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+          });
+          window.__pickBeta.observe(document.querySelector('main'), { subtree: true, childList: true, attributes: true });
+        })()`,
+      );
+      const heldMap = path.join(userData, 'held.png');
+      fs.writeFileSync(heldMap, makePng(400, 300));
+      const showOpenDialog = dialog.showOpenDialog;
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [heldMap] });
+      try {
+        await clickText('Add maps…');
+        const added = await waitFor(() => readIndex().maps.find((m) => !known.has(m.id)));
+        const refused = await waitFor(() =>
+          js(`document.body.textContent.includes('Couldn’t find the file')`),
+        );
+        await waitFor(async () => (await fogWidth()) === 400);
+        await sleep(600);
+        await click(`[aria-label="Options for held"]`);
+        await sleep(200);
+        await clickText('Rotate right');
+        check(
+          'a map picked while another loads, its file missing, leaves the other saving its changes',
+          (await js('window.__pickedBetaWhileLoading')) === true &&
+            !!refused &&
+            (await waitFor(() => readIndex().maps.find((m) => m.id === added?.id)?.rotation === 90)) === true,
+          `rotation ${readIndex().maps.find((m) => m.id === added?.id)?.rotation}`,
+        );
+      } finally {
+        dialog.showOpenDialog = showOpenDialog;
+      }
+    }
+
     // Last, as it ends the app: a change made just before the DM window closes
     // reaches the disk before the app exits. The index is read the moment the
     // process would exit (will-quit), and the exit is held off for the summary.
