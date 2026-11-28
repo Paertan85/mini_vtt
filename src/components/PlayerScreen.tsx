@@ -384,7 +384,7 @@ export function PlayerScreen() {
         </div>
       ) : (
         <div className="flex h-full items-center justify-center">
-          <p className="font-display text-2xl tracking-wider text-[#3b3430]">Mini VTT</p>
+          <p className="text-2xl font-semibold text-line">Mini VTT</p>
         </div>
       )}
 
@@ -646,7 +646,7 @@ function KillScreenOverlay({ killScreen, leaving, onGone }: KillScreenProps) {
         {/* Keyed, so a new phrase fades in too when shown again mid-fade */}
         <p
           key={killScreen.text}
-          className="kill-screen-text px-[6vmin] text-center font-display text-[11vmin] leading-tight font-semibold tracking-wide"
+          className="kill-screen-text px-[6vmin] text-center text-[11vmin] leading-tight font-semibold uppercase tracking-wide"
         >
           {killScreen.text}
         </p>

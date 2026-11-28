@@ -1,30 +1,30 @@
 @import 'tailwindcss';
 
 /*
-  Mini VTT's palette: warm stone neutrals, gold for the active choice, crimson
-  for anything players can see change, and arcane teal, one of the player
-  frame's colours (src/lib/frameColors.ts).
+  Mini VTT's palette: plain neutral greys, one light blue accent for the active
+  choice (also drawn on the map: the ruler, handles, rooms, the grid being
+  measured), and crimson for anything players can see change. Text contrast on
+  the panel: ink 13.8:1, muted 6.8:1, accent 9.3:1; dark text on the accent
+  10:1.
 */
 @theme {
-  --color-ground: #171412; /* window background */
-  --color-panel: #201c19; /* sidebar, toolbar, menus, dialogs */
-  --color-raised: #2b2622; /* controls and hovered rows */
-  --color-raised-hover: #342e29;
-  --color-line: #3b3430; /* borders and dividers */
-  --color-line-strong: #4d4540;
-  --color-ink: #e6dcc8; /* parchment text */
-  --color-muted: #a1968a;
-  --color-faint: #6f665d;
-  --color-gold: #c9a227;
-  --color-gold-bright: #dcb53a;
+  --color-ground: #131417; /* window background; WINDOW_BACKGROUND in electron/main.ts */
+  --color-panel: #1b1d20; /* sidebar, toolbar, menus, dialogs */
+  --color-raised: #25272b; /* controls and hovered rows */
+  --color-raised-hover: #2e3135;
+  --color-line: #34373c; /* borders and dividers */
+  --color-line-strong: #474a51;
+  --color-ink: #e7e8ea;
+  --color-muted: #a0a4ab;
+  --color-faint: #6c7078;
+  --color-accent: #5fd0e0;
+  --color-accent-bright: #82dde9;
   --color-crimson: #a4262c;
   --color-crimson-bright: #c43a3f;
   --color-crimson-deep: #3a1517;
   --color-crimson-text: #e07a7e;
-  --color-arcane: #4aa8a0;
 
   --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
-  --font-display: Cinzel, Georgia, serif;
 }
 
 /*
@@ -65,12 +65,12 @@
   }
 
   ::selection {
-    @apply bg-gold text-ground;
+    @apply bg-accent text-ground;
   }
 
   /* Keyboard focus is always visible; mouse focus isn't */
   :focus-visible {
-    @apply outline-solid outline-2 outline-offset-1 outline-gold;
+    @apply outline-solid outline-2 outline-offset-1 outline-accent;
   }
 
   input[type='range'] {
@@ -136,9 +136,9 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #3b3430;
+  background: var(--color-line);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #4d4540;
+  background: var(--color-line-strong);
 }

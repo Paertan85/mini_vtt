@@ -45,9 +45,9 @@ export function GridCalibrationBar({
     <div
       role="region"
       aria-label="Measure the map grid"
-      className="flex min-h-10 shrink-0 flex-wrap items-center gap-3 border-b border-gold/60 bg-panel px-3 py-1.5 text-[13px]"
+      className="flex min-h-10 shrink-0 flex-wrap items-center gap-3 border-b border-accent/60 bg-panel px-3 py-1.5 text-[13px]"
     >
-      <span className="h-2 w-2 rounded-full bg-gold" aria-hidden="true" />
+      <span className="h-2 w-2 rounded-full bg-accent" aria-hidden="true" />
       {step < 2 ? (
         <span className="flex-1 text-ink">
           {step === 0
@@ -84,7 +84,7 @@ export function GridCalibrationBar({
           </label>
           <span className="flex-1 text-muted">
             {preview
-              ? `${preview.cell.toFixed(1)} px per square. Check the gold grid; click again to start over.`
+              ? `${preview.cell.toFixed(1)} px per square. Check the light blue grid; click again to start over.`
               : 'Enter positive numbers.'}
           </span>
         </>

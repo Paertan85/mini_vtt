@@ -75,7 +75,7 @@ A few guidelines:
   the `window.electronAPI` bridge, whose type is derived from
   `electron/preload.ts`; validate anything that arrives over IPC.
 - **Keep the look consistent.** Use the colour tokens in `src/index.css`
-  and the controls in `src/ui/`: gold marks the active choice, crimson is only
+  and the controls in `src/ui/`: the cyan accent marks the active choice, crimson is only
   for things players can see change.
 - **Go through the index queue.** Changes to `index.json` must use
   `mutateIndex()` from `electron/libraryStore.ts`, so concurrent saves can't

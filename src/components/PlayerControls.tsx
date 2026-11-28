@@ -5,6 +5,14 @@
 // Blackout and Slideshow, then True scale, Fill screen, the zoom lock and the
 // player view's zoom.
 //
+// They sit together in one dark track, each with an icon, so they read apart
+// from the tool's options. The toolbar gives them the room its options leave,
+// as a size container: with less room, the buttons show their icons only (the
+// names stay for screen readers and in the tooltips), Player screen, Blackout
+// and Slideshow last. The zoom is always just its percentage, to type in; the
+// + and − keys and the mouse wheel step it. Pure CSS, so nothing runs on
+// resize.
+//
 // While players see something other than the map (the kill screen, the
 // slideshow, a blackout or a handout), the group turns crimson and says what
 // they see and how to go back. In the toolbar, not a banner above the map, so
@@ -13,10 +21,10 @@
 // still sees that the players don't see the map.
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Lock, LockOpen, Minus, Plus } from 'lucide-react';
-import { Button, ButtonGroup, Divider, inputClass } from '../ui/controls';
+import { Expand, Grid3x3, Images, Lock, LockOpen, Monitor, MonitorOff } from 'lucide-react';
+import { Button, Divider, inputClass } from '../ui/controls';
 import { Popover } from '../ui/Popover';
-import { clampZoom, MAX_ZOOM, MIN_ZOOM, stepZoom } from '../lib/geometry';
+import { clampZoom, MAX_ZOOM, MIN_ZOOM } from '../lib/geometry';
 import { keyLabel } from '../lib/platform';
 import type { DmPlayerScreen, DmPlayerView, TrueScaleNeed } from '../hooks/useDmController';
 
@@ -114,6 +122,25 @@ const TRUE_SCALE_NOTES: Record<TrueScaleNeed, { text: string; action: string }> 
   },
 };
 
+// The container widths at which the bar changes (Tailwind needs them written
+// out in each class): at 33rem Player screen, Blackout and Slideshow show their
+// names; at 42rem the other buttons too; and at 59rem the line saying what
+// players see instead of the map is shown too.
+
+/** A button's name: shown where the bar has room, else read out only (the icon shows). */
+const Label = ({ children }: { children: string }) => (
+  <span className="sr-only @min-[42rem]:not-sr-only">{children}</span>
+);
+
+/** The name of Player screen, Blackout or Slideshow, which keep theirs longest. */
+const MainLabel = ({ children }: { children: string }) => (
+  <span className="sr-only @min-[33rem]:not-sr-only">{children}</span>
+);
+
+/** Narrower sides for a button while it shows only its icon */
+const COMPACT_PADDING = 'px-2! @min-[42rem]:px-3!';
+const MAIN_COMPACT_PADDING = 'px-2! @min-[33rem]:px-3!';
+
 // Memoized: the DM window re-renders on every frame of a drag, and these
 // never depend on that
 export const PlayerControls = memo(function PlayerControls({
@@ -139,19 +166,20 @@ export const PlayerControls = memo(function PlayerControls({
       aria-label="Player screen"
       title={status?.detail}
       // An outline, not a border, so the group keeps its size when it turns crimson
-      className={`flex h-8 min-w-0 items-center gap-1 rounded-sm ${
-        status ? 'bg-crimson-deep outline outline-crimson' : ''
+      className={`flex h-8 min-w-0 items-center rounded ${
+        status ? 'bg-crimson-deep outline outline-crimson' : 'bg-ground'
       }`}
     >
       {/* Only where the toolbar has room for it; the crimson still says
         players don't see the map, and the group's tooltip what they see */}
       {status && (
-        <span className="hidden min-w-0 items-center gap-2 @min-[60rem]:flex">
+        <span className="hidden min-w-0 items-center gap-2 pl-1 @min-[59rem]:flex">
           <StatusMessage status={status} inBar />
         </span>
       )}
       <Button
         tone="plain"
+        className={MAIN_COMPACT_PADDING}
         onClick={playerScreen.togglePlayer}
         title={
           playerScreen.playerOpen
@@ -159,32 +187,39 @@ export const PlayerControls = memo(function PlayerControls({
             : 'Open the player window'
         }
       >
-        <span
-          aria-hidden="true"
-          className={`h-2 w-2 rounded-full ${playerScreen.playerOpen ? 'bg-crimson-bright' : 'border border-muted'}`}
-        />
-        Player screen
+        <span aria-hidden="true" className="relative">
+          <Monitor className="h-4 w-4" />
+          {playerScreen.playerOpen && (
+            <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-crimson-bright ring-2 ring-ground" />
+          )}
+        </span>
+        <MainLabel>Player screen</MainLabel>
         {playerScreen.playerOpen && <span className="sr-only">(live)</span>}
       </Button>
       <Button
         tone={playerScreen.blackout ? 'live' : 'plain'}
+        className={MAIN_COMPACT_PADDING}
         aria-pressed={playerScreen.blackout}
         onClick={playerScreen.toggleBlackout}
         title="Blackout (B): hide everything on the player screen."
       >
-        Blackout
+        <MonitorOff aria-hidden="true" className="h-4 w-4" />
+        <MainLabel>Blackout</MainLabel>
       </Button>
       <Button
         tone={playerScreen.slideshow ? 'live' : 'plain'}
+        className={MAIN_COMPACT_PADDING}
         aria-pressed={!!playerScreen.slideshow}
         onClick={playerScreen.toggleSlideshow}
         title="Slideshow (P): show the pictures in the slideshow folder in place of the map, while you get the next one ready. Choose the folder in Settings."
       >
-        Slideshow
+        <Images aria-hidden="true" className="h-4 w-4" />
+        <MainLabel>Slideshow</MainLabel>
       </Button>
       <Divider />
       <Button
         ref={trueScaleRef}
+        className={COMPACT_PADDING}
         tone={playerView.atTrueScale ? 'on' : 'plain'}
         aria-pressed={playerView.atTrueScale}
         aria-haspopup={trueScaleNeeds ? 'dialog' : undefined}
@@ -193,9 +228,11 @@ export const PlayerControls = memo(function PlayerControls({
         disabled={!hasMap || zoomLocked}
         title="True scale: zoom the player view so the map’s squares are the grid square size from Settings, for miniatures. A map without a grid gets it measured first."
       >
-        True scale
+        <Grid3x3 aria-hidden="true" className="h-4 w-4" />
+        <Label>True scale</Label>
       </Button>
       <Button
+        className={COMPACT_PADDING}
         tone={playerView.fillScreen ? 'on' : 'plain'}
         aria-pressed={playerView.fillScreen}
         onClick={playerView.toggleFillScreen}
@@ -203,7 +240,8 @@ export const PlayerControls = memo(function PlayerControls({
         disabled={!hasMap || !playerScreen.playerOpen || (zoomLocked && !playerView.fillScreen)}
         title="Fill screen: zoom the player view so the map fills the player screen with no black edges, and keep the frame on the map. A player window that isn't full screen first takes the shape of its screen."
       >
-        Fill screen
+        <Expand aria-hidden="true" className="h-4 w-4" />
+        <Label>Fill screen</Label>
       </Button>
       <Button
         square
@@ -213,13 +251,13 @@ export const PlayerControls = memo(function PlayerControls({
         onClick={playerView.toggleZoomLock}
         title={
           zoomLocked
-            ? 'Player view zoom is locked: the mouse wheel, the + and − keys and the zoom buttons leave it alone. Click or press Space to unlock.'
+            ? 'Player view zoom is locked: the mouse wheel, the + and − keys and the zoom field leave it alone. Click or press Space to unlock.'
             : 'Lock the player view zoom (Space), so the mouse wheel or the + and − keys can’t change it by accident'
         }
       >
         {zoomLocked ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}
       </Button>
-      <ZoomControl zoom={zoom} onChange={playerView.setZoom} disabled={!hasMap || zoomLocked} />
+      <ZoomField zoom={zoom} onChange={playerView.setZoom} disabled={!hasMap || zoomLocked} />
       <Popover
         open={trueScaleNote && trueScaleNeeds !== null}
         onClose={closeTrueScaleNote}
@@ -268,8 +306,8 @@ export const PlayerStatusBar = memo(function PlayerStatusBar({
   );
 });
 
-/** Player zoom − [ 100 % ] +  The field accepts a typed percentage on Enter or blur. */
-function ZoomControl({
+/** The player view's zoom, as a percentage: typed in, it applies on Enter or when the field is left. */
+function ZoomField({
   zoom,
   onChange,
   disabled,
@@ -292,58 +330,34 @@ function ZoomControl({
   };
 
   return (
-    <div
-      className="flex items-center gap-2"
-      title="Player view zoom: + and − keys, mouse wheel over the player frame in the View tool, or Alt + mouse wheel in 1% steps"
+    <span
+      className="relative inline-flex"
+      title="Player view zoom: type a percentage, or use the + and − keys, the mouse wheel over the player frame in the View tool, or Alt + mouse wheel in 1% steps"
     >
-      <span className="whitespace-nowrap text-[13px] text-muted">Player zoom</span>
-      <ButtonGroup track label="Player view zoom">
-        <Button
-          square
-          tone="plain"
-          onClick={() => onChange(stepZoom(zoom, -1))}
-          disabled={disabled}
-          aria-label="Zoom out"
-        >
-          <Minus className="h-3.5 w-3.5" />
-        </Button>
-        <span className="relative z-10 -ml-px inline-flex">
-          <input
-            type="number"
-            aria-label="Zoom percentage"
-            min={Math.round(MIN_ZOOM * 100)}
-            max={Math.round(MAX_ZOOM * 100)}
-            value={text}
-            disabled={disabled}
-            onChange={(event) => setText(event.target.value)}
-            onFocus={(event) => {
-              editingRef.current = true;
-              event.currentTarget.select();
-            }}
-            onBlur={() => {
-              editingRef.current = false;
-              commit();
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') event.currentTarget.blur();
-            }}
-            // Square inside its group: rounded-none! wins over the field's own rounding
-            className={`${inputClass} w-16 rounded-none! pr-6 text-right disabled:opacity-40`}
-          />
-          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[13px] text-muted">
-            %
-          </span>
-        </span>
-        <Button
-          square
-          tone="plain"
-          onClick={() => onChange(stepZoom(zoom, 1))}
-          disabled={disabled}
-          aria-label="Zoom in"
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </Button>
-      </ButtonGroup>
-    </div>
+      <input
+        type="number"
+        aria-label="Zoom percentage"
+        min={Math.round(MIN_ZOOM * 100)}
+        max={Math.round(MAX_ZOOM * 100)}
+        value={text}
+        disabled={disabled}
+        onChange={(event) => setText(event.target.value)}
+        onFocus={(event) => {
+          editingRef.current = true;
+          event.currentTarget.select();
+        }}
+        onBlur={() => {
+          editingRef.current = false;
+          commit();
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') event.currentTarget.blur();
+        }}
+        className={`${inputClass} w-16 pr-6 text-right disabled:opacity-40`}
+      />
+      <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[13px] text-muted">
+        %
+      </span>
+    </span>
   );
 }

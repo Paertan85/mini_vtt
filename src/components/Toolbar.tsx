@@ -11,10 +11,14 @@
 //           and the window, as GNOME's guidelines put them in an app's one
 //           primary menu
 //
+// Always one line where it can be: the options take the room they need, and the
+// player controls get the rest, showing icons only when it runs short (a CSS
+// container query, so nothing is measured in JavaScript). Only in a very
+// narrow window do the options wrap, within their own part.
+//
 // Buttons are borderless and choices sit in dark tracks, so the bar is grouped
-// by spacing (Fluent's command bar). Solid gold marks the current tool; options
-// and toggles that are on get a gold outline (tone "on"), so the tool stands
-// out (NN/g, "Modes in user interfaces"). Tooltips read "Name (key): what it does."
+// by spacing (Fluent's command bar). Options and toggles that are on get an
+// accent outline (tone "on"). Tooltips read "Name (key): what it does."
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, Menu as MenuIcon, PanelLeftClose, PanelLeftOpen, Redo2, Undo2 } from 'lucide-react';
@@ -112,10 +116,8 @@ export const Toolbar = memo(function Toolbar({
   }, [shapesNeed]);
 
   return (
-    // One line where there is room. Where there isn't (a narrow window, or the
-    // library open), the player controls go to a second line, at the right,
-    // and the tool's options keep the first; the library button, undo, redo
-    // and the menu stay on the first line whatever happens
+    // The library button, undo, redo and the menu keep their place whatever
+    // happens; the tool's options and the player controls share the middle
     <div className="flex min-h-12 shrink-0 items-start gap-2 border-b border-line bg-panel px-3 py-2">
       {/* Always here, whatever the tool */}
       <div className="flex h-8 shrink-0 items-center gap-2">
@@ -162,14 +164,14 @@ export const Toolbar = memo(function Toolbar({
         <Divider />
       </div>
 
-      <div className="@container flex min-w-0 flex-1 flex-wrap items-start gap-2">
+      <div className="flex min-w-0 flex-1 items-start gap-2">
         {/* The current tool's options (the tools themselves are in ToolRail). As
-        wide as they are, so the player controls wrap beneath them rather than
-        squeeze them; past a whole line they wrap within their own part */}
+        wide as they are; they wrap only when the player controls are down to
+        their icons and there still isn't room */}
         <div
           role="group"
           aria-label="Tool options"
-          className="flex min-h-8 min-w-0 flex-auto flex-wrap items-center gap-2"
+          className="flex min-h-8 min-w-0 flex-[0_1_auto] flex-wrap items-center gap-2"
         >
           {/* In the Effects tool, and in the Fog tool whatever its way of drawing,
           so the fog's options don't move when it changes (Shift paints fog with
@@ -189,7 +191,7 @@ export const Toolbar = memo(function Toolbar({
                 value={tools.brushSize}
                 onChange={(event) => tools.setBrushSize(Number(event.target.value))}
                 aria-label="Brush size"
-                className="w-24 accent-gold"
+                className="w-24 accent-accent"
               />
             </label>
           )}
@@ -317,7 +319,7 @@ export const Toolbar = memo(function Toolbar({
                   value={tools.markerSize}
                   onChange={(event) => tools.setMarkerSize(Number(event.target.value))}
                   aria-label="Marker size"
-                  className="w-24 accent-gold"
+                  className="w-24 accent-accent"
                 />
                 <span className="w-8 text-right tabular-nums text-ink">
                   {tools.measureNeedsGrid ? tools.markerSize : `${tools.markerSize}×${tools.markerSize}`}
@@ -442,10 +444,10 @@ export const Toolbar = memo(function Toolbar({
           )}
         </div>
 
-        {/* What the players see: at the right, whatever the tool. It shrinks
-          only by shortening the line saying what players see */}
-        <div className="ml-auto flex h-8 min-w-0 items-center gap-2">
-          <Divider />
+        {/* What the players see: at the right, whatever the tool, in the room
+          the options leave. A size container, so PlayerControls can tell how
+          much room it has; never narrower than its icons-only form */}
+        <div className="@container flex h-8 min-w-[17.5rem] flex-[1_0_17.5rem] items-center justify-end">
           <PlayerControls
             playerView={playerView}
             playerScreen={playerScreen}

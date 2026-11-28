@@ -61,7 +61,7 @@ export function Dialog({ title, onClose, children, footer, width = 'w-104', dim 
         className={`${width} max-w-[calc(100vw-2rem)] rounded-sm border border-line-strong bg-panel`}
       >
         <div className="flex items-center justify-between border-b border-line py-2 pl-4 pr-2">
-          <h2 id={titleId} className="font-display text-[15px] font-semibold tracking-wide text-ink">
+          <h2 id={titleId} className="text-[16px] font-semibold text-ink">
             {title}
           </h2>
           <Button tone="quiet" square onClick={onClose} aria-label="Close">

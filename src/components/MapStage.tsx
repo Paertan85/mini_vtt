@@ -867,7 +867,7 @@ export function MapStage(props: MapStageProps) {
             {gridPreview && previewCell > 1 && (
               <GridLines
                 cell={previewCell}
-                color="rgb(212 175 55 / 0.8)"
+                color="rgb(95 208 224 / 0.8)"
                 offsetX={gridPreview.offsetX * displayScale}
                 offsetY={gridPreview.offsetY * displayScale}
                 className="z-10"
@@ -912,7 +912,7 @@ export function MapStage(props: MapStageProps) {
               >
                 <polygon
                   ref={shapes.previewRef}
-                  className="fill-gold/15 stroke-gold data-[mode=cover]:fill-ground/40"
+                  className="fill-accent/15 stroke-accent data-[mode=cover]:fill-ground/40"
                   strokeWidth={2}
                   strokeDasharray="6 4"
                   vectorEffect="non-scaling-stroke"
@@ -1028,7 +1028,7 @@ export function MapStage(props: MapStageProps) {
                   <span
                     key={index}
                     aria-hidden="true"
-                    className="pointer-events-none absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-ground bg-gold"
+                    className="pointer-events-none absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-ground bg-accent"
                     style={{ left: at.x, top: at.y }}
                   />
                 );
@@ -1039,7 +1039,7 @@ export function MapStage(props: MapStageProps) {
           <div
             ref={cursorRef}
             aria-hidden="true"
-            className="pointer-events-none absolute left-0 top-0 z-20 rounded-full border-2 border-gold"
+            className="pointer-events-none absolute left-0 top-0 z-20 rounded-full border-2 border-accent"
             style={{
               borderColor: paintsEffects ? EFFECT_STYLES[effectKind].color : undefined,
               visibility: 'hidden',
@@ -1061,22 +1061,23 @@ export function MapStage(props: MapStageProps) {
         </div>
       ) : (
         <div className="max-w-xs text-center">
-          <p className="font-display text-lg text-ink">No map loaded</p>
+          <p className="text-lg font-medium text-ink">No map loaded</p>
           <p className="mt-2 text-[13px] leading-relaxed text-muted">
             Add maps in the library, or drop image and WebM files onto it. Double-click a map to load it.
           </p>
         </div>
       )}
-      {mediaUrl && shownView.zoom > 1 && (
+      {/* The DM view's zoom, always shown while a map is loaded; zoomed in, a click fits the map again */}
+      {mediaUrl && (
         <button
           type="button"
           title={keyLabel(
-            'DM view only; players are unaffected. Ctrl + mouse wheel zooms, middle-drag pans (right-drag too, where the right button doesn’t paint). Click to fit the map.',
+            `DM view only; players are unaffected. Ctrl + mouse wheel zooms, middle-drag pans (right-drag too, where the right button doesn’t paint).${shownView.zoom > 1 ? ' Click to fit the map.' : ''}`,
           )}
           onClick={() => setView(FIT_VIEW)}
           className="absolute bottom-3 right-3 z-50 rounded-sm border border-line bg-panel/90 px-2 py-1 text-[12px] tabular-nums text-ink hover:bg-raised"
         >
-          DM view {Math.round(shownView.zoom * 100)}% · Fit
+          DM view {Math.round(shownView.zoom * 100)}%{shownView.zoom > 1 && ' · Fit'}
         </button>
       )}
     </main>

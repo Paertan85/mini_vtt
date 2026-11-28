@@ -139,7 +139,7 @@ export function AreaHandles({
                     .map(mapToSurface)
                     .map((point) => `${point.x},${point.y}`)
                     .join(' ')}
-                  className="fill-none stroke-gold"
+                  className="fill-none stroke-accent"
                   strokeWidth={2}
                   strokeDasharray="6 4"
                   strokeLinejoin="round"
@@ -156,7 +156,7 @@ export function AreaHandles({
                     : 'Drag to aim and set the length (5 ft steps; Ctrl: turn in 45° steps)'
                 }
                 // Its ::before reaches 4px past its edge, so it is easier to grab than it looks
-                className="absolute z-40 h-3.5 w-3.5 rotate-45 cursor-crosshair border-2 border-gold bg-ground before:absolute before:-inset-1.5"
+                className="absolute z-40 h-3.5 w-3.5 rotate-45 cursor-crosshair border-2 border-accent bg-ground before:absolute before:-inset-1.5"
                 style={{ left: tip.x - 7, top: tip.y - 7 }}
                 onPointerDown={(event) => handleAreaPointerDown(event, area.id, true)}
                 onPointerMove={handleAreaPointerMove}
@@ -167,7 +167,7 @@ export function AreaHandles({
             {selected && !outline && (
               <div
                 aria-hidden="true"
-                className="pointer-events-none absolute z-20 rounded-full border-2 border-dashed border-gold"
+                className="pointer-events-none absolute z-20 rounded-full border-2 border-dashed border-accent"
                 style={{
                   left: center.x - diameter / 2,
                   top: center.y - diameter / 2,
@@ -188,7 +188,7 @@ export function AreaHandles({
               )}
               // 12px across, and its ::before reaches 6px past its edge: a 24px target, easier to grab than it looks
               className={`absolute z-30 h-3 w-3 cursor-move rounded-full border-2 before:absolute before:-inset-2 before:rounded-full ${
-                selected ? 'border-ground bg-gold' : 'border-gold'
+                selected ? 'border-ground bg-accent' : 'border-accent'
               }`}
               style={{
                 left: center.x - 6,
@@ -257,7 +257,7 @@ export function AreaHandles({
                     aria-label={EFFECT_STYLES[kind].label}
                     aria-pressed={area.kind === kind}
                     onClick={() => onRecolor(area.id, kind)}
-                    className={`h-5 w-5 rounded-xs border-2 ${area.kind === kind ? 'border-gold' : 'border-transparent'}`}
+                    className={`h-5 w-5 rounded-xs border-2 ${area.kind === kind ? 'border-accent' : 'border-transparent'}`}
                     style={{ backgroundColor: EFFECT_STYLES[kind].color }}
                   />
                 ))}

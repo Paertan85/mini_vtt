@@ -96,14 +96,14 @@ const HANDLES: { side: Point; corner: boolean; cursor: string; style: React.CSSP
 ];
 
 const OUTLINE_COLORS: Record<RoomStatus, string> = {
-  hidden: 'border-gold/80',
-  partly: 'border-gold/50',
-  open: 'border-arcane/70',
+  hidden: 'border-accent/80',
+  partly: 'border-accent/50',
+  open: 'border-ink/60',
 };
 const STATUS_COLORS: Record<RoomStatus, string> = {
   hidden: 'text-muted',
-  partly: 'text-gold',
-  open: 'text-arcane',
+  partly: 'text-accent',
+  open: 'text-ink',
 };
 
 const sameRect = (a: Rect, b: Rect) =>
@@ -278,7 +278,7 @@ export function FogRoomsLayer({
             key={room.id}
             data-room={room.id}
             title={editable ? roomTitle : undefined}
-            className={`group absolute border-2 border-dashed ${status ? OUTLINE_COLORS[status] : 'border-gold/60'} ${
+            className={`group absolute border-2 border-dashed ${status ? OUTLINE_COLORS[status] : 'border-accent/60'} ${
               editable ? 'cursor-pointer' : ''
             }`}
             style={boxOf(shown)}
@@ -292,7 +292,7 @@ export function FogRoomsLayer({
                   data-side={`${side.x},${side.y}`}
                   className={`absolute ${cursor} ${
                     corner
-                      ? 'h-2.5 w-2.5 border border-gold bg-ground opacity-0 group-hover:opacity-100'
+                      ? 'h-2.5 w-2.5 border border-accent bg-ground opacity-0 group-hover:opacity-100'
                       : side.x === 0
                         ? 'h-2.5'
                         : 'w-2.5'
@@ -317,7 +317,7 @@ export function FogRoomsLayer({
       {drag?.kind === 'draw' && drag.rect && (
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute border-2 border-dashed border-gold bg-gold/10"
+          className="pointer-events-none absolute border-2 border-dashed border-accent bg-accent/10"
           style={boxOf(drag.rect)}
         />
       )}
@@ -365,7 +365,7 @@ function RoomBar({
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === 'Escape') event.currentTarget.blur();
         }}
-        className="w-24 rounded-sm border border-transparent bg-transparent px-1 py-0.5 text-[12px] text-ink placeholder:text-muted hover:border-line focus:border-gold focus:outline-hidden"
+        className="w-24 rounded-sm border border-transparent bg-transparent px-1 py-0.5 text-[12px] text-ink placeholder:text-muted hover:border-line focus:border-accent focus:outline-hidden"
       />
       <button
         type="button"

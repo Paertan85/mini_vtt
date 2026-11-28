@@ -5,7 +5,6 @@ import { PlayerScreen } from './components/PlayerScreen';
 import '@fontsource/ibm-plex-sans/latin-400.css';
 import '@fontsource/ibm-plex-sans/latin-500.css';
 import '@fontsource/ibm-plex-sans/latin-600.css';
-import '@fontsource/cinzel/latin-600.css';
 import './index.css';
 
 const isViewOnly = new URLSearchParams(window.location.search).get('mode') === 'view';

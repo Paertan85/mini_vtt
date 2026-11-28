@@ -208,7 +208,7 @@ export function RulerGraphic({
         <polyline
           points={path}
           fill="none"
-          className="stroke-gold"
+          className="stroke-accent"
           strokeWidth={2 * scale}
           strokeDasharray={`${6 * scale} ${4 * scale}`}
           strokeLinecap="round"
@@ -220,7 +220,7 @@ export function RulerGraphic({
             cx={point.x}
             cy={point.y}
             r={(index === 0 || index === points.length - 1 ? 4 : 3) * scale}
-            className="fill-gold stroke-ground"
+            className="fill-accent stroke-ground"
             strokeWidth={1.5 * scale}
           />
         ))}

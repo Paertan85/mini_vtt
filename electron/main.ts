@@ -73,7 +73,7 @@ const windowIcon =
 const DM_WINDOW = { width: 1280, height: 860 };
 
 // Matches the UI's background colour, so windows don't flash white on open
-const WINDOW_BACKGROUND = '#171412';
+const WINDOW_BACKGROUND = '#131417';
 
 const MAP_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'webm'];
 const HANDOUT_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'];

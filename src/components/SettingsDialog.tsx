@@ -45,7 +45,7 @@ const OPACITY_SLIDERS: { layer: OpacityLayer; label: string; note: string }[] = 
 /** How long the slideshow shows a picture: “20 seconds”, “1 minute”. */
 const slideshowTime = (seconds: number) => (seconds === 60 ? '1 minute' : `${seconds} seconds`);
 
-const heading = 'border-b border-line pb-1 font-display text-[13px] font-semibold tracking-wide text-ink';
+const heading = 'border-b border-line pb-1 text-[14px] font-semibold text-ink';
 const note = 'mt-1 text-xs leading-relaxed text-muted';
 
 export function SettingsDialog({ settings, app, viewportSize, onClose }: SettingsDialogProps) {
@@ -308,7 +308,7 @@ function PlayerScreenSection({
 
       <div className="mt-4">
         <p className="text-[13px] text-ink">Player view frame colour</p>
-        {/* Equal swatches in one row; the chosen one is ringed (not gold, which is a choice itself) */}
+        {/* Equal swatches in one row; the chosen one is ringed (not in the accent, which is a choice itself) */}
         <div role="group" aria-label="Player view frame colour" className="mt-1.5 flex gap-2">
           {FRAME_COLORS.map((choice) => (
             <button
@@ -354,7 +354,7 @@ function Check({
         aria-label={label}
         checked={checked}
         onChange={onChange}
-        className="mt-0.5 h-4 w-4 shrink-0 accent-gold"
+        className="mt-0.5 h-4 w-4 shrink-0 accent-accent"
       />
       <span>
         {label}

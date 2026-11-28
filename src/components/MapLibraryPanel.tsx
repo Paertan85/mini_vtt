@@ -53,7 +53,7 @@ export const MapLibraryPanel = memo(function MapLibraryPanel({
               aria-selected={selected}
               onClick={() => setTab(name)}
               className={`-mb-px flex items-center gap-1.5 border-b-2 px-3 text-[13px] font-medium transition-colors ${
-                selected ? 'border-gold text-ink' : 'border-transparent text-muted hover:text-ink'
+                selected ? 'border-accent text-ink' : 'border-transparent text-muted hover:text-ink'
               }`}
             >
               {name === 'maps' ? 'Maps' : 'Handouts'}
@@ -65,7 +65,7 @@ export const MapLibraryPanel = memo(function MapLibraryPanel({
 
       <div
         role="tabpanel"
-        className={`min-h-0 flex-1 overflow-y-auto p-2 ${filesOver ? 'bg-gold/5 outline-dashed outline-2 -outline-offset-4 outline-gold' : ''}`}
+        className={`min-h-0 flex-1 overflow-y-auto p-2 ${filesOver ? 'bg-accent/5 outline-dashed outline-2 -outline-offset-4 outline-accent' : ''}`}
         onDragOver={(event) => {
           if (!hasFiles(event)) return;
           event.preventDefault();
@@ -195,7 +195,7 @@ function MapList({ library, playerScreen }: ListProps) {
             }}
             onDragEnd={endDrag}
             className={`${draggingId === map.id ? 'opacity-40' : ''} ${
-              dropTargetId === map.id ? 'shadow-[0_-2px_0_0_var(--color-gold)]' : ''
+              dropTargetId === map.id ? 'shadow-[0_-2px_0_0_var(--color-accent)]' : ''
             }`}
           >
             <Card
@@ -299,7 +299,7 @@ function Card(props: CardProps) {
   return (
     <div
       className={`group relative flex items-center gap-2.5 rounded border p-1.5 pr-1 ${
-        props.selected ? 'border-gold/70 bg-raised' : 'border-transparent hover:bg-raised'
+        props.selected ? 'border-accent/70 bg-raised' : 'border-transparent hover:bg-raised'
       }`}
     >
       <button
@@ -321,9 +321,9 @@ function Card(props: CardProps) {
           {(props.live || props.details.length > 0) && (
             // Up to two lines, so the facts aren't cut off while there is room for them
             <span className="line-clamp-2 text-xs text-muted">
-              {/* Gold, like the border of the selected card */}
+              {/* The accent, like the border of the selected card */}
               {props.live && (
-                <span className={`font-medium ${props.covered ? 'text-crimson-bright' : 'text-gold'}`}>
+                <span className={`font-medium ${props.covered ? 'text-crimson-bright' : 'text-accent'}`}>
                   Live
                 </span>
               )}
@@ -380,7 +380,7 @@ function RenameField({ initial, onDone }: { initial: string; onDone: (name: stri
         if (event.key === 'Enter') finish(value);
         if (event.key === 'Escape') finish(initial);
       }}
-      className="h-6 w-full rounded-sm border border-gold bg-ground px-1 text-[13px] text-ink outline-hidden"
+      className="h-6 w-full rounded-sm border border-accent bg-ground px-1 text-[13px] text-ink outline-hidden"
     />
   );
 }

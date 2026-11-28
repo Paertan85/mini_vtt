@@ -12,7 +12,7 @@ All notable changes to this project are documented here. The format is based on
   the players to look at while the DM gets the next map ready or the group
   takes a break: character art, the world map, whatever the group likes. The
   DM can load the next map, frame it and reveal its first room meanwhile; P
-  again, or **Slideshow** in the bar beneath the map, shows it. The pictures come from the `slideshow` folder in the library folder
+  again, or **Slideshow** in the toolbar, shows it. The pictures come from the `slideshow` folder in the library folder
   (**Settings → Slideshow → Open folder**), or another one chosen with
   **Choose folder…** there, in name order (2 before 10). The folder
   is read each time the slideshow starts, so pictures added since are in it.
@@ -44,9 +44,18 @@ All notable changes to this project are documented here. The format is based on
   - What the players see is at the **right of the toolbar**, so the map gets
     the rest of the window: the player screen, **Blackout**, **Slideshow**,
     and **True scale**, **Fill screen**, the zoom lock and the player view's
-    zoom. Where the toolbar is too narrow for all of it (a smaller window, or
-    the library open), these go on a second line, at the right. Its **Player
-    screen** button opens the player window, and closes it again.
+    zoom, together in one dark strip, each with an icon. The player view's
+    zoom is just its percentage, to type in; the + and − keys and the mouse
+    wheel still step it, and the − and + buttons and the words "Player zoom"
+    are gone. The toolbar stays one line: where it runs short of room (a tool
+    with many options, a smaller window, or the library open), these buttons
+    show only their icons (their names are in the tooltips), Player screen,
+    Blackout and Slideshow last. So the map no longer moves down when another
+    tool is picked. Only a window about 1300
+    pixels wide or less, with the library open, still needs a second line for
+    the Fog and Spells options. Its **Player screen** button opens the player
+    window, and closes it again; a red dot on it says the player screen is
+    live.
   - While players see something other than the map (the kill screen, the
     slideshow, a blackout or a handout), those controls turn crimson and say
     so, in place of the banner above the map. The map area keeps its size, so
@@ -66,6 +75,22 @@ All notable changes to this project are documented here. The format is based on
   window.
 - The library panel no longer has a title row above its tabs, which leaves
   more room for maps.
+- **A plainer look**: neutral dark greys in place of the warm brown ones,
+  light blue in place of gold for the current tool, the options that are on
+  and the guides drawn on the map (the ruler, handles, rooms and the grid being
+  measured), and IBM Plex Sans for headings as well, in place of Cinzel. Text
+  reads more clearly: the light blue has more contrast than the gold had, and
+  so do the grey texts. The current tool in the rail is tinted, with a bar at
+  its edge, rather than filled. Open rooms are outlined in white rather than
+  teal, to tell them from rooms still hidden.
+- The **player view frame** and its grid are **white** unless another colour is
+  picked in Settings, where the colours now run white, teal, magenta, gold,
+  crimson and sky blue. A colour picked before stays as it is. Teal is a
+  greener teal now, so a teal frame is told apart from the light blue ruler
+  and handles.
+- The **DM view's zoom** is always shown at the bottom right of the map, also
+  when the whole map fits (100%). Zoomed in, a click on it still fits the map
+  again.
 
 ### Fixed
 

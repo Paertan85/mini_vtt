@@ -34,9 +34,7 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
       <div className="gap-x-8 min-[900px]:columns-2 min-[1200px]:columns-3">
         {SHORTCUT_GROUPS.map((group) => (
           <section key={group.title} className="mb-4 break-inside-avoid last:mb-0">
-            <h3 className="border-b border-line pb-1 font-display text-[13px] font-semibold tracking-wide text-ink">
-              {group.title}
-            </h3>
+            <h3 className="border-b border-line pb-1 text-[14px] font-semibold text-ink">{group.title}</h3>
             {group.note && <p className="mt-1 text-xs text-muted">{group.note}</p>}
             <dl className="mt-1.5 flex flex-col gap-0.5 text-[13px]">
               {group.shortcuts.map(([action, ways, note]) => (
@@ -75,7 +73,7 @@ interface WelcomeDialogProps {
   onClose: () => void;
 }
 
-const welcomeHeading = 'font-display text-[13px] font-semibold tracking-wide text-ink';
+const welcomeHeading = 'text-[14px] font-semibold text-ink';
 const welcomeList = 'mt-1.5 flex list-disc flex-col gap-1 pl-5 text-[13px] leading-relaxed text-muted';
 
 /** Opens on start-up until turned off, and again from the menu (☰). */
@@ -98,7 +96,7 @@ export function WelcomeDialog({
               type="checkbox"
               checked={!showOnStartup}
               onChange={(event) => onShowOnStartupChange(!event.target.checked)}
-              className="h-4 w-4 accent-gold"
+              className="h-4 w-4 accent-accent"
             />
             Don’t show on start-up
           </label>
@@ -138,7 +136,7 @@ export function WelcomeDialog({
           <button
             type="button"
             onClick={onOpenSettings}
-            className="text-gold underline decoration-gold/40 underline-offset-2 hover:text-gold-bright"
+            className="text-accent underline decoration-accent/40 underline-offset-2 hover:text-accent-bright"
           >
             Settings
           </button>

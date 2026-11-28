@@ -20,8 +20,8 @@ import type { Size } from '../lib/geometry';
 import { EFFECT_KINDS, EFFECT_STYLES } from '../lib/effects';
 import { areaOutline, coveredSquares, squaresPaths } from '../lib/areas';
 
-/** The edge of an origin dot: the app's gold, as on the DM's handle */
-const ORIGIN_EDGE = '#c9a227';
+/** The edge of an origin dot: the app's accent, as on the DM's handle */
+const ORIGIN_EDGE = '#5fd0e0';
 /** Fill strength of the squares an area covers, over its body */
 const SQUARE_OPACITY = 0.2;
 /** Where a circle's rim starts fading, as a share of the radius: a thin soft

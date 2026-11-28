@@ -1,9 +1,9 @@
 // The tools, in a rail down the left edge of the map, where image editors
 // (Photoshop, GIMP, Krita) and other VTTs (Foundry, Roll20) keep them. Each has
 // an icon with its name beneath, since icons alone are hard to tell apart
-// (NN/g, "Icon usability"); the key is in its tooltip. Solid gold marks the
-// current tool, as it did in the toolbar. The tool's options are in the
-// toolbar above the map.
+// (NN/g, "Icon usability"); the key is in its tooltip. The current tool is
+// tinted in the accent, with a bar at its left edge, as in VS Code's activity
+// bar. The tool's options are in the toolbar above the map.
 
 import { memo } from 'react';
 import { CloudFog, Flame, MapPin, Ruler, Scan, WandSparkles, type LucideIcon } from 'lucide-react';
@@ -96,8 +96,10 @@ export const ToolRail = memo(function ToolRail({
             // The View tool works without a map: it is where the app starts
             disabled={tool !== 'view' && !hasMap}
             title={title}
-            className={`flex h-13 w-14 shrink-0 flex-col items-center justify-center gap-1 rounded-sm text-[11px] font-medium transition-colors disabled:pointer-events-none disabled:opacity-40 ${
-              current ? 'bg-gold text-ground hover:bg-gold-bright' : 'text-ink hover:bg-raised-hover'
+            className={`relative flex h-13 w-14 shrink-0 flex-col items-center justify-center gap-1 rounded-sm text-[11px] font-medium transition-colors disabled:pointer-events-none disabled:opacity-40 ${
+              current
+                ? 'bg-accent/15 text-accent-bright before:absolute before:inset-y-2 before:-left-1 before:w-0.5 before:rounded-full before:bg-accent'
+                : 'text-ink hover:bg-raised-hover'
             }`}
           >
             <Icon aria-hidden="true" className="h-5 w-5" strokeWidth={1.75} />

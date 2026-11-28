@@ -375,8 +375,8 @@ app.whenReady().then(async () => {
       (await js(`${playerButton}.textContent`)).includes('live'),
     );
     check(
-      'and the loaded map is marked Live, in gold',
-      (await waitFor(async () => (await liveMark()).live?.includes('text-gold'))) === true,
+      'and the loaded map is marked Live, in the accent colour',
+      (await waitFor(async () => (await liveMark()).live?.includes('text-accent'))) === true,
       String((await liveMark()).live),
     );
 
@@ -952,9 +952,9 @@ app.whenReady().then(async () => {
       await js(`!!document.querySelector('[aria-label="Player view"] [aria-label="Zoom locked"]')`),
     );
     check(
-      'the lock is saved and the zoom buttons are off',
+      'the lock is saved and the zoom field is off',
       (await waitFor(() => readIndex().settings.lockZoom === true)) &&
-        (await js(`document.querySelector('[aria-label="Zoom in"]').disabled`)) === true,
+        (await js(`document.querySelector('[aria-label="Zoom percentage"]').disabled`)) === true,
     );
     await click('[aria-label="Lock zoom"]');
     await sleep(900);
@@ -1039,7 +1039,7 @@ app.whenReady().then(async () => {
     await sleep(100);
     const brushVisible = () =>
       js(
-        `[...document.querySelectorAll('div.rounded-full.border-gold')].some((el) => el.style.visibility === 'visible')`,
+        `[...document.querySelectorAll('div.rounded-full.border-accent')].some((el) => el.style.visibility === 'visible')`,
       );
     const overMap = await fogRect();
     main.webContents.sendInputEvent({
@@ -2363,7 +2363,7 @@ app.whenReady().then(async () => {
     await waitFor(async () => (await zoomText()) === '250');
 
     // Zoom out to 150% on Alpha, switch to Beta and back
-    for (let i = 0; i < 3; i++) await click('[aria-label="Zoom out"]');
+    for (let i = 0; i < 3; i++) await press('-');
     check('zoom steps down to 150%', (await zoomText()) === '150', `${await zoomText()}%`);
     await loadMap('Beta');
     await sleep(1200);

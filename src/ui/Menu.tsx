@@ -80,7 +80,7 @@ export function Menu({ items, align = 'left', trigger }: MenuProps) {
                   item.danger ? 'text-crimson-text' : 'text-ink'
                 } hover:bg-raised focus:bg-raised`}
               >
-                <span className="w-3 text-gold" aria-hidden="true">
+                <span className="w-3 text-accent" aria-hidden="true">
                   {item.checked ? '✓' : ''}
                 </span>
                 <span className="flex-1">{item.label}</span>

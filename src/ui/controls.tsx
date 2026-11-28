@@ -16,9 +16,9 @@ const TONES: Record<Tone, string> = {
   default: 'bg-raised border-line text-ink hover:border-line-strong hover:bg-raised-hover',
   plain: 'bg-transparent border-transparent text-ink hover:bg-raised-hover',
   quiet: 'bg-transparent border-transparent text-muted hover:text-ink hover:bg-raised',
-  active: 'bg-gold border-gold text-ground hover:bg-gold-bright hover:border-gold-bright',
+  active: 'bg-accent border-accent text-ground hover:bg-accent-bright hover:border-accent-bright',
   // Above its neighbours in a group, so its gold outline isn't hidden under theirs
-  on: 'relative z-10 bg-raised border-gold text-gold-bright hover:bg-raised-hover hover:border-gold-bright',
+  on: 'relative z-10 bg-raised border-accent text-accent-bright hover:bg-raised-hover hover:border-accent-bright',
   live: 'bg-crimson border-crimson text-ink hover:bg-crimson-bright hover:border-crimson-bright',
 };
 
@@ -86,7 +86,7 @@ export const Kbd = ({ children }: { children: React.ReactNode }) => (
 /** Shared look for text and number inputs. */
 export const inputClass =
   'h-8 rounded-sm border border-line bg-ground px-2 text-[13px] text-ink tabular-nums ' +
-  'placeholder:text-muted focus:border-gold focus:outline-hidden ' +
+  'placeholder:text-muted focus:border-accent focus:outline-hidden ' +
   '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
 
 interface SliderProps {
@@ -126,7 +126,7 @@ export function Slider({ label, value, min, max, step, onChange, className = 'w-
       value={value}
       onChange={(event) => onChange(Number(event.target.value), false)}
       aria-label={label}
-      className={`${className} accent-gold`}
+      className={`${className} accent-accent`}
     />
   );
 }
